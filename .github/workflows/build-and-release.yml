@@ -24,24 +24,28 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install
+          npm install --save-dev electron electron-builder electron-updater
 
-      - name: Build React
+      - name: Build React app
         run: npm run build
+        env:
+          VITE_APP_VERSION: ${{ github.ref_name }}
 
-      - name: Build and publish with Electron Builder
+      - name: Build Electron app with auto-update
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run electron:publish
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run electron:build
 
-      - name: Create Release Notes
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          files: dist_electron/**/*.exe
+          draft: false
+          prerelease: false
           body: |
             ## 🆕 Yeni Özellikler
 
@@ -57,12 +61,15 @@ jobs:
             ## 📦 Kurulum
 
             En son `.exe` dosyasını indir ve çalıştır.
-          draft: false
-          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: electron-app
-          path: dist_electron/
+          name: build-artifacts
+          path: |
+            dist_electron/
+            dist/
           retention-days: 30
