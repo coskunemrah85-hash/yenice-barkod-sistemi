@@ -1,0 +1,5 @@
+{
+  "name": "Yenice İç Giyim barkod programı",
+  "description": "A modern, barcode-based sales system for Yenice İç Giyim. It features a clean, centered interface for quick sales processing and includes AI-powered sales analysis to generate insightful reports.",
+  "requestFramePermissions": []
+}

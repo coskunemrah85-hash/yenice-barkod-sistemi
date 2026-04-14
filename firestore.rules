@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields: id, email, name, role
+    //
+    // Collection: products
+    // Document ID: {barcode}
+    // Fields: barcode, name, buyPrice, price, stock, stokKodu, marka, model, renk, beden, anaStokKodu, group, midGroup, subGroup, supplierId, isDeleted, isActivated
+    //
+    // Collection: salesHistory
+    // Document ID: {saleId}
+    // Fields: id, total, date, paymentMethod, customerId, items
+    //
+    // Collection: suppliers
+    // Document ID: {supplierId}
+    // Fields: id, name, code, email
+    //
+    // Collection: companyInfo
+    // Document ID: settings
+    // Fields: name, appTitle
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "coskunemrah85@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /products/{barcode} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /salesHistory/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /companyInfo/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /brands/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /models/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /colors/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /sizes/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /groups/{id} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+
+    match /purchaseHistory/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /paymentHistory/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /returnHistory/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /endOfDayHistory/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /missingLists/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

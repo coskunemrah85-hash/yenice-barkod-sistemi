@@ -1,0 +1,52 @@
+# --- Bağımlılıklar ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Derleme ve Paketleme Çıktıları (KRİTİK) ---
+dist/
+dist-ssr/
+dist_electron/
+build/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.blockmap
+*.zip
+
+# --- Log Dosyaları ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Firebase & Gizli Ayarlar ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+firebase-applet-config.json
+# firebase-blueprint.json (Eğer sadece şablonsa kalabilir ama gizliyse kapat)
+
+# --- Editör ve Sistem Dosyaları ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Geçici Dosyalar ---
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
