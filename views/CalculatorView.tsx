@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
-// Eğer ikon kütüphanesi kullanıyorsan (örn: lucide-react), şuraya bir ikon ekleyebilirsin:
-// import { Calculator } from 'lucide-react';
 
 const CalculatorView: React.FC = () => {
   const [display, setDisplay] = useState<string>('0');
   const [equation, setEquation] = useState<string>('');
   const [previousValue, setPreviousValue] = useState<string>('');
   const [operator, setOperator] = useState<string>('');
+
+  // Güvenli matematik hesaplayıcı (eval() alternatifi)
+  const safeCalculate = (leftOperand: string, op: string, rightOperand: string): number => {
+    const left = parseFloat(leftOperand);
+    const right = parseFloat(rightOperand);
+    
+    if (isNaN(left) || isNaN(right)) throw new Error('Geçersiz sayı');
+    
+    switch (op) {
+      case '+': return left + right;
+      case '-': return left - right;
+      case '*': return left * right;
+      case '/': 
+        if (right === 0) throw new Error('Sıfıra bölünemez');
+        return left / right;
+      default: throw new Error('Geçersiz operatör');
+    }
+  };
 
   const handleNumber = (num: string) => {
     if (display === '0' || display === 'Hata') {
@@ -20,8 +36,7 @@ const CalculatorView: React.FC = () => {
     if (operator && display !== '0' && display !== 'Hata') {
       // Eğer zaten bir operatör varsa, önce hesapla
       try {
-        // eslint-disable-next-line no-eval
-        const result = eval(previousValue + ' ' + operator + ' ' + display);
+        const result = safeCalculate(previousValue, operator, display);
         setDisplay(String(result));
         setPreviousValue(String(result));
       } catch {
@@ -40,8 +55,7 @@ const CalculatorView: React.FC = () => {
     if (!operator || !previousValue) return;
     
     try {
-      // eslint-disable-next-line no-eval
-      const result = eval(previousValue + ' ' + operator + ' ' + display);
+      const result = safeCalculate(previousValue, operator, display);
       setDisplay(String(result));
       setEquation('');
       setPreviousValue('');
