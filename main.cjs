@@ -165,6 +165,21 @@ ipcMain.on('restart_app', () => {
   autoUpdater.quitAndInstall();
 });
 
+ipcMain.on('check_for_updates', async () => {
+  if (win) {
+    console.log('🔍 Manuel güncelleme kontrolü başlatıldı...');
+    try {
+      const result = await autoUpdater.checkForUpdatesAndNotify();
+      if (result && !result.updateInfo) {
+        console.log('✅ Sistem güncel, yeni sürüm yok.');
+      }
+    } catch (error) {
+      console.error('❌ Güncelleme kontrolü hatası:', error);
+      if (win) win.webContents.send('updater_error', 'Güncelleme kontrolü başarısız. Daha sonra tekrar deneyin.');
+    }
+  }
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

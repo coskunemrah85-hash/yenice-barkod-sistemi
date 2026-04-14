@@ -62,7 +62,8 @@
       {
         "provider": "github",
         "owner": "coskunemrah85-hash",
-        "repo": "yenice-barkod-sistemi"
+        "repo": "yenice-barkod-sistemi",
+        "releaseType": "release"
       }
     ],
     "nsis": {

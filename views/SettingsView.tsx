@@ -6,9 +6,11 @@ interface SettingsViewProps {
     currentUser: User;
     companyInfo: CompanyInfo;
     onUpdateCompanyInfo: (info: CompanyInfo) => void;
+    onCheckUpdates?: () => void;
+    currentVersion?: string;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, companyInfo, onUpdateCompanyInfo }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, companyInfo, onUpdateCompanyInfo, onCheckUpdates, currentVersion = '1.0.0' }) => {
     // Local state for settings. In a real app, this would come from a context or props.
     const [localCompanyInfo, setLocalCompanyInfo] = useState(companyInfo);
     const [receiptSettings, setReceiptSettings] = useState({
@@ -298,6 +300,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, companyInfo, o
                             </label>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Uygulamanın renk temasını koyu veya açık olarak değiştirebilirsiniz.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Update Settings Card */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                            <Icon name="refresh" className="w-6 h-6 text-cyan-700" />
+                            Güncellemeler
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
+                                <div>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Mevcut Sürüm</p>
+                                    <p className="text-2xl font-bold text-slate-800 dark:text-white">{currentVersion}</p>
+                                </div>
+                                <button
+                                    onClick={onCheckUpdates}
+                                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md hover:shadow-cyan-500/40 flex items-center gap-2"
+                                >
+                                    <Icon name="refresh" className="w-5 h-5" />
+                                    Güncellemeleri Kontrol Et
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                ✅ Uygulama otomatik olarak güncellemeleri kontrol eder. Manuel kontrol için yukarıdaki butonu kullanabilirsiniz.
                             </p>
                         </div>
                     </div>

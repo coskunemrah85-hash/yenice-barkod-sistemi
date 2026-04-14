@@ -30,6 +30,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFirestore, useFirestoreDoc } from './hooks/useFirestore';
 import CalculatorView from './views/CalculatorView';
+import UpdateCheckModal from './components/UpdateCheckModal';
 
 const initialAdmin: User = {
   id: 'admin-1',
@@ -147,6 +148,12 @@ const App: React.FC = () => {
   const [aiTasks, setAiTasks] = useState<AITask[]>([]);
   const [reviewingTask, setReviewingTask] = useState<AITask | null>(null);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  
+  // Update check states
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; changelog: string; releaseDate: string } | null>(null);
+  const [currentAppVersion, setCurrentAppVersion] = useState('1.0.7');
 
 
   useEffect(() => {
@@ -161,6 +168,60 @@ const App: React.FC = () => {
         return [...prevTabs, { id: view, label, icon, payload }];
     });
     setActiveTabId(view);
+  }, []);
+
+  // Güncelleme kontrol fonksiyonu
+  const checkForUpdates = useCallback(async () => {
+    setIsCheckingUpdates(true);
+    setUpdateInfo(null);
+    
+    try {
+      // GitHub API kullanarak direkt release bilgisi al
+      const response = await fetch('https://api.github.com/repos/coskunemrah85-hash/yenice-barkod-sistemi/releases');
+      if (!response.ok) throw new Error('GitHub releases API erişilemiyor');
+      
+      const releases = await response.json();
+      
+      // En son release'ı bul (draft ve prerelease olmayan)
+      const latestRelease = releases.find((r: any) => !r.draft && !r.prerelease);
+      
+      if (!latestRelease) {
+        throw new Error('Yayımlanmış release bulunamadı');
+      }
+      
+      const latestVersion = latestRelease.tag_name.replace('v', '');
+      
+      // Versiyon karşılaştırması
+      if (latestVersion !== currentAppVersion) {
+        setUpdateInfo({
+          version: latestVersion,
+          changelog: latestRelease.body || 'Değişiklik detayı yok.',
+          releaseDate: latestRelease.published_at || new Date().toISOString(),
+        });
+      } else {
+        setUpdateInfo(null); // Sistem güncel
+      }
+    } catch (error) {
+      console.error('Güncelleme kontrol hatası:', error);
+      alert(`❌ Güncelleme kontrol yapılamadı: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}\n\nLütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.`);
+    } finally {
+      setIsCheckingUpdates(false);
+      setShowUpdateModal(true);
+    }
+  }, [currentAppVersion]);
+
+  const handleDirectUpdate = useCallback(() => {
+    const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
+    if (ipcRenderer) {
+      console.log('📲 Electron-updater tetikleniyor...');
+      ipcRenderer.send('check_for_updates');
+      // Modal'ı kapatmıyoruz, güncelleme mesajlarını göstermesine izin veriyoruz
+      setTimeout(() => {
+        setShowUpdateModal(false);
+      }, 2000);
+    } else {
+      alert('⚠️ Electron ortamı algılanamadı. Lütfen uygulamayı yeniden başlatın.');
+    }
   }, []);
 
   const handleCloseTab = useCallback((tabIdToClose: View) => {
@@ -873,6 +934,8 @@ const App: React.FC = () => {
           currentUser={currentUser!}
           companyInfo={companyInfo}
           onUpdateCompanyInfo={handleUpdateCompanyInfo}
+          onCheckUpdates={checkForUpdates}
+          currentVersion={currentAppVersion}
         />;
        case View.REMOTE_ACCESS:
         return <RemoteAccessView 
@@ -980,6 +1043,15 @@ const App: React.FC = () => {
       <UserManualModal 
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
+      />
+      <UpdateCheckModal
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        updateInfo={updateInfo}
+        isChecking={isCheckingUpdates}
+        isUpdating={false}
+        onUpdate={handleDirectUpdate}
+        currentVersion={currentAppVersion}
       />
 
       {/* Bağlantı Durumu Göstergesi - Sağ Üst (Saatin Yanına Küçük Işık) */}
