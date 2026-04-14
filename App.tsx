@@ -29,6 +29,7 @@ import Icon from './components/Icon';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFirestore, useFirestoreDoc } from './hooks/useFirestore';
+import CalculatorView from './views/CalculatorView';
 
 const initialAdmin: User = {
   id: 'admin-1',
@@ -919,6 +920,8 @@ const App: React.FC = () => {
           onUpdateProducts={setProducts}
           onNavigate={navigateTo}
         />;
+      case View.CALCULATOR:
+        return <CalculatorView />;
       case View.DASHBOARD:
       default:
         return <DashboardView 

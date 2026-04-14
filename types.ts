@@ -197,6 +197,7 @@ export enum View {
   EXCEL_OPERATIONS = 'EXCEL_OPERATIONS',
   PURCHASE_MENU = 'PURCHASE_MENU',
   AI_PRICE_UPDATE = 'AI_PRICE_UPDATE',
+  CALCULATOR = 'CALCULATOR',
 }
 
 export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel';
