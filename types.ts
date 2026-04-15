@@ -198,9 +198,12 @@ export enum View {
   PURCHASE_MENU = 'PURCHASE_MENU',
   AI_PRICE_UPDATE = 'AI_PRICE_UPDATE',
   CALCULATOR = 'CALCULATOR',
+  CALCULATOR_MENU = 'CALCULATOR_MENU',
+  MONEY_COUNTER = 'MONEY_COUNTER',
+  SERIAL_LABEL = 'SERIAL_LABEL',
 }
 
-export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel';
+export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'barcode' | 'calculator-menu';
 
 export interface Tab {
   id: View;

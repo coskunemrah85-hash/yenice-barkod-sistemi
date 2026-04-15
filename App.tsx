@@ -30,6 +30,9 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFirestore, useFirestoreDoc } from './hooks/useFirestore';
 import CalculatorView from './views/CalculatorView';
+import CalculatorMenuView from './views/CalculatorMenuView';
+import MoneyCounterView from './views/MoneyCounterView';
+import SerialLabelView from './views/SerialLabelView';
 import UpdateCheckModal from './components/UpdateCheckModal';
 
 const initialAdmin: User = {
@@ -153,7 +156,7 @@ const App: React.FC = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; changelog: string; releaseDate: string } | null>(null);
-  const [currentAppVersion, setCurrentAppVersion] = useState('1.0.7');
+  const [currentAppVersion, setCurrentAppVersion] = useState('1.0.8');
 
 
   useEffect(() => {
@@ -985,6 +988,21 @@ const App: React.FC = () => {
         />;
       case View.CALCULATOR:
         return <CalculatorView />;
+      case View.CALCULATOR_MENU:
+        return <CalculatorMenuView 
+          onNavigate={navigateTo}
+        />;
+      case View.MONEY_COUNTER:
+        return <MoneyCounterView />;
+      case View.SERIAL_LABEL:
+        return <SerialLabelView 
+          products={products}
+          brands={brands}
+          models={models}
+          colors={colors}
+          sizes={sizes}
+          groups={groups}
+        />;
       case View.DASHBOARD:
       default:
         return <DashboardView 

@@ -63,9 +63,15 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
             {/* --- Yardımcı Araçlar --- */}
             <DashboardButton
               iconName="list-bullet"
-              label="Hesap Makinesi"
-              onClick={() => onNavigate(View.CALCULATOR, 'Hesap Makinesi', 'list-bullet')}
+              label="Hesap Makinesi Menüsü"
+              onClick={() => onNavigate(View.CALCULATOR_MENU, 'Hesap Makinesi Menüsü', 'list-bullet')}
               color="orange"
+            />
+            <DashboardButton
+              iconName="barcode"
+              label="Seri Etiket Tasarımı"
+              onClick={() => onNavigate(View.SERIAL_LABEL, 'Seri Etiket Tasarımı', 'barcode')}
+              color="rose"
             />
             <DashboardButton
               iconName="ai"
