@@ -32,7 +32,7 @@ import { useFirestore, useFirestoreDoc } from './hooks/useFirestore';
 import CalculatorView from './views/CalculatorView';
 import CalculatorMenuView from './views/CalculatorMenuView';
 import MoneyCounterView from './views/MoneyCounterView';
-import SerialLabelView from './views/SerialLabelView';
+import LabelDesigner from './views/LabelDesigner';
 import UpdateCheckModal from './components/UpdateCheckModal';
 
 const initialAdmin: User = {
@@ -995,14 +995,11 @@ const App: React.FC = () => {
       case View.MONEY_COUNTER:
         return <MoneyCounterView />;
       case View.SERIAL_LABEL:
-        return <SerialLabelView 
-          products={products}
-          brands={brands}
-          models={models}
-          colors={colors}
-          sizes={sizes}
-          groups={groups}
-        />;
+        return (
+          <LabelDesigner 
+            products={products} // Firebase'den gelen ürün listesini gönderiyoruz
+          />
+        );
       case View.DASHBOARD:
       default:
         return <DashboardView 

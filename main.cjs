@@ -21,17 +21,20 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 
 function createWindow() {
+  // İkon yolunu belirliyoruz (build/icon.png dosyasını kullandık)
+  const iconPath = path.join(__dirname, 'build', 'icon.png');
+
   win = new BrowserWindow({
     width: 1366,
     height: 768,
     title: "Yenice İç Giyim Barkod Sistemi",
+    icon: iconPath, // <--- YENİ LOGO BURAYA EKLENDİ
     autoHideMenuBar: true, 
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false,
       sandbox: false,
-      // Yeni nesil Electron sürümlerinde pop-up desteği için:
       nativeWindowOpen: true,
       setWindowRect: true
     }
@@ -39,9 +42,13 @@ function createWindow() {
 
   win.maximize();
 
+  // Görev çubuğu ikonu için Windows uygulama kimliği
+  if (process.platform === 'win32') {
+    app.setAppUserModelId("com.yeniceicgiyim.barkod");
+  }
+
   // GELİŞTİRİLMİŞ PENCERE YÖNETİMİ (GOOGLE GİRİŞ + FİŞ YAZDIRMA)
   win.webContents.setWindowOpenHandler(({ url }) => {
-    // Yazdırma (about:blank) veya Google/Firebase adreslerine izin ver
     if (
       url.includes('accounts.google.com') || 
       url.includes('firebaseapp.com') || 
@@ -53,25 +60,22 @@ function createWindow() {
         overrideBrowserWindowOptions: {
           width: 800,
           height: 700,
+          icon: iconPath, // Pop-up pencerelere de ikonu ekliyoruz
           autoHideMenuBar: true,
           webPreferences: {
             nodeIntegration: false,
-            contextIsolation: true, // Google ve güvenli pencereler için şart
+            contextIsolation: true, 
             nativeWindowOpen: true
           }
         }
       };
     }
     
-    // Bunlar dışındaki linkleri (web siteleri vb.) varsayılan tarayıcıda aç
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  // Uygulama paketlenmiş (exe) ise derlenmiş HTML dosyasını, değilse localhost'u yükle
   if (app.isPackaged) {
-    // Firebase Google Auth'un "file://" protokolünde çalışmaması (yetkisiz alan adı) hatasını
-    // çözmek için dosyaları rastgele bir localhost portunda sunan mini bir sunucu başlatıyoruz.
     const server = http.createServer((req, res) => {
       let reqUrl = decodeURIComponent(req.url.split('?')[0]);
       if (reqUrl === '/') reqUrl = '/index.html';
@@ -95,8 +99,6 @@ function createWindow() {
       });
     });
 
-    // Sabit bir port kullanıyoruz ki localStorage, IndexedDB ve Firebase Oturum bilgileri silinmesin.
-    // Port rastgele olursa her açılışta adres değişir ve kullanıcı hep çıkış yapmış olur.
     let port = 14532;
     server.on('error', (e) => {
       if (e.code === 'EADDRINUSE') {
@@ -108,12 +110,10 @@ function createWindow() {
       win.loadURL(`http://localhost:${port}`);
     });
   } else {
-    // Vite adresini yükle
     win.loadURL('http://localhost:5173', {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
     });
 
-    // Geliştirme aşamasında sayfa yüklenemezse otomatik tazele
     win.webContents.on('did-fail-load', () => {
       setTimeout(() => {
         if (!win.isDestroyed()) win.loadURL('http://localhost:5173');
@@ -125,10 +125,7 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   
-  // Uygulama paketlenmişse (production) güncellemeleri kontrol et
   if (app.isPackaged) {
-    // React arayüzünün tamamen yüklenmesi ve bildirimi dinlemeye başlaması için
-    // güncelleme kontrolünü 5 saniye geciktirerek başlatıyoruz.
     setTimeout(() => {
       autoUpdater.checkForUpdatesAndNotify();
     }, 5000);
