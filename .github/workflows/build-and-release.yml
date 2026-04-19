@@ -7,6 +7,10 @@ on:
     tags:
       - 'v*'
 
+# Node sürümü uyarısını kapatmak ve güncele zorlamak için
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
@@ -18,17 +22,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Node 18 yerine daha güncel olan 20'ye geçtik
+          node-version: '22' # Node 20 yerine daha kararlı olan 22 veya 24'e geçtik
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps # Bağımlılık çakışmalarını önlemek için
 
-      - name: Build React app
-        run: npm run build
-
-      - name: Build Electron app
-        run: npm run electron:build
+      - name: Build React and Electron
+        # electron-builder'ı publish modunda değil, sadece build modunda çalıştırıyoruz
+        run: npm run electron:build 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -37,25 +39,16 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # KRİTİK DEĞİŞİKLİK: latest.yml ve blockmap dosyalarını da ekliyoruz
           files: |
             dist_electron/*.exe
-            dist_electron/*.yml
+            dist_electron/latest.yml
             dist_electron/*.blockmap
           draft: false
           prerelease: false
           body: |
-            ## 🆕 Yenice Barkod Sistemi v1.0.8
-            
-            ### Özellikler:
-            ✨ Hesap Makinesi Entegrasyonu
-            🔄 Otomatik Güncelleme Sistemi İyileştirmeleri
-            🔧 Ayarlar Menüsü Güncelleme Kontrolü
-            
-            ### Hata Düzeltmeleri:
-            ✅ İndentasyon ve Operatör hataları giderildi.
-            
-            **Not:** Güncelleme hatası alan kullanıcıların bu sürümü manuel kurması önerilir.
+            ## 🆕 Yenice Barkod Sistemi
+            Bu sürüm GitHub Actions tarafından otomatik olarak oluşturulmuştur.
+          generate_release_notes: true # Notları otomatik oluşturur
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,7 +57,5 @@ jobs:
         if: always()
         with:
           name: build-artifacts
-          path: |
-            dist_electron/
-            dist/
+          path: dist_electron/
           retention-days: 7
