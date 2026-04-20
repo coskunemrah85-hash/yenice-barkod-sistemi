@@ -50,13 +50,13 @@ const AiDataImportModal: React.FC<AiDataImportModalProps> = ({ onClose, onSucces
   const processDataWithAI = async (excelData: any[]): Promise<ImportedData> => {
     setProgress({ current: 1, total: 5, message: 'AI ile veri analiz ediliyor...' });
 
-    const apiKey = process.env.GEMINI_API_KEY || (window as any).process?.env?.GEMINI_API_KEY;
+    const apiKey = localStorage.getItem('GEMINI_API_KEY') || process.env.GEMINI_API_KEY || (window as any).process?.env?.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('Gemini API anahtarı bulunamadı');
+      throw new Error('Gemini API anahtarı bulunamadı. Lütfen Ayarlar menüsünden API anahtarınızı kontrol edin.');
     }
 
-    const client = new GoogleGenAI({ apiKey });
-    const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const client = new GoogleGenAI(apiKey);
+    const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const prompt = `
     Aşağıdaki Excel verilerini analiz et ve JSON formatında organize et:
@@ -286,7 +286,7 @@ const AiDataImportModal: React.FC<AiDataImportModalProps> = ({ onClose, onSucces
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 transition"
           >
-            <Icon name="close" className="w-6 h-6" />
+            <Icon name="x-circle" className="w-6 h-6" />
           </button>
         </div>
 

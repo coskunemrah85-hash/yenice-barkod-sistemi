@@ -3,10 +3,10 @@ import React from 'react';
 import Icon from './Icon';
 
 interface DashboardButtonProps {
-  iconName: 'new-sale' | 'products' | 'reports' | 'settings' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'tools' | 'users' | 'database' | 'tag' | 'refresh' | 'chart' | 'back';
+  iconName: 'new-sale' | 'products' | 'reports' | 'settings' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'tools' | 'users' | 'database' | 'tag' | 'refresh' | 'chart' | 'back' | 'list-bullet' | 'ai' | 'help' | 'barcode' | 'customer' | 'calculator-menu';
   label: string;
   onClick: () => void;
-  color?: 'cyan' | 'green' | 'purple' | 'indigo' | 'slate' | 'amber' | 'lime' | 'orange' | 'violet' | 'pink' | 'gray' | 'sky' | 'teal' | 'rose';
+  color?: 'cyan' | 'green' | 'purple' | 'indigo' | 'slate' | 'amber' | 'lime' | 'orange' | 'violet' | 'pink' | 'gray' | 'sky' | 'teal' | 'rose' | 'blue' | 'red';
 }
 
 const DashboardButton: React.FC<DashboardButtonProps> = ({ iconName, label, onClick, color = 'cyan' }) => {
@@ -25,6 +25,8 @@ const DashboardButton: React.FC<DashboardButtonProps> = ({ iconName, label, onCl
     sky: { shadow: 'hover:shadow-sky-500/10', ring: 'focus:ring-sky-500', bg: 'bg-sky-100/70', hoverBg: 'group-hover:bg-sky-200/70', text: 'text-sky-600' },
     teal: { shadow: 'hover:shadow-teal-500/10', ring: 'focus:ring-teal-500', bg: 'bg-teal-100/70', hoverBg: 'group-hover:bg-teal-200/70', text: 'text-teal-600' },
     rose: { shadow: 'hover:shadow-rose-500/10', ring: 'focus:ring-rose-500', bg: 'bg-rose-100/70', hoverBg: 'group-hover:bg-rose-200/70', text: 'text-rose-600' },
+    blue: { shadow: 'hover:shadow-blue-500/10', ring: 'focus:ring-blue-500', bg: 'bg-blue-100/70', hoverBg: 'group-hover:bg-blue-200/70', text: 'text-blue-600' },
+    red: { shadow: 'hover:shadow-red-500/10', ring: 'focus:ring-red-500', bg: 'bg-red-100/70', hoverBg: 'group-hover:bg-red-200/70', text: 'text-red-600' },
   };
 
   const selectedColor = colorClasses[color] || colorClasses.cyan;

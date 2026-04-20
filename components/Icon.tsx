@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface IconProps {
-  name: 'barcode' | 'new-sale' | 'products' | 'reports' | 'settings' | 'back' | 'check' | 'trash' | 'plus' | 'minus' | 'ai' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'tools' | 'edit' | 'dashboard' | 'arrows-vertical' | 'view-columns' | 'printer' | 'upload' | 'download' | 'tag' | 'filter' | 'list-bullet' | 'x-circle' | 'restore' | 'users' | 'logout' | 'database' | 'whatsapp' | 'eye' | 'eye-slash' | 'exclamation-triangle' | 'refresh' | 'chart' | 'customer' | 'help' | 'search' | 'sale';
+  name: 'barcode' | 'new-sale' | 'products' | 'reports' | 'settings' | 'back' | 'check' | 'trash' | 'plus' | 'minus' | 'ai' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'tools' | 'edit' | 'dashboard' | 'arrows-vertical' | 'view-columns' | 'printer' | 'upload' | 'download' | 'tag' | 'filter' | 'list-bullet' | 'x-circle' | 'restore' | 'users' | 'logout' | 'database' | 'whatsapp' | 'eye' | 'eye-slash' | 'exclamation-triangle' | 'refresh' | 'chart' | 'customer' | 'help' | 'search' | 'sale' | 'star' | 'calculator-menu';
   className?: string;
 }
 
@@ -50,7 +50,9 @@ const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {
     'customer': <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />,
     'help': <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />,
     'search': <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />,
-    'sale': <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .962-.343 1.087-.835l1.838-5.517a1.875 1.875 0 00-1.742-2.583H5.698M15 15.75a3 3 0 11-6 0 3 3 0 016 0z" />
+    'sale': <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .962-.343 1.087-.835l1.838-5.517a1.875 1.875 0 00-1.742-2.583H5.698M15 15.75a3 3 0 11-6 0 3 3 0 016 0z" />,
+    'star': <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />,
+    'calculator-menu': <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-3-10.5h.008v.008H12.75V7.5zm0 3.25h.008v.008H12.75v-.008zm0 3.25h.008v.008H12.75v-.008zm0 3.25h.008v.008H12.75v-.008zm-3.25-9.75h.008v.008H9.5V7.5zm0 3.25h.008v.008H9.5v-.008zm0 3.25h.008v.008H9.5v-.008zm0 3.25h.008v.008H9.5v-.008zm-3.25-9.75h.008v.008H6.25V7.5zm0 3.25h.008v.008H6.25v-.008zm0 3.25h.008v.008H6.25v-.008zm0 3.25h.008v.008H6.25v-.008zM15 6.75h.008v.008H15V6.75zm0 3.25h.008v.008H15v-.008zm0 3.25h.008v.008H15v-.008z" />
   };
 
   return (
