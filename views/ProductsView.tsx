@@ -209,8 +209,14 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
         const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+        if (isExcel && !(window as any).XLSX) {
+            showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+            if (excelInputRef.current) excelInputRef.current.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
 
         reader.onload = (event) => {
             showNotificationMessage('success', 'Dosya okunuyor, ürünler işleniyor... Lütfen bekleyin.');

@@ -34,6 +34,7 @@ import CalculatorMenuView from './views/CalculatorMenuView';
 import MoneyCounterView from './views/MoneyCounterView';
 import LabelDesigner from './views/LabelDesigner';
 import UpdateCheckModal from './components/UpdateCheckModal';
+import packageJson from './package.json';
 
 const initialAdmin: User = {
   id: 'admin-1',
@@ -156,7 +157,7 @@ const App: React.FC = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; changelog: string; releaseDate: string } | null>(null);
-  const [currentAppVersion, setCurrentAppVersion] = useState('1.0.8');
+  const [currentAppVersion, setCurrentAppVersion] = useState(packageJson.version);
 
 
   useEffect(() => {

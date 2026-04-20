@@ -5,10 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: './', // Electron için kritik: Dosya yollarını düzeltir.
+      base: './', 
       server: {
         port: 5173, 
-        strictPort: true, // EKLE: 5173 doluysa 5174'e GEÇME. Hata ver ki çakışmayı çözelim.
+        strictPort: true, 
         host: '0.0.0.0',
       },
       plugins: [react()],
@@ -19,6 +19,29 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+        }
+      },
+      // EKLEME YAPILAN KISIM BURASI:
+      build: {
+        chunkSizeWarningLimit: 1000, // Uyarı eşiğini 1000kb'a çıkarır
+        rollupOptions: {
+          output: {
+            // Büyük kütüphaneleri ayrı dosyalara böler (Performans için)
+            manualChunks(id) {
+              if (id.includes('node_modules')) {
+                if (id.includes('firebase')) {
+                  return 'vendor-firebase';
+                }
+                if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('xlsx')) {
+                  return 'vendor-utils';
+                }
+                if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) {
+                  return 'vendor-react';
+                }
+                return 'vendor'; // Geri kalan küçük kütüphaneler
+              }
+            }
+          }
         }
       }
     }

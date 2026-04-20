@@ -942,8 +942,14 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    if (isExcel && !(window as any).XLSX) {
+        showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+        if (excelInputRef.current) excelInputRef.current.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
 
     reader.onload = (event) => {
         showSuccess('Dosya okunuyor, ürünler ve tanımlar işleniyor... Lütfen bekleyin.');

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icon from '../components/Icon';
+import AiDataImportModal from '../components/AiDataImportModal';
 import { View, TabIcon, Product, SaleRecord, PurchaseRecord } from '../types';
 
 interface ExcelOperationsViewProps {
@@ -11,6 +12,8 @@ interface ExcelOperationsViewProps {
 
 const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, products, salesHistory, purchaseHistory }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [showAiImport, setShowAiImport] = useState(false);
+  const [importSuccess, setImportSuccess] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
 
   const handleDownloadTemplate = () => {
     if (!(window as any).XLSX) {
@@ -119,6 +122,14 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
 
   const excelFeatures = [
     {
+      id: 'ai-data-import',
+      title: 'AI Asistanlı Veri Aktarım',
+      description: 'Başka bir sistemden Excel\'le dışa aktardığınız tüm ürün, tedarikçi, grup, renk ve model verilerini AI ile otomatik sisteme aktarın.',
+      icon: 'ai' as TabIcon,
+      action: () => setShowAiImport(true),
+      badge: 'ÖNERİLİ'
+    },
+    {
       id: 'product-import',
       title: 'Ürün İçe Aktar (Excel)',
       description: 'Excel dosyasındaki ürünleri sisteme toplu olarak ekleyin. Yapay zeka desteği ile sütunları otomatik eşleştirir.',
@@ -178,17 +189,29 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
           {excelFeatures.map((feature) => (
             <div 
               key={feature.id}
-              className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:border-green-300 hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
+              className={`bg-white p-8 rounded-3xl shadow-sm border transition-all cursor-pointer group relative overflow-hidden ${
+                feature.badge === 'ÖNERİLİ'
+                  ? 'border-purple-300 hover:border-purple-400 hover:shadow-2xl'
+                  : 'border-slate-200 hover:border-green-300 hover:shadow-xl'
+              }`}
               onClick={feature.action}
             >
               {feature.badge && (
-                <div className="absolute top-4 right-4 bg-cyan-100 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                  <Icon name="ai" className="w-3 h-3" />
+                <div className={`absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 ${
+                  feature.badge === 'ÖNERİLİ'
+                    ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
+                    : 'bg-cyan-100 text-cyan-700'
+                }`}>
+                  <Icon name={feature.badge === 'ÖNERİLİ' ? 'star' : 'ai'} className="w-3 h-3" />
                   {feature.badge}
                 </div>
               )}
               <div className="flex items-start gap-6">
-                <div className="p-4 bg-slate-100 text-slate-600 rounded-2xl group-hover:bg-green-50 group-hover:text-green-600 transition-colors">
+                <div className={`p-4 rounded-2xl transition-colors ${
+                  feature.badge === 'ÖNERİLİ'
+                    ? 'bg-gradient-to-br from-purple-100 to-pink-100 text-purple-600 group-hover:from-purple-200 group-hover:to-pink-200'
+                    : 'bg-slate-100 text-slate-600 group-hover:bg-green-50 group-hover:text-green-600'
+                }`}>
                   <Icon name={feature.icon} className="w-8 h-8" />
                 </div>
                 <div>
@@ -251,13 +274,37 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
               Excel dosyalarınızdaki başlıklar sistemle birebir aynı olmasa bile AI bunları anlayabilir. Örneğin; "Miktar", "Adet", "Stok" başlıklarının hepsini sistemdeki "Stock" alanına otomatik yönlendirir.
             </p>
             <button 
-              onClick={() => onNavigate(View.AI_SETTINGS, 'Yapay Zeka', 'ai')}
+            onClick={() => onNavigate(View.SETTINGS, 'Ayarlar', 'settings')}
               className="w-full bg-white text-cyan-700 font-bold py-4 rounded-2xl hover:bg-cyan-50 transition-colors shadow-md relative z-10"
             >
               AI Ayarlarını Yönet
             </button>
           </section>
         </div>
+
+        {/* AI Data Import Modal */}
+        {showAiImport && (
+          <AiDataImportModal
+            onClose={() => setShowAiImport(false)}
+            onSuccess={(count) => {
+              setImportSuccess({ show: true, count });
+              setTimeout(() => {
+                setImportSuccess({ show: false, count: 0 });
+              }, 5000);
+            }}
+          />
+        )}
+
+        {/* Success Notification */}
+        {importSuccess.show && (
+          <div className="fixed bottom-8 right-8 bg-gradient-to-r from-green-400 to-emerald-500 text-white p-6 rounded-2xl shadow-2xl flex items-center gap-4 z-50 animate-bounce">
+            <Icon name="check" className="w-8 h-8" />
+            <div>
+              <p className="font-bold text-lg">✅ Veri Aktarımı Tamamlandı!</p>
+              <p className="text-green-50 text-sm">{importSuccess.count} ürün başarıyla sisteme aktarıldı.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

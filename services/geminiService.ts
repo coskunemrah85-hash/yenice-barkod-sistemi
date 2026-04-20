@@ -125,7 +125,7 @@ export const generateProductDescription = async (productInfo: Partial<Product>):
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
     
@@ -196,7 +196,7 @@ export const getSalesCoaching = async (salesData: SaleRecord[], products: Produc
     `;
     
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -245,7 +245,7 @@ export const extractProductsFromContent = async (
         `;
         
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: { parts: [filePart, {text: fullPrompt}] },
             config: {
                 responseMimeType: "application/json",
@@ -322,7 +322,7 @@ export const extractPurchaseItemsFromContent = async (
         `;
         
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: { parts: [filePart, {text: fullPrompt}] },
             config: {
                 responseMimeType: "application/json",
@@ -388,7 +388,7 @@ export const extractSuppliersFromContent = async (
         `;
         
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: { parts: [filePart, {text: fullPrompt}] },
             config: {
                 responseMimeType: "application/json",
@@ -461,7 +461,7 @@ export const analyzeSalesData = async (query: string, salesData: SaleRecord[]): 
     `;
     
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
 
@@ -540,7 +540,7 @@ export const generateLowStockReport = async (
         `;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -634,7 +634,7 @@ export const getAppSupport = async (userQuery: string): Promise<string> => {
         `;
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: prompt,
         });
 
@@ -673,7 +673,7 @@ export const extractPriceUpdatesFromContent = async (
         `;
         
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.0-flash",
             contents: { parts: [filePart, {text: fullPrompt}] },
             config: {
                 responseMimeType: "application/json",

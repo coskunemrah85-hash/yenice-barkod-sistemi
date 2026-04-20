@@ -25,5 +25,14 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist_electron",
+    "build",
+    "release",
+    "release-builds",
+    "migrated_prompt_history"
+  ]
 }
