@@ -1,7 +1,7 @@
 {
   "name": "yenice-ic-giyim-barkod",
   "private": true,
-  "version": "1.1.8",
+  "version": "1.1.9",
   "type": "module",
   "description": "Yenice Barkod ve Stok Takip Sistemi",
   "repository": {
@@ -15,7 +15,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder",
+    "electron:build": "npm run build && electron-builder -p never",
     "electron:publish": "npm run build && electron-builder -p always"
   },
   "dependencies": {
@@ -61,8 +61,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "build/icon.ico",
       "certificateFile": null,
