@@ -7,7 +7,7 @@ node_modules/
 dist/
 dist-ssr/
 dist_electron/
-build/
+build/*
 !build/icon.png
 *.exe
 *.dmg
