@@ -623,21 +623,34 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
                                 return (
                                     <React.Fragment key={groupKey}>
-                                        <tr className="border-b dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                                            <td className="p-2 text-center border-r dark:border-slate-700"><button onClick={() => toggleGroup(groupKey)} className="flex items-center justify-center w-full"><Icon name="arrows-vertical" className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} /></button></td>
-                                            {visibleColumns.map(col => (
-                                                <td key={col.id} className="px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 truncate" style={{ textAlign: col.align || 'left'}}>
-                                                    {(() => {
-                                                        if (col.id === 'name') return `${baseName} (${group.length} varyasyon)`;
-                                                        if (col.id === 'stock') return <span className={totalStock <= 5 ? 'text-red-600 dark:text-red-400' : ''}>{totalStock}</span>;
-                                                        if (col.id === 'actions') return <div className="flex justify-center"><button onClick={() => handleEditProductGroup(mainProduct.anaStokKodu)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600 dark:hover:text-cyan-400" title="Ürün Grubunu Düzenle"><Icon name="edit" className="w-5 h-5"/></button></div>;
-                                                        const value = (mainProduct as any)[col.id];
-                                                        if (value !== undefined && !['buyPrice', 'price', 'renk', 'beden', 'barcode', 'stokKodu', 'description'].includes(col.id)) return value;
-                                                        return '--';
-                                                    })()}
-                                                </td>
-                                            ))}
-                                        </tr>
+                                <tr 
+                                    className="border-b dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                    onClick={() => toggleGroup(groupKey)}
+                                >
+                                    <td className="p-2 text-center border-r dark:border-slate-700">
+                                        <div className="flex items-center justify-center w-full">
+                                            <Icon name="arrows-vertical" className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                        </div>
+                                    </td>
+                                    {visibleColumns.map(col => (
+                                        <td key={col.id} className="px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 truncate" style={{ textAlign: col.align || 'left'}}>
+                                            {(() => {
+                                                if (col.id === 'name') return `${baseName} (${group.length} varyasyon)`;
+                                                if (col.id === 'stock') return <span className={totalStock <= 5 ? 'text-red-600 dark:text-red-400' : ''}>{totalStock}</span>;
+                                                if (col.id === 'actions') return (
+                                                    <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                                                        <button onClick={() => handleEditProductGroup(mainProduct.anaStokKodu)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600 dark:hover:text-cyan-400" title="Ürün Grubunu Düzenle">
+                                                            <Icon name="edit" className="w-5 h-5"/>
+                                                        </button>
+                                                    </div>
+                                                );
+                                                const value = (mainProduct as any)[col.id];
+                                                if (value !== undefined && !['buyPrice', 'price', 'renk', 'beden', 'barcode', 'stokKodu', 'description'].includes(col.id)) return value;
+                                                return '--';
+                                            })()}
+                                        </td>
+                                    ))}
+                                </tr>
                                         {isExpanded && group.map(p => (
                                             <tr key={p.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-800 hover:bg-cyan-50/30 dark:hover:bg-cyan-900/10 transition-colors">
                                                 <td className="border-r dark:border-slate-700"></td>

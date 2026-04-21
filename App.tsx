@@ -35,6 +35,8 @@ import MoneyCounterView from './views/MoneyCounterView';
 import LabelDesigner from './views/LabelDesigner';
 import UpdateCheckModal from './components/UpdateCheckModal';
 import packageJson from './package.json';
+import ContextMenu from './components/ContextMenu';
+import * as XLSX from 'xlsx';
 
 const initialAdmin: User = {
   id: 'admin-1',
@@ -158,6 +160,14 @@ const App: React.FC = () => {
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; changelog: string; releaseDate: string } | null>(null);
   const [currentAppVersion, setCurrentAppVersion] = useState(packageJson.version);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setShowContextMenu(true);
+  }, []);
 
 
   useEffect(() => {
@@ -1014,6 +1024,73 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExportCurrentViewToExcel = useCallback(() => {
+    let data: any[] = [];
+    let filename = "yenice_disa_aktarim.xlsx";
+
+    switch (activeTabId) {
+      case View.PRODUCTS:
+        data = products.map(p => ({
+          'Barkod': p.barcode,
+          'Stok Kodu': p.stokKodu,
+          'Ana Stok Kodu': p.anaStokKodu,
+          'Ürün Adı': p.name,
+          'Marka': p.marka,
+          'Model': p.model,
+          'Renk': p.renk,
+          'Beden': p.beden,
+          'Alış Fiyatı': p.buyPrice,
+          'Satış Fiyatı': p.price,
+          'Stok': p.stock
+        }));
+        filename = "urun_listesi.xlsx";
+        break;
+      case View.REPORTS:
+        data = salesHistory.map(s => ({
+          'Tarih': new Date(s.date).toLocaleString('tr-TR'),
+          'İşlem No': s.id,
+          'Toplam': s.total,
+          'Ödeme': s.paymentMethod
+        }));
+        filename = "satis_raporu.xlsx";
+        break;
+      case View.PURCHASE:
+        data = purchaseHistory.map(p => ({
+          'Tarih': new Date(p.date).toLocaleString('tr-TR'),
+          'Fatura No': p.id,
+          'Toplam': p.total
+        }));
+        filename = "alis_raporu.xlsx";
+        break;
+      case View.FINANCE:
+        data = paymentHistory.map(p => ({
+          'Tarih': new Date(p.date).toLocaleString('tr-TR'),
+          'Tutar': p.amount,
+          'Tip': p.type
+        }));
+        filename = "finans_raporu.xlsx";
+        break;
+    }
+
+    if (data.length === 0) {
+      alert("Bu sayfa için dışa aktarılacak veri bulunamadı.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Veri");
+    XLSX.writeFile(wb, filename);
+  }, [activeTabId, products, salesHistory, purchaseHistory, paymentHistory]);
+
+  const contextMenuOptions = [
+    { label: 'Excel\'e Aktar', icon: 'excel', onClick: handleExportCurrentViewToExcel, variant: 'success' as const },
+    { label: 'Kaydet / Değişiklikleri Uygula', icon: 'success', onClick: () => console.log('Save requested'), variant: 'default' as const },
+    { label: 'Kopyala (Metin Seçiliyse)', icon: 'copy', onClick: () => document.execCommand('copy'), variant: 'default' as const },
+    { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData, variant: 'default' as const },
+    { label: 'Sil / Arşivle', icon: 'trash', onClick: () => console.log('Delete requested'), variant: 'danger' as const },
+  ];
+
   if (!isAuthReady) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
@@ -1045,7 +1122,7 @@ const App: React.FC = () => {
         onCloseTab={handleCloseTab}
         onOpenManual={() => setIsManualOpen(true)}
       />
-      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden">
+      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden" onContextMenu={handleContextMenu}>
         <div className="w-full h-full flex flex-col">
           {renderView()}
         </div>
@@ -1067,10 +1144,9 @@ const App: React.FC = () => {
         isChecking={isCheckingUpdates}
         isUpdating={false}
         onUpdate={handleDirectUpdate}
-        currentVersion={currentAppVersion}
+        currentVersion="1.2.2"
       />
 
-      {/* Bağlantı Durumu Göstergesi - Sağ Üst (Saatin Yanına Küçük Işık) */}
       <div 
         className="fixed top-4 right-[280px] z-[100] flex items-center justify-center w-6 h-6 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 cursor-help"
         title={isOnline ? 'Sistem Çevrimiçi' : 'Sistem Çevrimdışı (Yerel Kayıt)'}
@@ -1078,24 +1154,40 @@ const App: React.FC = () => {
         <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></div>
       </div>
 
-      {/* Otomatik Güncelleme Bildirimi */}
       {updateMessage && (
-        <div className="fixed bottom-16 right-4 z-50 flex items-center gap-4 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 animate-fade-in-up">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{updateMessage}</span>
+        <div className="fixed bottom-4 left-4 z-[9999] max-w-sm animate-in slide-in-from-left duration-500">
+          <div className={`p-4 rounded-2xl shadow-2xl border flex items-center gap-4 ${
+            updateReady ? 'bg-green-600 border-green-500 text-white' : 'bg-white border-slate-200 text-slate-800'
+          }`}>
+            <div className={`shrink-0 p-2 rounded-xl ${updateReady ? 'bg-white/20' : 'bg-cyan-50 text-cyan-600'}`}>
+              <Icon name={updateReady ? 'check' : 'refresh'} className={`w-6 h-6 ${!updateReady && 'animate-spin'}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate">{updateMessage}</p>
+              {updateReady && (
+                <button 
+                  onClick={() => (window as any).require('electron').ipcRenderer.send('restart_app')}
+                  className="mt-2 w-full bg-white text-green-700 font-bold py-1.5 rounded-lg text-xs hover:bg-green-50 transition-colors"
+                >
+                  Şimdi Yeniden Başlat
+                </button>
+              )}
+            </div>
+            {!updateReady && (
+              <button onClick={() => setUpdateMessage(null)} className="text-slate-400 hover:text-slate-600">
+                <Icon name="x-circle" className="w-5 h-5" />
+              </button>
+            )}
           </div>
-          {updateReady && (
-            <button
-              onClick={() => (window as any).require('electron').ipcRenderer.send('restart_app')}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-md whitespace-nowrap"
-            >
-              Yeniden Başlat ve Güncelle
-            </button>
-          )}
-          <button onClick={() => setUpdateMessage(null)} className="text-slate-400 hover:text-white p-1">
-            <Icon name="x-circle" className="w-5 h-5" />
-          </button>
         </div>
+      )}
+
+      {showContextMenu && (
+        <ContextMenu 
+          options={contextMenuOptions} 
+          onClose={() => setShowContextMenu(false)} 
+          position={contextMenuPosition}
+        />
       )}
     </div>
   );

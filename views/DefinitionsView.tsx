@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Brand, Model, Color, Size, Group, Supplier, AITaskSupplier, Product, Customer } from '../types';
 import Icon from '../components/Icon';
 import SupplierEditModal from '../components/SupplierEditModal';
@@ -9,9 +10,6 @@ import EditableListItem from '../components/EditableListItem';
 import CustomerEditModal from '../components/CustomerEditModal';
 
 type Tab = 'brands' | 'models' | 'colors' | 'sizes' | 'groups' | 'suppliers' | 'customers';
-
-// @ts-ignore
-const XLSX = window.XLSX;
 
 interface Definitions {
     brands: Brand[];
@@ -207,40 +205,50 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
     };
 
     // --- AI & Excel ---
-    const handleStartAiSupplierTask = async (file: File, prompt: string) => {
-        const taskId = `task-supplier-${Date.now()}`;
-        const newTask: AITaskSupplier = { id: taskId, fileName: file.name, status: 'processing' };
-        setReviewingAiSupplierTask(newTask);
-        setIsAiSupplierReviewModalOpen(true);
+    const handleExportDefinitions = (type: Tab) => {
+        let data: any[] = [];
+        let filename = "";
+        let sheetName = "";
 
-        try {
-            const results = await extractSuppliersFromContent(file, prompt);
-            const completedTask = { ...newTask, status: 'completed' as const, results };
-            setReviewingAiSupplierTask(completedTask);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu.';
-            setReviewingAiSupplierTask({ ...newTask, status: 'error', error: errorMessage });
+        switch (type) {
+            case 'brands':
+                data = definitions.brands.map(b => ({ 'Marka Adı': b.name }));
+                filename = "markalar.xlsx"; sheetName = "Markalar";
+                break;
+            case 'models':
+                data = definitions.models.map(m => {
+                    const brand = definitions.brands.find(b => b.id === m.brandId);
+                    return { 'Marka': brand?.name || 'Bilinmiyor', 'Model Adı': m.name };
+                });
+                filename = "modeller.xlsx"; sheetName = "Modeller";
+                break;
+            case 'colors':
+                data = definitions.colors.map(c => ({ 'Renk Adı': c.name }));
+                filename = "renkler.xlsx"; sheetName = "Renkler";
+                break;
+            case 'sizes':
+                data = definitions.sizes.map(s => ({ 'Beden Adı': s.name }));
+                filename = "bedenler.xlsx"; sheetName = "Bedenler";
+                break;
+            case 'groups':
+                data = definitions.groups.map(g => {
+                    const parent = definitions.groups.find(pg => pg.id === g.parentId);
+                    const brand = definitions.brands.find(b => b.id === g.brandId);
+                    return { 'Marka': brand?.name || 'Genel', 'Üst Grup': parent?.name || '-', 'Grup Adı': g.name };
+                });
+                filename = "gruplar.xlsx"; sheetName = "Gruplar";
+                break;
         }
-    };
-    
-    const handleCommitAiSupplierResults = (taskId: string, suppliersToCommit: Partial<Supplier>[]) => {
-        const newSuppliers = suppliersToCommit.map(s => ({...s, id: `sup-${Date.now()}-${Math.random()}` } as Supplier));
-        onUpdateSuppliers([...suppliers, ...newSuppliers]);
-        setIsAiSupplierReviewModalOpen(false);
-        setReviewingAiSupplierTask(null);
+
+        if (data.length === 0) { alert("Dışa aktarılacak veri bulunamadı."); return; }
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, filename);
     };
 
-    const handleDismissAiSupplierTask = () => {
-        setIsAiSupplierReviewModalOpen(false);
-        setReviewingAiSupplierTask(null);
-    };
-
-     const handleExcelUploadClick = () => {
-        excelInputRef.current?.click();
-        setIsExcelMenuOpen(false);
-    };
-
-    const handleExcelFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImportDefinitions = (type: Tab, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -251,50 +259,39 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (json.length < 2) throw new Error("Dosya boş veya geçersiz.");
-                
-                const headers: string[] = json[0].map((h: any) => String(h).trim().toLowerCase());
-                const nameIndex = headers.indexOf("tedarikçi ünvanı");
-                
-                if (nameIndex === -1) throw new Error("Dosyada 'Tedarikçi Ünvanı' sütunu bulunamadı.");
+                const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                const newSuppliers: Supplier[] = json.slice(1).map((row: any[]) => ({
-                    id: `sup-excel-${Date.now()}-${Math.random()}`,
-                    name: String(row[nameIndex] || ''),
-                    code: String(row[headers.indexOf("cari kodu")] || ''),
-                    firstName: String(row[headers.indexOf("adı")] || ''),
-                    lastName: String(row[headers.indexOf("soyadı")] || ''),
-                    district: String(row[headers.indexOf("ilçesi")] || ''),
-                    city: String(row[headers.indexOf("ili")] || ''),
-                    mobilePhone: String(row[headers.indexOf("cep telefonu")] || ''),
-                    email: String(row[headers.indexOf("email")] || ''),
-                    group: String(row[headers.indexOf("grubu")] || ''),
-                    taxOffice: String(row[headers.indexOf("vergi dairesi")] || ''),
-                    taxNumber: String(row[headers.indexOf("vergi no")] || ''),
-                    nationalId: String(row[headers.indexOf("t.c no")] || ''),
-                    whatsapp: String(row[headers.indexOf("whatsapp")] || ''),
-                })).filter(s => s.name.trim() !== '');
+                if (json.length === 0) throw new Error("Dosya boş veya geçersiz.");
 
-                onUpdateSuppliers([...suppliers, ...newSuppliers]);
-                alert(`${newSuppliers.length} tedarikçi başarıyla eklendi.`);
-
+                switch (type) {
+                    case 'brands':
+                        const newBrands = json.map(row => ({ id: `brand-${Date.now()}-${Math.random()}`, name: String(row['Marka Adı'] || row['marka'] || '').trim() })).filter(b => b.name);
+                        onUpdateBrands([...definitions.brands, ...newBrands]);
+                        break;
+                    case 'models':
+                        const newModels = json.map(row => {
+                            const brandName = String(row['Marka'] || '').trim();
+                            const brand = definitions.brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
+                            return { id: `model-${Date.now()}-${Math.random()}`, name: String(row['Model Adı'] || row['model'] || '').trim(), brandId: brand?.id || '' };
+                        }).filter(m => m.name && m.brandId);
+                        onUpdateModels([...definitions.models, ...newModels]);
+                        break;
+                    case 'colors':
+                        const newColors = json.map(row => ({ id: `color-${Date.now()}-${Math.random()}`, name: String(row['Renk Adı'] || row['renk'] || '').trim() })).filter(c => c.name);
+                        onUpdateColors([...definitions.colors, ...newColors]);
+                        break;
+                    case 'sizes':
+                        const newSizes = json.map(row => ({ id: `size-${Date.now()}-${Math.random()}`, name: String(row['Beden Adı'] || row['beden'] || '').trim() })).filter(s => s.name);
+                        onUpdateSizes([...definitions.sizes, ...newSizes]);
+                        break;
+                }
+                alert("Veriler başarıyla içe aktarıldı.");
             } catch (err: any) {
-                alert(`Excel dosyası işlenirken hata oluştu: ${err.message}`);
+                alert(`Hata: ${err.message}`);
             }
         };
         reader.readAsArrayBuffer(file);
-         if (e.target) e.target.value = '';
-    };
-
-    const handleDownloadTemplate = () => {
-        const headers = ["Tedarikçi Ünvanı", "Cari Kodu", "Adı", "Soyadı", "İlçesi", "İli", "Cep Telefonu", "Email", "Grubu", "Vergi Dairesi", "Vergi No", "T.C. No", "WhatsApp"];
-        const worksheet = XLSX.utils.aoa_to_sheet([headers]);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Tedarikçiler");
-        XLSX.writeFile(workbook, "tedarikci_sablonu.xlsx");
-        setIsExcelMenuOpen(false);
+        e.target.value = '';
     };
 
 
@@ -326,10 +323,19 @@ onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAdd
             case 'brands':
                 return (
                     <DefinitionSection title="Marka Yönetimi">
-                        <form onSubmit={handleAddBrand} className="flex gap-2 mb-4">
-                            <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Yeni marka adı" className="input-style flex-grow" />
-                            <button type="submit" className="btn-primary">Ekle</button>
-                        </form>
+                        <div className="flex justify-between items-center mb-4">
+                            <form onSubmit={handleAddBrand} className="flex gap-2 flex-grow mr-4">
+                                <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Yeni marka adı" className="input-style flex-grow" />
+                                <button type="submit" className="btn-primary">Ekle</button>
+                            </form>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleExportDefinitions('brands')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
+                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
+                                    <Icon name="upload" className="w-5 h-5"/>
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('brands', e)} />
+                                </label>
+                            </div>
+                        </div>
                         <ul className="space-y-1 max-h-96 overflow-y-auto">
                             {definitions.brands.map(brand => <EditableListItem key={brand.id} item={brand} onUpdate={handleUpdateBrand} onDelete={handleDeleteBrand} />)}
                         </ul>
@@ -338,14 +344,23 @@ onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAdd
             case 'models':
                 return (
                     <DefinitionSection title="Model Yönetimi">
-                        <form onSubmit={handleAddModel} className="grid grid-cols-3 gap-2 mb-4">
-                            <select value={selectedBrandIdForModel} onChange={e => setSelectedBrandIdForModel(e.target.value)} className="input-style" required>
-                                <option value="">Marka Seçin</option>
-                                {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                            </select>
-                            <input type="text" value={modelName} onChange={e => setModelName(e.target.value)} placeholder="Yeni model adı" className="input-style" />
-                            <button type="submit" className="btn-primary">Ekle</button>
-                        </form>
+                        <div className="flex justify-between items-center mb-4">
+                            <form onSubmit={handleAddModel} className="grid grid-cols-3 gap-2 flex-grow mr-4">
+                                <select value={selectedBrandIdForModel} onChange={e => setSelectedBrandIdForModel(e.target.value)} className="input-style" required>
+                                    <option value="">Marka Seçin</option>
+                                    {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                                <input type="text" value={modelName} onChange={e => setModelName(e.target.value)} placeholder="Yeni model adı" className="input-style" />
+                                <button type="submit" className="btn-primary">Ekle</button>
+                            </form>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleExportDefinitions('models')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
+                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
+                                    <Icon name="upload" className="w-5 h-5"/>
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('models', e)} />
+                                </label>
+                            </div>
+                        </div>
                         <ul className="space-y-1 max-h-96 overflow-y-auto">
                             {definitions.brands.map(brand => (
                                 <li key={brand.id}>
@@ -361,10 +376,19 @@ onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAdd
             case 'colors':
                  return (
                     <DefinitionSection title="Renk Yönetimi">
-                        <form onSubmit={handleAddColor} className="flex gap-2 mb-4">
-                            <input type="text" value={colorName} onChange={e => setColorName(e.target.value)} placeholder="Yeni renk adı" className="input-style flex-grow" />
-                            <button type="submit" className="btn-primary">Ekle</button>
-                        </form>
+                        <div className="flex justify-between items-center mb-4">
+                            <form onSubmit={handleAddColor} className="flex gap-2 flex-grow mr-4">
+                                <input type="text" value={colorName} onChange={e => setColorName(e.target.value)} placeholder="Yeni renk adı" className="input-style flex-grow" />
+                                <button type="submit" className="btn-primary">Ekle</button>
+                            </form>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleExportDefinitions('colors')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
+                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
+                                    <Icon name="upload" className="w-5 h-5"/>
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('colors', e)} />
+                                </label>
+                            </div>
+                        </div>
                         <ul className="space-y-1 max-h-96 overflow-y-auto">
                             {definitions.colors.map(color => <EditableListItem key={color.id} item={color} onUpdate={handleUpdateColor} onDelete={handleDeleteColor} />)}
                         </ul>
@@ -373,10 +397,19 @@ onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAdd
             case 'sizes':
                  return (
                     <DefinitionSection title="Beden Yönetimi">
-                        <form onSubmit={handleAddSize} className="flex gap-2 mb-4">
-                            <input type="text" value={sizeName} onChange={e => setSizeName(e.target.value)} placeholder="Yeni beden adı" className="input-style flex-grow" />
-                            <button type="submit" className="btn-primary">Ekle</button>
-                        </form>
+                        <div className="flex justify-between items-center mb-4">
+                            <form onSubmit={handleAddSize} className="flex gap-2 flex-grow mr-4">
+                                <input type="text" value={sizeName} onChange={e => setSizeName(e.target.value)} placeholder="Yeni beden adı" className="input-style flex-grow" />
+                                <button type="submit" className="btn-primary">Ekle</button>
+                            </form>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleExportDefinitions('sizes')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
+                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
+                                    <Icon name="upload" className="w-5 h-5"/>
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('sizes', e)} />
+                                </label>
+                            </div>
+                        </div>
                         <ul className="space-y-1 max-h-96 overflow-y-auto">
                             {definitions.sizes.map(size => <EditableListItem key={size.id} item={size} onUpdate={handleUpdateSize} onDelete={handleDeleteSize} />)}
                         </ul>
@@ -392,10 +425,19 @@ onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAdd
                                 {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                             </select>
                         </div>
-                        <form onSubmit={(e) => handleAddGroup(e, null)} className="flex gap-2 mb-4">
-                            <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Yeni ana grup adı" className="input-style flex-grow" />
-                            <button type="submit" className="btn-primary">Ana Grup Ekle</button>
-                        </form>
+                        <div className="flex justify-between items-center mb-4">
+                            <form onSubmit={(e) => handleAddGroup(e, null)} className="flex gap-2 flex-grow mr-4">
+                                <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Yeni ana grup adı" className="input-style flex-grow" />
+                                <button type="submit" className="btn-primary">Ana Grup Ekle</button>
+                            </form>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleExportDefinitions('groups')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
+                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
+                                    <Icon name="upload" className="w-5 h-5"/>
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('groups', e)} />
+                                </label>
+                            </div>
+                        </div>
                         <ul className="space-y-1 max-h-80 overflow-y-auto">
                             {renderGroups(null, 0)}
                         </ul>
