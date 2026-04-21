@@ -1,7 +1,7 @@
 {
   "name": "yenice-ic-giyim-barkod",
   "private": true,
-  "version": "1.1.6",
+  "version": "1.1.7",
   "type": "module",
   "description": "Yenice Barkod ve Stok Takip Sistemi",
   "repository": {
@@ -57,7 +57,6 @@
       "dist/**/*",
       "main.cjs",
       "package.json",
-      "node_modules/**/*",
       "build/**/*"
     ],
     "win": {

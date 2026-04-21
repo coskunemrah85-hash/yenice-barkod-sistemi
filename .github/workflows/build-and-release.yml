@@ -7,6 +7,9 @@ on:
     tags:
       - 'v*'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 
 jobs:
   build:
@@ -19,11 +22,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Daha kararlı olan Node 20'ye geri dönüldü
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps # Bağımlılık çakışmalarını önlemek için
+        run: npm ci --legacy-peer-deps
 
       - name: Build React and Electron
         # electron-builder'ı publish modunda değil, sadece build modunda çalıştırıyoruz
