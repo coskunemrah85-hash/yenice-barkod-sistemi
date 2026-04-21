@@ -35,10 +35,7 @@ export default defineConfig(({ mode }) => {
                 if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('xlsx')) {
                   return 'vendor-utils';
                 }
-                if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) {
-                  return 'vendor-react';
-                }
-                return 'vendor'; // Geri kalan küçük kütüphaneler
+                return 'vendor'; // Geri kalan kütüphaneler
               }
             }
           }

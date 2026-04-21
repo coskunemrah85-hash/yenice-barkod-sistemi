@@ -9,6 +9,7 @@ dist-ssr/
 dist_electron/
 build/*
 !build/icon.png
+!build/icon.ico
 *.exe
 *.dmg
 *.AppImage

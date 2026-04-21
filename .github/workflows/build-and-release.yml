@@ -7,9 +7,6 @@ on:
     tags:
       - 'v*'
 
-# Node sürümü uyarısını kapatmak ve güncele zorlamak için
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -22,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # Node 20 yerine daha kararlı olan 22 veya 24'e geçtik
+          node-version: '20' # Daha kararlı olan Node 20'ye geri dönüldü
           cache: 'npm'
 
       - name: Install dependencies
