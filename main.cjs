@@ -14,6 +14,21 @@ app.setPath('userData', path.join(app.getPath('appData'), 'yenice-ic-giyim-barko
 // 2. KRİTİK: Çökmeleri engellemek için donanım hızlandırmayı kapat
 app.disableHardwareAcceleration();
 
+// 3. Tekil Örnek Kilidi (Aynı anda iki uygulamanın açılmasını ve kilitlenmeyi önler)
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Birisi ikinci bir kopya açmaya çalışırsa, ana pencereye odaklan
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
 let win;
 
 // Otomatik güncelleme log ayarları

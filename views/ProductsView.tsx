@@ -106,6 +106,31 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const isResizing = useRef<string | null>(null);
     const draggedColumn = useRef<string | null>(null);
     const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+    const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
+    const [displayLimit, setDisplayLimit] = useState(100);
+    const filteredProductsRef = useRef(filteredProducts);
+
+    useEffect(() => {
+        filteredProductsRef.current = filteredProducts;
+    }, [filteredProducts]);
+
+    // Listen to global selection events
+    useEffect(() => {
+        const handleSelectAll = () => {
+            const allCurrentBarcodes = filteredProductsRef.current.map(p => p.barcode);
+            setSelectedBarcodes(new Set(allCurrentBarcodes));
+        };
+        const handleDeselectAll = () => {
+            setSelectedBarcodes(new Set());
+        };
+
+        window.addEventListener('app-select-all', handleSelectAll);
+        window.addEventListener('app-deselect-all', handleDeselectAll);
+        return () => {
+            window.removeEventListener('app-select-all', handleSelectAll);
+            window.removeEventListener('app-deselect-all', handleDeselectAll);
+        };
+    }, []);
 
 
     useEffect(() => {
@@ -121,6 +146,30 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     useEffect(() => { try { localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify(Array.from(hiddenColumns))); } catch(e) { console.error(e); } }, [hiddenColumns]);
     useEffect(() => { try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columnOrder)); } catch(e) { console.error(e); } }, [columnOrder]);
 
+
+    const toggleSelection = useCallback((barcode: string) => {
+        setSelectedBarcodes(prev => {
+            const next = new Set(prev);
+            if (next.has(barcode)) next.delete(barcode);
+            else next.add(barcode);
+            return next;
+        });
+    }, []);
+
+    const toggleGroupSelection = useCallback((groupKey: string, productsInGroup: Product[]) => {
+        const barcodesInGroup = productsInGroup.map(p => p.barcode);
+        
+        setSelectedBarcodes(prev => {
+            const next = new Set(prev);
+            const allSelected = barcodesInGroup.every(b => prev.has(b));
+            if (allSelected) {
+                barcodesInGroup.forEach(b => next.delete(b));
+            } else {
+                barcodesInGroup.forEach(b => next.add(b));
+            }
+            return next;
+        });
+    }, []);
 
     const CSV_PRODUCT_HEADER_MAP: { [key: string]: keyof Partial<Product> } = {
         'stokkodu': 'stokKodu',
@@ -373,6 +422,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     };
 
     const filteredProducts = useMemo(() => {
+        setDisplayLimit(100);
         return products.filter(p => {
             const f = filters;
             if (f.showDeleted) {
@@ -602,6 +652,19 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     <table className="w-full text-sm table-fixed">
                         <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900 text-[11px] text-slate-600 dark:text-slate-400 uppercase z-10 select-none">
                             <tr>
+                                <th className="p-2 w-10 border-r border-slate-200 dark:border-slate-700">
+                                    <div className="flex items-center justify-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedBarcodes.has(p.barcode))}
+                                            onChange={() => {
+                                                if (filteredProducts.length > 0 && filteredProducts.every(p => selectedBarcodes.has(p.barcode))) setSelectedBarcodes(new Set());
+                                                else setSelectedBarcodes(new Set(filteredProducts.map(p => p.barcode)));
+                                            }}
+                                            className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                        />
+                                    </div>
+                                </th>
                                 <th className="p-2 text-left w-10 border-r border-slate-200 dark:border-slate-700"></th>
                                 {visibleColumns.map(col => (
                                     <th key={col.id} scope="col" className={`px-2 py-1.5 font-bold relative group border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-move ${draggedColumn.current === col.id ? 'opacity-30' : ''} ${dragOverColumn === col.id && draggedColumn.current !== col.id ? 'drag-over-indicator-products' : ''}`} style={{ width: `${columnWidths[col.id]}px` }} draggable onDragStart={(e) => handleDragStart(e, col.id)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)} onDragEnd={handleDragEnd} onDragEnter={(e) => handleDragEnter(e, col.id)}>
@@ -613,8 +676,8 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                         </thead>
                         <tbody className="text-xs">
                             {productGroups.length === 0 ? (
-                                <tr><td colSpan={visibleColumns.length + 1} className="text-center p-16 text-slate-500">Filtreye uygun ürün bulunamadı.</td></tr>
-                            ) : productGroups.slice(0, 100).map(group => {
+                                <tr><td colSpan={visibleColumns.length + 2} className="text-center p-16 text-slate-500 font-medium">Böyle bir ürün bulunamadı.</td></tr>
+                            ) : productGroups.slice(0, displayLimit).map(group => {
                                 const mainProduct = group[0];
                                 const groupKey = mainProduct.anaStokKodu || mainProduct.stokKodu || mainProduct.barcode;
                                 const totalStock = group.reduce((sum, p) => sum + p.stock, 0);
@@ -627,6 +690,16 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                     className="border-b dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                                     onClick={() => toggleGroup(groupKey)}
                                 >
+                                    <td className="p-2 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
+                                        <div className="flex items-center justify-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={group.every(p => selectedBarcodes.has(p.barcode))}
+                                                onChange={() => {}} // Done in parent div click
+                                                className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                            />
+                                        </div>
+                                    </td>
                                     <td className="p-2 text-center border-r dark:border-slate-700">
                                         <div className="flex items-center justify-center w-full">
                                             <Icon name="arrows-vertical" className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -653,6 +726,14 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 </tr>
                                         {isExpanded && group.map(p => (
                                             <tr key={p.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-800 hover:bg-cyan-50/30 dark:hover:bg-cyan-900/10 transition-colors">
+                                                <td className="p-2 text-center border-r dark:border-slate-700">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedBarcodes.has(p.barcode)}
+                                                        onChange={() => toggleSelection(p.barcode)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                                    />
+                                                </td>
                                                 <td className="border-r dark:border-slate-700"></td>
                                                 {visibleColumns.map(col => (
                                                     <td key={col.id} className="px-2 py-1 border-r dark:border-slate-700 last:border-r-0" style={{ textAlign: col.align || 'left'}}>
@@ -669,13 +750,18 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                             </tr>
                                         ))}
                                     </React.Fragment>
-                                );
                             })}
                         </tbody>
                     </table>
-                     {productGroups.length > 100 && (
-                        <div className="text-center p-4 text-sm text-slate-500 bg-slate-50">
-                            Performans nedeniyle ilk 100 ürün grubu gösteriliyor. Daha fazla sonuç için lütfen filtreleme yapın.
+                    {displayLimit < productGroups.length && (
+                        <div className="p-4 flex justify-center border-t dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10">
+                            <button 
+                                onClick={() => setDisplayLimit(prev => prev + 100)}
+                                className="px-8 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-full font-bold shadow-xl shadow-cyan-200 dark:shadow-none transition-all flex items-center gap-2 transform hover:scale-105 active:scale-95"
+                            >
+                                <Icon name="refresh" className="w-5 h-5" />
+                                Daha Fazla Ürün Yükle ({productGroups.length - displayLimit} varyasyon grubu kaldı)
+                            </button>
                         </div>
                     )}
                 </div>

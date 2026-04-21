@@ -1083,13 +1083,15 @@ const App: React.FC = () => {
     XLSX.writeFile(wb, filename);
   }, [activeTabId, products, salesHistory, purchaseHistory, paymentHistory]);
 
-  const contextMenuOptions = [
+  const contextMenuOptions = useMemo(() => [
+    { label: 'Tümünü Seç', icon: 'check', onClick: () => window.dispatchEvent(new CustomEvent('app-select-all')), variant: 'default' as const },
+    { label: 'Seçimi Kaldır', icon: 'x-circle', onClick: () => window.dispatchEvent(new CustomEvent('app-deselect-all')), variant: 'default' as const },
     { label: 'Excel\'e Aktar', icon: 'excel', onClick: handleExportCurrentViewToExcel, variant: 'success' as const },
     { label: 'Kaydet / Değişiklikleri Uygula', icon: 'success', onClick: () => console.log('Save requested'), variant: 'default' as const },
     { label: 'Kopyala (Metin Seçiliyse)', icon: 'copy', onClick: () => document.execCommand('copy'), variant: 'default' as const },
     { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData, variant: 'default' as const },
     { label: 'Sil / Arşivle', icon: 'trash', onClick: () => console.log('Delete requested'), variant: 'danger' as const },
-  ];
+  ], [handleExportCurrentViewToExcel, handleExportData]);
 
   if (!isAuthReady) {
     return (
