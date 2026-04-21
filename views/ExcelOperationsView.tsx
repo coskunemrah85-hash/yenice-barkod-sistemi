@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import Icon from '../components/Icon';
 import AiDataImportModal from '../components/AiDataImportModal';
 import { View, TabIcon, Product, SaleRecord, PurchaseRecord } from '../types';
@@ -16,7 +17,7 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
   const [importSuccess, setImportSuccess] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
 
   const handleDownloadTemplate = () => {
-    if (!(window as any).XLSX) {
+    if (!XLSX) {
       alert("Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.");
       return;
     }
@@ -35,10 +36,10 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
       'Ara Grup': 'Üst Giyim',
       'Alt Grup': 'Kısa Kollu'
     }];
-    const ws = (window as any).XLSX.utils.json_to_sheet(templateData);
-    const wb = (window as any).XLSX.utils.book_new();
-    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Ürün Şablonu");
-    (window as any).XLSX.writeFile(wb, "urun_sablonu.xlsx");
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ürün Şablonu");
+    XLSX.writeFile(wb, "urun_sablonu.xlsx");
   };
 
   const handleExportStock = () => {
@@ -59,10 +60,10 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
       'Alt Grup': p.subGroup,
       'Durum': p.isActivated ? 'Aktif' : 'Pasif'
     }));
-    const ws = (window as any).XLSX.utils.json_to_sheet(data);
-    const wb = (window as any).XLSX.utils.book_new();
-    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Stok Listesi");
-    (window as any).XLSX.writeFile(wb, `stok_listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stok Listesi");
+    XLSX.writeFile(wb, `stok_listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleExportSales = () => {
@@ -79,10 +80,10 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
         'Toplam Tutar': item.price * item.quantity
       }))
     );
-    const ws = (window as any).XLSX.utils.json_to_sheet(data);
-    const wb = (window as any).XLSX.utils.book_new();
-    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Satış Raporu");
-    (window as any).XLSX.writeFile(wb, `satis_raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Satış Raporu");
+    XLSX.writeFile(wb, `satis_raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleExportPurchases = () => {
@@ -98,16 +99,16 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
         'Toplam Tutar': item.buyPrice * item.quantity
       }))
     );
-    const ws = (window as any).XLSX.utils.json_to_sheet(data);
-    const wb = (window as any).XLSX.utils.book_new();
-    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Alış Raporu");
-    (window as any).XLSX.writeFile(wb, `alis_raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Alış Raporu");
+    XLSX.writeFile(wb, `alis_raporu_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const executeExport = async (exportFn: () => void) => {
     setIsExporting(true);
     try {
-      if (!(window as any).XLSX) {
+      if (!XLSX) {
         alert("Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.");
         return;
       }

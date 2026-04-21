@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { Product, PurchaseItem, Supplier, AITask, PurchaseRecord, Brand, Model, Color, Size, Group, SaleRecord, MissingListRecord, CompanyInfo } from '../types';
 import Icon from '../components/Icon';
 import AiPurchaseModal from '../components/AiPurchaseModal';
@@ -6,9 +7,6 @@ import AiPurchaseReviewModal from '../components/AiPurchaseReviewModal';
 import MissingListModal from '../components/MissingListModal';
 import { extractPurchaseItemsFromContent } from '../services/geminiService';
 import { playErrorSound } from '../services/soundService';
-
-// @ts-ignore
-const XLSX = window.XLSX;
 
 interface Definitions {
     brands: Brand[];

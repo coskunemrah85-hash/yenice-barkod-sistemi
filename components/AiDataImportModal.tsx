@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
@@ -29,7 +30,6 @@ const AiDataImportModal: React.FC<AiDataImportModalProps> = ({ onClose, onSucces
       reader.onload = async (e: any) => {
         try {
           const data = e.target.result;
-          const XLSX = (window as any).XLSX;
           if (!XLSX) {
             reject(new Error('Excel kütüphanesi yüklenmedi'));
             return;

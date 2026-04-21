@@ -1,6 +1,5 @@
-
-
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Product, Brand, Model, Color, Size, Group, ProductFilters, Supplier, CompanyInfo, SaleRecord } from '../types';
 import Icon from '../components/Icon';
 import AddProductModal from '../components/AddProductModal';
@@ -8,9 +7,6 @@ import AiProductModal from '../components/AiProductModal';
 import ProductFiltersPanel from '../components/ProductFilters';
 import EditProductModal from '../components/EditProductModal';
 import { playErrorSound } from '../services/soundService';
-
-// @ts-ignore
-const XLSX = window.XLSX;
 
 interface Definitions {
     brands: Brand[];
@@ -173,7 +169,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     };
 
     const handleExportStock = () => {
-        if (!(window as any).XLSX) {
+        if (!XLSX) {
             showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
             return;
         }
@@ -192,10 +188,10 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             'Grup': p.group,
             'Durum': p.isActivated ? 'Aktif' : 'Pasif'
         }));
-        const ws = (window as any).XLSX.utils.json_to_sheet(data);
-        const wb = (window as any).XLSX.utils.book_new();
-        (window as any).XLSX.utils.book_append_sheet(wb, ws, "Stok Listesi");
-        (window as any).XLSX.writeFile(wb, `stok_listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Stok Listesi");
+        XLSX.writeFile(wb, `stok_listesi_${new Date().toISOString().split('T')[0]}.xlsx`);
         setIsExcelMenuOpen(false);
         showSuccess("Stok listesi Excel olarak indirildi.");
     };
@@ -210,7 +206,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         if (!file) return;
 
         const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-        if (isExcel && !(window as any).XLSX) {
+        if (isExcel && !XLSX) {
             showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
             if (excelInputRef.current) excelInputRef.current.value = '';
             return;

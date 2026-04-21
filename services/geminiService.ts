@@ -1,10 +1,9 @@
 
 
+import * as XLSX from 'xlsx';
 import { GoogleGenAI, Part, Type } from "@google/genai";
 import { SaleRecord, Product, PurchaseItem, Supplier } from '../types';
 
-// @ts-ignore
-const XLSX = window.XLSX;
 
 
 const fileToGenerativePart = (file: File): Promise<Part> => {
