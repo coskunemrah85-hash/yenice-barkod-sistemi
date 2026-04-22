@@ -34,12 +34,12 @@ const DashboardButton: React.FC<DashboardButtonProps> = ({ iconName, label, onCl
   return (
     <button
       onClick={onClick}
-      className={`bg-white dark:bg-slate-800 rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all duration-300 ease-in-out border border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-xl ${selectedColor.shadow} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-100 dark:focus:ring-offset-slate-900 ${selectedColor.ring} transform hover:-translate-y-1 group`}
+      className={`bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all duration-300 border border-slate-200 dark:border-slate-700 hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 focus:outline-none focus:ring-2 ${selectedColor.ring} transform hover:-translate-y-1 group w-full h-full min-h-[110px]`}
     >
-      <div className={`${selectedColor.bg} dark:bg-slate-700 ${selectedColor.hoverBg} dark:group-hover:bg-slate-600 p-1.5 rounded-full mb-2 transition-colors`}>
-        <Icon name={iconName} className={`w-5 h-5 ${selectedColor.text} dark:text-cyan-400 transition-transform group-hover:scale-110`} />
+      <div className={`${selectedColor.bg} dark:bg-slate-700 ${selectedColor.hoverBg} dark:group-hover:bg-slate-600 p-4 rounded-2xl mb-3 transition-colors`}>
+        <Icon name={iconName} className={`w-8 h-8 ${selectedColor.text} dark:text-cyan-300 transition-transform group-hover:scale-110 group-hover:rotate-3`} />
       </div>
-      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">{label}</span>
+      <span className="text-[13px] font-black text-slate-700 dark:text-slate-200 leading-tight">{label}</span>
     </button>
   );
 };

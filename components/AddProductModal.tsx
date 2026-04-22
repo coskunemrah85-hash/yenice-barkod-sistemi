@@ -1,15 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Product, Brand, Model, Color, Size, Group, Supplier } from '../types';
+import { Product, Supplier, Definitions } from '../types';
 import Icon from './Icon';
 import { generateProductDescription } from '../services/geminiService';
-
-interface Definitions {
-    brands: Brand[];
-    models: Model[];
-    colors: Color[];
-    sizes: Size[];
-    groups: Group[];
-}
 
 interface AddProductModalProps {
   onClose: () => void;
@@ -17,6 +9,8 @@ interface AddProductModalProps {
   definitions: Definitions;
   suppliers: Supplier[];
   products: Product[];
+  onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
+  onMinimize?: () => void;
 }
 
 type VariationEntry = {
@@ -40,7 +34,8 @@ const initialCommonState = {
     midGroup: '',
     subGroup: '',
     supplierId: '',
-    anaStokKodu: ''
+    anaStokKodu: '',
+    shelfLocation: ''
 };
 
 const initialVariationState = {
@@ -51,8 +46,7 @@ const initialVariationState = {
     stock: '0',
 };
 
-
-const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, definitions, suppliers, products }) => {
+const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, definitions, suppliers, products, onAddDefinition, onMinimize }) => {
     const [mode, setMode] = useState<'single' | 'variation'>('single');
     const [error, setError] = useState('');
     
@@ -76,14 +70,67 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
         }
         return barcode!;
     };
+
+    const [quickAddType, setQuickAddType] = useState<'brand' | 'model' | 'group' | 'color' | 'size' | null>(null);
+    const [quickAddName, setQuickAddName] = useState('');
+    const [quickAddBrandContext, setQuickAddBrandContext] = useState<string | undefined>(undefined);
+    const [quickAddCallback, setQuickAddCallback] = useState<((name: string) => void) | null>(null);
+
+    const handleQuickAddSubmit = () => {
+        if (!quickAddType || !quickAddName.trim()) {
+            setQuickAddType(null);
+            setQuickAddCallback(null);
+            return;
+        }
+
+        if (onAddDefinition) {
+            const trimmedName = quickAddName.trim();
+            let data: any = { name: trimmedName, id: Date.now().toString() };
+            
+            if (quickAddType === 'model') {
+                const brand = definitions.brands.find(b => b.name === quickAddBrandContext);
+                if (!brand) {
+                    alert("Lütfen önce bir marka seçiniz.");
+                    setQuickAddType(null);
+                    setQuickAddCallback(null);
+                    return;
+                }
+                data.brandId = brand.id;
+            }
+            if (quickAddType === 'group') data.parentId = null;
+
+            onAddDefinition(quickAddType, data);
+            
+            // Set the value in the appropriate form state after a short delay
+            const targetType = quickAddType;
+            const currentCallback = quickAddCallback;
+            setTimeout(() => {
+                if (currentCallback) {
+                    currentCallback(trimmedName);
+                } else if (mode === 'variation') {
+                    const fieldMap: any = { brand: 'marka', model: 'model', group: 'group' };
+                    if (fieldMap[targetType]) setCommonData(p => ({...p, [fieldMap[targetType]]: trimmedName}));
+                }
+            }, 150);
+        }
+        setQuickAddType(null);
+        setQuickAddName('');
+        setQuickAddCallback(null);
+    };
+
+    const triggerQuickAdd = (type: 'brand' | 'model' | 'group' | 'color' | 'size', brandContext?: string, callback?: (name: string) => void) => {
+        setQuickAddType(type);
+        setQuickAddName('');
+        setQuickAddBrandContext(brandContext);
+        setQuickAddCallback(() => callback || null);
+    };
     
     const handleGenerateDescription = async () => {
         setIsGeneratingDescription(true);
         setError('');
         try {
-            // FIX: Destructure commonData to omit string-based price properties before passing to generateProductDescription.
             const { buyPrice, price, margin, ...productInfo } = commonData;
-            const description = await generateProductDescription(productInfo);
+            const description = await generateProductDescription(productInfo as any);
             setCommonData(prev => ({...prev, description}));
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Açıklama oluşturulamadı.');
@@ -91,7 +138,6 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
             setIsGeneratingDescription(false);
         }
     };
-
 
     const handleChangeCommon = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -125,7 +171,11 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
         setCurrentVariation(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleAddVariation = () => {
+    const handleRemoveVariation = (id: number) => {
+        setAddedVariations(prev => prev.filter(v => v.id !== id));
+    };
+
+  const handleAddVariation = () => {
         setError('');
         const { barcode, renk, beden } = currentVariation;
         if (!barcode || !renk || !beden) {
@@ -141,7 +191,11 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
         setAddedVariations(prev => [...prev, { ...currentVariation, id: Date.now() }]);
         setCurrentVariation(prev => ({
             ...initialVariationState,
-            renk: prev.renk, // Keep color for next entry
+            renk: prev.renk,
+            beden: '',
+            stock: '0',
+            barcode: '',
+            stokKodu: ''
         }));
         barcodeInputRef.current?.focus();
     };
@@ -151,10 +205,6 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
             e.preventDefault();
             handleAddVariation();
         }
-    };
-
-    const handleRemoveVariation = (id: number) => {
-        setAddedVariations(prev => prev.filter(v => v.id !== id));
     };
 
     const handleVariationSubmit = (e: React.FormEvent) => {
@@ -169,7 +219,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
             return;
         }
         
-        const priceValue = parseFloat(commonData.price.replace(',', '.'));
+        const priceValue = parseFloat(commonData.price.replace(',', '.')) || 0;
         const buyPriceValue = parseFloat(commonData.buyPrice.replace(',', '.')) || 0;
 
         const productsToSave: Product[] = addedVariations.map(v => {
@@ -191,7 +241,8 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
                 midGroup: commonData.midGroup,
                 subGroup: commonData.subGroup,
                 supplierId: commonData.supplierId || undefined,
-                isActivated: false,
+                shelfLocation: commonData.shelfLocation || '',
+                isActivated: true,
             };
         });
 
@@ -209,174 +260,250 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
     const midGroups = useMemo(() => {
       const selectedGroup = mainGroups.find(g => g.name === commonData.group);
       if(!selectedGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedGroup.id && g.brandId === selectedGroup.brandId);
+      return definitions.groups.filter(g => g.parentId === selectedGroup.id);
     }, [commonData.group, mainGroups, definitions.groups]);
     const subGroups = useMemo(() => {
       const selectedMidGroup = midGroups.find(g => g.name === commonData.midGroup);
       if(!selectedMidGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedMidGroup.id && g.brandId === selectedMidGroup.brandId);
+      return definitions.groups.filter(g => g.parentId === selectedMidGroup.id);
     }, [commonData.midGroup, midGroups, definitions.groups]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden" onClick={onClose}>
         <div 
-            className="bg-white rounded-xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden animate-fade-in-up"
+            className="bg-slate-50 dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh] overflow-hidden animate-fade-in-up border border-white/20"
             onClick={(e) => e.stopPropagation()}
         >
-            <header className="p-5 border-b flex justify-between items-center flex-shrink-0 bg-slate-50/80">
-                <h2 className="text-2xl font-bold text-slate-800">Yeni Ürün Ekle</h2>
-                <div className="flex items-center gap-2">
-                    <div className="bg-slate-200 p-1 rounded-lg flex">
-                        <button onClick={() => setMode('single')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${mode === 'single' ? 'bg-white shadow' : 'text-slate-600'}`}>Tek Ürün</button>
-                        <button onClick={() => setMode('variation')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${mode === 'variation' ? 'bg-white shadow' : 'text-slate-600'}`}>Varyasyonlu Ürün</button>
+            <header className="px-8 py-6 border-b dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center text-cyan-600">
+                        <Icon name="plus" className="w-6 h-6" />
+                   </div>
+                   <div>
+                      <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tighter uppercase">Ürün Ekleme Sistemi</h2>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Stok ve Varyasyon Sihirbazı</p>
+                   </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl flex border border-slate-200 dark:border-slate-700">
+                        <button type="button" onClick={() => setMode('single')} className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${mode === 'single' ? 'bg-white dark:bg-slate-800 text-cyan-600' : 'text-slate-500 hover:text-slate-700'}`}>Tek Ürün</button>
+                        <button type="button" onClick={() => setMode('variation')} className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${mode === 'variation' ? 'bg-white dark:bg-slate-800 text-cyan-600' : 'text-slate-500 hover:text-slate-700'}`}>Varyasyonlu Takım</button>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full -ml-2">
-                         <Icon name="x-circle" className="w-7 h-7" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={onMinimize} title="Aşağı İndir" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 hover:bg-cyan-100 dark:bg-cyan-900/20 dark:text-cyan-400 transition-all border border-cyan-200/50">
+                             <Icon name="minus" className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={onClose} title="Kapat" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 transition-all border border-rose-200/50">
+                             <Icon name="x-circle" className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </header>
             
-            {mode === 'single' ? (
-                <SingleProductForm onSave={onSave} onClose={onClose} definitions={definitions} suppliers={suppliers} products={products} generateUniqueBarcode={generateUniqueBarcode} />
-            ) : (
-                <form onSubmit={handleVariationSubmit}>
-                    <main className="p-6 flex-grow overflow-y-auto max-h-[70vh] space-y-6">
-                        {error && <p className="text-red-600 bg-red-100 p-3 rounded-lg">{error}</p>}
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-8 relative">
+                {/* Inline Quick Add Overlay */}
+                {quickAddType && (
+                    <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-8 animate-fade-in">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 border border-white/20 w-full max-w-md animate-scale-in">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center text-cyan-600">
+                                    <Icon name="plus" className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Hızlı Tanım Ekle</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{quickAddType === 'brand' ? 'Yeni Marka Oluştur' : quickAddType === 'model' ? 'Yeni Model Oluştur' : 'Yeni Tanım Oluştur'}</p>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="label-style">İsim / Başlık</label>
+                                    <input 
+                                        type="text" 
+                                        autoFocus
+                                        value={quickAddName} 
+                                        onChange={(e) => setQuickAddName(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleQuickAddSubmit()}
+                                        className="input-style w-full text-lg" 
+                                        placeholder="Örn: Nike, Cotton, XL..."
+                                    />
+                                </div>
+                                <div className="flex gap-3 pt-4">
+                                    <button type="button" onClick={() => setQuickAddType(null)} className="flex-grow btn-secondary py-3 font-black uppercase text-xs">Vazgeç</button>
+                                    <button type="button" onClick={handleQuickAddSubmit} className="flex-grow btn-primary py-3 font-black uppercase text-xs shadow-lg shadow-cyan-600/30">Kaydet ve Seç</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {mode === 'single' ? (
+                    <SingleProductForm 
+                        onSave={onSave} 
+                        onClose={onClose} 
+                        definitions={definitions} 
+                        suppliers={suppliers} 
+                        products={products} 
+                        generateUniqueBarcode={(p) => {
+                            let barcode;
+                            do {
+                                barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
+                            } while (p.some(pr => pr.barcode === barcode));
+                            return barcode;
+                        }}
+                        onTriggerQuickAdd={triggerQuickAdd}
+                    />
+                ) : (
+                    <form onSubmit={handleVariationSubmit} className="space-y-8">
+                        {error && <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-xl text-red-700 dark:text-red-400 font-bold text-sm select-none">{error}</div>}
                         
-                        {/* Ortak Bilgiler */}
-                        <div>
-                            <h3 className="font-semibold text-lg text-slate-700 border-b pb-2 mb-4">1. Ortak Ürün Bilgileri</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4">
-                                <div className="md:col-span-4">
-                                    <label className="label-style">Ürün Adı (Temel) *</label>
-                                    <input type="text" name="name" value={commonData.name} onChange={handleChangeCommon} className="input-style w-full" required />
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            <div className="lg:col-span-8 space-y-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2 flex items-center gap-2">
+                                        <Icon name="products" className="w-5 h-5 text-cyan-600"/> 1. Ortak Ürün Bilgileri
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="md:col-span-2">
+                                            <label className="label-style">Ürün Adı (Model İsmi vb.) *</label>
+                                            <input type="text" name="name" value={commonData.name} onChange={handleChangeCommon} className="input-style w-full" required placeholder="Örn: Pamuklu Slim Fit Gömlek" />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="label-style">Ürün Açıklaması</label>
+                                            <div className="relative">
+                                                <textarea name="description" value={commonData.description} onChange={handleChangeCommon} className="input-style w-full h-24 pt-3" placeholder="Ürün detayları..."></textarea>
+                                                <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="absolute bottom-3 right-3 btn-secondary h-10 px-4 bg-pink-50 dark:bg-pink-900/20 text-pink-700 hover:bg-pink-100 dark:hover:bg-pink-900/40 border-pink-200 dark:border-pink-800 font-black text-[10px] uppercase tracking-tighter">
+                                                    {isGeneratingDescription ? <Icon name="refresh" className="w-4 h-4 animate-spin"/> : <Icon name="ai" className="w-4 h-4"/>}
+                                                    <span>AI Oluştur</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Marka *</label>
+                                            <div className="flex gap-2">
+                                                <select name="marka" value={commonData.marka} onChange={handleChangeCommon} className="input-style flex-grow" required>
+                                                    <option value="">Seçin</option>
+                                                    {definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
+                                                </select>
+                                                <button type="button" onClick={() => triggerQuickAdd('brand')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shadow-lg shadow-cyan-500/20 shrink-0">
+                                                    <Icon name="plus" className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Model *</label>
+                                            <div className="flex gap-2">
+                                                <select name="model" value={commonData.model} onChange={handleChangeCommon} className="input-style flex-grow" required disabled={!commonData.marka}>
+                                                    <option value="">Seçin</option>
+                                                    {filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}
+                                                </select>
+                                                <button type="button" onClick={() => triggerQuickAdd('model', commonData.marka)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shadow-lg shadow-cyan-500/20 shrink-0 disabled:opacity-30 disabled:bg-slate-400" disabled={!commonData.marka}>
+                                                    <Icon name="plus" className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Grup *</label>
+                                            <div className="flex gap-2">
+                                                <select name="group" value={commonData.group} onChange={handleChangeCommon} className="input-style flex-grow" required disabled={!commonData.marka}>
+                                                    <option value="">Seçin</option>
+                                                    {mainGroups.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}
+                                                </select>
+                                                <button type="button" onClick={() => triggerQuickAdd('group')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shadow-lg shadow-cyan-500/20 shrink-0 disabled:opacity-30 disabled:bg-slate-400" disabled={!commonData.marka}>
+                                                    <Icon name="plus" className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Tedarikçi</label>
+                                            <select name="supplierId" value={commonData.supplierId} onChange={handleChangeCommon} className="input-style w-full">
+                                                <option value="">Tedarikçi Seçin (İsteğe Bağlı)</option>
+                                                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                 <div className="md:col-span-4">
-                                    <label className="label-style">Ürün Açıklaması</label>
-                                    <div className="relative">
-                                        <textarea name="description" value={commonData.description} onChange={handleChangeCommon} className="input-style w-full" rows={3}></textarea>
-                                        <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="absolute bottom-2 right-2 btn-secondary-sm bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 disabled:bg-slate-200 disabled:text-slate-500">
-                                            {isGeneratingDescription ? (
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-700"></div>
-                                            ) : (
-                                                <Icon name="ai" className="w-4 h-4"/>
-                                            )}
-                                            <span>Oluştur</span>
-                                        </button>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2">2. Varyasyon Girişi</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border dark:border-slate-700">
+                                        <div className="md:col-span-3"><label className="label-style">Renk *</label><select name="renk" value={currentVariation.renk} onChange={handleChangeVariation} className="input-style w-full"><option value="">Seçin</option>{definitions.colors.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
+                                        <div className="md:col-span-2"><label className="label-style">Beden *</label><select name="beden" value={currentVariation.beden} onChange={handleChangeVariation} className="input-style w-full"><option value="">Seçin</option>{definitions.sizes.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
+                                        <div className="md:col-span-3">
+                                            <label className="label-style">Barkod *</label>
+                                            <div className="relative">
+                                                <input type="text" name="barcode" ref={barcodeInputRef} value={currentVariation.barcode} onChange={handleChangeVariation} onKeyDown={handleVariationKeyDown} className="input-style w-full pr-10" placeholder="Barkod Taratın" />
+                                                <button type="button" onClick={() => setCurrentVariation(v => ({ ...v, barcode: generateUniqueBarcode(products, addedVariations) }))} className="absolute right-0 top-0 h-full px-3 text-cyan-600 hover:text-cyan-700" title="Otomatik Barkod">
+                                                    <Icon name="refresh" className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="md:col-span-2"><label className="label-style">Stok</label><input type="number" name="stock" value={currentVariation.stock} onChange={handleChangeVariation} className="input-style w-full" /></div>
+                                        <div className="md:col-span-2"><button type="button" onClick={handleAddVariation} className="btn-primary w-full shadow-lg shadow-cyan-600/20"><Icon name="plus" className="w-5 h-5"/></button></div>
+                                    </div>
+                                    
+                                    {addedVariations.length > 0 && (
+                                        <div className="mt-6 border dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+                                            <table className="w-full text-xs text-left">
+                                                <thead className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-700 font-black text-slate-400 uppercase tracking-tighter"><tr className="text-left"><th className="p-3">Renk</th><th className="p-3">Beden</th><th className="p-3">Barkod</th><th className="p-3">Stok</th><th className="p-3 text-right">İşlem</th></tr></thead>
+                                                <tbody>{addedVariations.map(v => (<tr key={v.id} className="border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"><td className="p-3 font-bold">{v.renk}</td><td className="p-3">{v.beden}</td><td className="p-3 font-mono text-cyan-600 dark:text-cyan-400">{v.barcode}</td><td className="p-3">{v.stock}</td><td className="p-3 text-right"><button type="button" onClick={() => handleRemoveVariation(v.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><Icon name="trash" className="w-4 h-4" /></button></td></tr>))}</tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-4 space-y-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2">3. Fiyatlandırma</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="label-style">Alış Fiyatı (₺)</label>
+                                            <input type="text" name="buyPrice" value={commonData.buyPrice} onChange={handleChangeCommon} className="input-style w-full text-right font-black" placeholder="0,00"/>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Kar Oranı (%)</label>
+                                            <input type="text" name="margin" value={commonData.margin} onChange={handleChangeCommon} className="input-style w-full text-right font-black text-emerald-600 dark:text-emerald-400" placeholder="0,00" disabled={!commonData.buyPrice}/>
+                                        </div>
+                                        <div>
+                                            <label className="label-style">Satış Fiyatı (₺) *</label>
+                                            <input type="text" name="price" value={commonData.price} onChange={handleChangeCommon} className="input-style w-full text-right font-black text-xl text-cyan-600 dark:text-cyan-400" required placeholder="0,00"/>
+                                        </div>
                                     </div>
                                 </div>
-                               
-                                <div>
-                                    <label className="label-style">Ana Stok Kodu</label>
-                                    <input type="text" name="anaStokKodu" value={commonData.anaStokKodu} onChange={handleChangeCommon} className="input-style w-full" />
-                                </div>
-                                <div>
-                                    <label className="label-style">Tedarikçi</label>
-                                    <select name="supplierId" value={commonData.supplierId} onChange={handleChangeCommon} className="input-style w-full">
-                                        <option value="">Seçin (İsteğe Bağlı)</option>
-                                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2 md:col-span-2">
-                                    <div>
-                                        <label className="label-style">Alış Fiyatı</label>
-                                        <input type="text" name="buyPrice" value={commonData.buyPrice} onChange={handleChangeCommon} className="w-full input-style" placeholder="0,00"/>
-                                    </div>
-                                    <div>
-                                        <label className="label-style">Kar Oranı (%)</label>
-                                        <input type="text" name="margin" value={commonData.margin} onChange={handleChangeCommon} className="w-full input-style" placeholder="0,00" disabled={!commonData.buyPrice}/>
-                                    </div>
-                                    <div>
-                                        <label className="label-style">Satış Fiyatı *</label>
-                                        <input type="text" name="price" value={commonData.price} onChange={handleChangeCommon} className="w-full input-style" required placeholder="0,00"/>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="label-style">Marka *</label>
-                                    <select name="marka" value={commonData.marka} onChange={handleChangeCommon} className="input-style w-full" required><option value="">Seçin</option>{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select>
-                                </div>
-                                <div>
-                                    <label className="label-style">Model *</label>
-                                    <select name="model" value={commonData.model} onChange={handleChangeCommon} className="input-style w-full" required disabled={!commonData.marka}><option value="">Seçin</option>{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select>
-                                </div>
-                                <div>
-                                    <label className="label-style">Grup *</label>
-                                    <select name="group" value={commonData.group} onChange={handleChangeCommon} className="input-style w-full" required disabled={!commonData.marka}><option value="">Seçin</option>{mainGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select>
-                                </div>
-                                <div>
-                                    <label className="label-style">Ara Grup</label>
-                                    <select name="midGroup" value={commonData.midGroup} onChange={handleChangeCommon} className="input-style w-full" disabled={!commonData.group}><option value="">Seçin</option>{midGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select>
-                                </div>
-                                <div>
-                                    <label className="label-style">Alt Grup</label>
-                                    <select name="subGroup" value={commonData.subGroup} onChange={handleChangeCommon} className="input-style w-full" disabled={!commonData.midGroup}><option value="">Seçin</option>{subGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select>
+
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm font-bold text-xs">
+                                     <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 border-b dark:border-slate-700 pb-2">Diğer Kodlar</h3>
+                                     <div className="space-y-4">
+                                        <div><label className="label-style">Ana Stok Kodu</label><input type="text" name="anaStokKodu" value={commonData.anaStokKodu} onChange={handleChangeCommon} className="input-style w-full" placeholder="Örn: YNC-GMLK" /></div>
+                                        <div><label className="label-style">Raf / Konum</label><input type="text" name="shelfLocation" value={commonData.shelfLocation} onChange={handleChangeCommon} className="input-style w-full" placeholder="Örn: A-12" /></div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                             <div><label className="label-style">Ara Grup</label><select name="midGroup" value={commonData.midGroup} onChange={handleChangeCommon} className="input-style w-full" disabled={!commonData.group}><option value="">Seçin</option>{midGroups.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
+                                             <div><label className="label-style">Alt Grup</label><select name="subGroup" value={commonData.subGroup} onChange={handleChangeCommon} className="input-style w-full" disabled={!commonData.midGroup}><option value="">Seçin</option>{subGroups.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
+                                        </div>
+                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Varyasyon Ekleme */}
-                        <div>
-                            <h3 className="font-semibold text-lg text-slate-700 border-b pb-2 mb-4">2. Varyasyonları Ekle</h3>
-                            <div className="grid grid-cols-12 gap-3 items-end bg-slate-100 p-3 rounded-lg">
-                                <div className="col-span-2"><label className="label-style">Renk *</label><select name="renk" value={currentVariation.renk} onChange={handleChangeVariation} className="input-style w-full"><option value="">Seçin</option>{definitions.colors.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-                                <div className="col-span-2"><label className="label-style">Beden *</label><select name="beden" value={currentVariation.beden} onChange={handleChangeVariation} className="input-style w-full"><option value="">Seçin</option>{definitions.sizes.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
-                                <div className="col-span-2"><label className="label-style">Stok Kodu</label><input type="text" name="stokKodu" value={currentVariation.stokKodu} onChange={handleChangeVariation} className="input-style w-full" /></div>
-                                <div className="col-span-1"><label className="label-style">Stok</label><input type="number" name="stock" value={currentVariation.stock} onChange={handleChangeVariation} className="input-style w-full" /></div>
-                                <div className="col-span-3">
-                                    <label className="label-style">Barkod *</label>
-                                    <div className="relative">
-                                        <input type="text" name="barcode" ref={barcodeInputRef} value={currentVariation.barcode} onChange={handleChangeVariation} onKeyDown={handleVariationKeyDown} className="input-style w-full pr-10" />
-                                        <button type="button" onClick={() => setCurrentVariation(v => ({ ...v, barcode: generateUniqueBarcode(products, addedVariations) }))} className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-cyan-600" title="Otomatik Barkod Oluştur">
-                                            <Icon name="ai" className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="col-span-2"><button type="button" onClick={handleAddVariation} className="btn-secondary w-full"><Icon name="plus" className="w-5 h-5"/> Varyasyon Ekle</button></div>
-                            </div>
-                            
-                            {addedVariations.length > 0 && (
-                                <div className="mt-4 border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-200"><tr className="text-left"><th className="p-2">Renk</th><th className="p-2">Beden</th><th className="p-2">Stok Kodu</th><th className="p-2">Barkod</th><th className="p-2">Stok</th><th className="p-2"></th></tr></thead>
-                                    <tbody>{addedVariations.map(v => (<tr key={v.id} className="border-b"><td className="p-2">{v.renk}</td><td className="p-2">{v.beden}</td><td className="p-2">{v.stokKodu}</td><td className="p-2 font-mono">{v.barcode}</td><td className="p-2">{v.stock}</td><td className="p-2 text-right"><button type="button" onClick={() => handleRemoveVariation(v.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><Icon name="trash" className="w-4 h-4" /></button></td></tr>))}</tbody>
-                                </table>
-                                </div>
-                            )}
+                        <div className="flex justify-end gap-4 border-t dark:border-slate-800 pt-8">
+                            <button type="button" onClick={onClose} className="btn-secondary px-8 font-black uppercase text-xs">İptal</button>
+                            <button type="submit" className="btn-primary px-10 font-black uppercase text-xs shadow-xl shadow-cyan-600/30 tracking-widest">Tüm Ürünleri Kaydet</button>
                         </div>
-                    </main>
-                    <footer className="p-4 border-t flex justify-end gap-4 flex-shrink-0 bg-slate-50 rounded-b-xl">
-                        <button type="button" onClick={onClose} className="btn-secondary">İptal</button>
-                        <button type="submit" className="btn-primary">Tüm Ürünleri Kaydet</button>
-                    </footer>
-                </form>
-            )}
+                    </form>
+                )}
+            </div>
         </div>
-        <style>{`
-            .label-style { display: block; font-size: 0.875rem; font-weight: 500; color: #475569; margin-bottom: 0.25rem; }
-            .input-style { background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem 0.75rem; transition: all 0.2s; height: 42px; }
-            .input-style:focus { outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9; }
-            .input-style:disabled { background-color: #f1f5f9; cursor: not-allowed; }
-            textarea.input-style { height: auto; }
-            .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; background-color: #0ea5e9; color: white; font-weight: 600; padding: 0 1.5rem; border-radius: 0.5rem; transition: all 0.2s; height: 42px; }
-            .btn-primary:hover { background-color: #0284c7; }
-            .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; background-color: white; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; padding: 0 1rem; border-radius: 0.5rem; transition: all 0.2s; height: 42px; }
-            .btn-secondary:hover { background-color: #f1f5f9; }
-            .btn-secondary-sm { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; font-weight: 600; padding: 0 0.75rem; border-radius: 0.375rem; transition: all 0.2s; height: 32px; font-size: 0.8rem; border: 1px solid #cbd5e1; }
-            .btn-secondary-sm:disabled { opacity: 0.5; cursor: not-allowed; }
-            @keyframes fade-in-up {
-                from { opacity: 0; transform: translateY(20px) scale(0.98); }
-                to { opacity: 1; transform: translateY(0) scale(1); }
-            }
-            .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
-        `}</style>
     </div>
   );
 };
 
 // Standalone component for single product mode to keep the main component cleaner
-const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {onSave: (products: Product[]) => void; generateUniqueBarcode: (p: Product[], v?: any[]) => string}> = ({onClose, onSave, definitions, suppliers, products, generateUniqueBarcode}) => {
-    const [product, setProduct] = useState({ ...initialCommonState, barcode: '', renk: '', beden: '', stokKodu: '', stock: '' });
+const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {
+    onSave: (products: Product[]) => void; 
+    generateUniqueBarcode: (p: Product[]) => string;
+    onTriggerQuickAdd: (type: 'brand' | 'model' | 'group' | 'color' | 'size', brandName?: string, callback?: (name: string) => void) => void;
+}> = ({onClose, onSave, definitions, suppliers, products, generateUniqueBarcode, onTriggerQuickAdd}) => {
+    const [product, setProduct] = useState({ ...initialCommonState, barcode: '', renk: '', beden: '', stokKodu: '', stock: '0' });
     const [error, setError] = useState('');
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
@@ -384,9 +511,8 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {onSave
         setIsGeneratingDescription(true);
         setError('');
         try {
-            // FIX: Destructure 'stock' along with other string-based properties to prevent a type mismatch, as the form state uses a string for stock while the Product type expects a number.
             const { buyPrice, price, margin, stock, ...productInfo } = product;
-            const description = await generateProductDescription(productInfo);
+            const description = await generateProductDescription(productInfo as any);
             setProduct(prev => ({...prev, description}));
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Açıklama oluşturulamadı.');
@@ -433,18 +559,30 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {onSave
             setError('Bu barkod zaten kullanımda.');
             return;
         }
-        const priceValue = parseFloat(product.price.replace(',', '.'));
+        
+        const priceValue = parseFloat(product.price.replace(',', '.')) || 0;
         const buyPriceValue = parseFloat(product.buyPrice.replace(',', '.')) || 0;
 
         const finalProduct: Product = {
-            ...product,
+            barcode: product.barcode,
+            name: product.name,
             description: product.description || '',
             buyPrice: buyPriceValue,
             price: priceValue,
             stock: parseInt(product.stock, 10) || 0,
+            stokKodu: product.stokKodu,
+            marka: product.marka,
+            model: product.model,
+            renk: product.renk,
+            beden: product.beden,
             anaStokKodu: product.anaStokKodu || product.stokKodu.split('-').slice(0, 2).join('-') || 'GENEL',
+            group: product.group,
+            midGroup: product.midGroup,
+            subGroup: product.subGroup,
             supplierId: product.supplierId || undefined,
-            isActivated: false,
+            shelfLocation: product.shelfLocation || '',
+            isActivated: true,
+            isDeleted: false
         };
         onSave([finalProduct]);
     };
@@ -458,79 +596,140 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {onSave
       const midGroups = useMemo(() => {
       const selectedGroup = mainGroups.find(g => g.name === product.group);
       if(!selectedGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedGroup.id && g.brandId === selectedGroup.brandId);
+      return definitions.groups.filter(g => g.parentId === selectedGroup.id);
     }, [product.group, mainGroups, definitions.groups]);
     const subGroups = useMemo(() => {
       const selectedMidGroup = midGroups.find(g => g.name === product.midGroup);
       if(!selectedMidGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedMidGroup.id && g.brandId === selectedMidGroup.brandId);
+      return definitions.groups.filter(g => g.parentId === selectedMidGroup.id);
     }, [product.midGroup, midGroups, definitions.groups]);
 
-
     return (
-        <form onSubmit={handleSubmit}>
-            <main className="p-6 flex-grow overflow-y-auto max-h-[70vh]">
-                {error && <p className="text-red-600 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
-                    <div className="space-y-4 md:col-span-3">
-                        <div className="relative">
-                            <label className="label-style">Ürün Açıklaması</label>
-                            <textarea name="description" value={product.description} onChange={handleChange} className="input-style w-full" rows={3}></textarea>
-                            <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="absolute bottom-2 right-2 btn-secondary-sm bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 disabled:bg-slate-200 disabled:text-slate-500">
-                                {isGeneratingDescription ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-700"></div>
-                                ) : (
-                                    <Icon name="ai" className="w-4 h-4"/>
-                                )}
-                                <span>Oluştur</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-lg text-slate-700 border-b pb-2">Temel Bilgiler</h3>
-                        <div>
-                            <label className="label-style">Barkod *</label>
-                            <div className="relative">
-                                <input type="text" name="barcode" value={product.barcode} onChange={handleChange} className="w-full input-style pr-10" required />
-                                <button type="button" onClick={() => setProduct(p => ({ ...p, barcode: generateUniqueBarcode(products) }))} className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-cyan-600" title="Otomatik Barkod Oluştur">
-                                    <Icon name="ai" className="w-5 h-5" />
-                                </button>
+        <form onSubmit={handleSubmit} className="space-y-8 animate-fade-in-up">
+            {error && <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-xl text-red-700 dark:text-red-400 font-bold text-sm select-none">{error}</div>}
+            
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-8 space-y-6">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2 flex items-center gap-2">
+                             <Icon name="tag" className="w-5 h-5 text-cyan-600"/> Ürün Kimlik Bilgileri
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
+                                <label className="label-style">Barkod *</label>
+                                <div className="relative">
+                                    <input type="text" name="barcode" value={product.barcode} onChange={handleChange} className="w-full input-style pr-12 font-mono text-cyan-600 dark:text-cyan-400 font-bold" required placeholder="Barkod Okutun veya Oluşturun" />
+                                    <button type="button" onClick={() => setProduct(p => ({ ...p, barcode: generateUniqueBarcode(products) }))} className="absolute right-0 top-0 h-full px-4 text-cyan-600 hover:text-cyan-700" title="Otomatik Barkod Oluştur">
+                                        <Icon name="refresh" className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="label-style">Ürün Tam Adı *</label>
+                                <input type="text" name="name" value={product.name} onChange={handleChange} className="w-full input-style" required placeholder="Örn: Nike Air Max 270" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="label-style">Ürün Açıklaması</label>
+                                <div className="relative">
+                                    <textarea name="description" value={product.description} onChange={handleChange} className="input-style w-full h-24 pt-3" placeholder="Ürün özelliklerini girin..."></textarea>
+                                    <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="absolute bottom-3 right-3 btn-secondary h-10 px-4 bg-pink-50 dark:bg-pink-900/20 text-pink-700 border-pink-200 dark:border-pink-800 font-black text-[10px] uppercase tracking-tighter">
+                                        {isGeneratingDescription ? <Icon name="refresh" className="w-4 h-4 animate-spin"/> : <Icon name="ai" className="w-4 h-4"/>}
+                                        <span>AI Tanım</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="label-style">Marka *</label>
+                                <div className="flex gap-2">
+                                    <select name="marka" value={product.marka} onChange={handleChange} className="input-style flex-grow" required><option value="">Seçin</option>{definitions.brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}</select>
+                                    <button type="button" onClick={() => onTriggerQuickAdd('brand', undefined, (name) => setProduct(p => ({...p, marka: name})))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shrink-0 shadow-lg shadow-cyan-500/20"><Icon name="plus" className="w-4 h-4"/></button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="label-style">Model *</label>
+                                <div className="flex gap-2">
+                                    <select name="model" value={product.model} onChange={handleChange} className="input-style flex-grow" required disabled={!product.marka}><option value="">Seçin</option>{filteredModels.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select>
+                                    <button type="button" onClick={() => onTriggerQuickAdd('model', product.marka, (name) => setProduct(p => ({...p, model: name})))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shrink-0 shadow-lg shadow-cyan-500/20 disabled:opacity-30 disabled:bg-slate-400" disabled={!product.marka}><Icon name="plus" className="w-4 h-4"/></button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                                 <div>
+                                    <label className="label-style">Renk *</label>
+                                    <div className="flex gap-1.5">
+                                        <select name="renk" value={product.renk} onChange={handleChange} className="input-style flex-grow" required>
+                                            <option value="">Seçin</option>
+                                            {definitions.colors.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                        </select>
+                                        <button type="button" onClick={() => onTriggerQuickAdd('color', undefined, (name) => setProduct(p => ({...p, renk: name})))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-600 text-white hover:bg-purple-500 shrink-0 shadow-lg shadow-purple-500/20">
+                                            <Icon name="plus" className="w-4 h-4"/>
+                                        </button>
+                                    </div>
+                                 </div>
+                                 <div>
+                                    <label className="label-style">Beden *</label>
+                                    <div className="flex gap-1.5">
+                                        <select name="beden" value={product.beden} onChange={handleChange} className="input-style flex-grow" required>
+                                            <option value="">Seçin</option>
+                                            {definitions.sizes.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                        </select>
+                                        <button type="button" onClick={() => onTriggerQuickAdd('size', undefined, (name) => setProduct(p => ({...p, beden: name})))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 shrink-0 shadow-lg shadow-indigo-500/20">
+                                            <Icon name="plus" className="w-4 h-4"/>
+                                        </button>
+                                    </div>
+                                 </div>
                             </div>
                         </div>
-                        <div><label className="label-style">Ürün Adı *</label><input type="text" name="name" value={product.name} onChange={handleChange} className="w-full input-style" required /></div>
-                        <div className="grid grid-cols-3 gap-2">
-                             <div><label className="label-style">Alış Fiyatı</label><input type="text" name="buyPrice" value={product.buyPrice} onChange={handleChange} className="w-full input-style" placeholder="0,00"/></div>
-                             <div><label className="label-style">Kar (%)</label><input type="text" name="margin" value={product.margin} onChange={handleChange} className="w-full input-style" placeholder="0,00" disabled={!product.buyPrice}/></div>
-                             <div><label className="label-style">Satış Fiyatı *</label><input type="text" name="price" value={product.price} onChange={handleChange} className="w-full input-style" required placeholder="0,00"/></div>
-                        </div>
-                        <div><label className="label-style">Stok Adedi</label><input type="number" name="stock" value={product.stock} onChange={handleChange} className="w-full input-style" /></div>
-                    </div>
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-lg text-slate-700 border-b pb-2">Ürün Detayları</h3>
-                        <div><label className="label-style">Marka *</label><select name="marka" value={product.marka} onChange={handleChange} className="w-full input-style" required><option value="">Seçin</option>{definitions.brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
-                        <div><label className="label-style">Model *</label><select name="model" value={product.model} onChange={handleChange} className="w-full input-style" required disabled={!product.marka}><option value="">Seçin</option>{filteredModels.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                        <div className="grid grid-cols-2 gap-4">
-                             <div><label className="label-style">Renk *</label><select name="renk" value={product.renk} onChange={handleChange} className="w-full input-style" required><option value="">Seçin</option>{definitions.colors.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-                             <div><label className="label-style">Beden *</label><select name="beden" value={product.beden} onChange={handleChange} className="w-full input-style" required><option value="">Seçin</option>{definitions.sizes.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
-                        </div>
-                        <div><label className="label-style">Tedarikçi</label><select name="supplierId" value={product.supplierId} onChange={handleChange} className="w-full input-style"><option value="">Seçin (İsteğe Bağlı)</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                    </div>
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-lg text-slate-700 border-b pb-2">Kategorizasyon</h3>
-                        <div><label className="label-style">Grup *</label><select name="group" value={product.group} onChange={handleChange} className="w-full input-style" required disabled={!product.marka}><option value="">Seçin</option>{mainGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                        <div><label className="label-style">Ara Grup</label><select name="midGroup" value={product.midGroup} onChange={handleChange} className="w-full input-style" disabled={!product.group}><option value="">Seçin</option>{midGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                        <div><label className="label-style">Alt Grup</label><select name="subGroup" value={product.subGroup} onChange={handleChange} className="w-full input-style" disabled={!product.midGroup}><option value="">Seçin</option>{subGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                        <div><label className="label-style">Stok Kodu</label><input type="text" name="stokKodu" value={product.stokKodu} onChange={handleChange} className="w-full input-style" placeholder="Örn: YN-KL-001" /></div>
-                        <div><label className="label-style">Ana Stok Kodu</label><input type="text" name="anaStokKodu" value={product.anaStokKodu} onChange={handleChange} className="w-full input-style" /></div>
                     </div>
                 </div>
-            </main>
-            <footer className="p-4 border-t flex justify-end gap-4 flex-shrink-0 bg-slate-50 rounded-b-xl">
-                <button type="button" onClick={onClose} className="btn-secondary">İptal</button>
-                <button type="submit" className="btn-primary">Ürünü Kaydet</button>
-            </footer>
+
+                <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2 flex items-center gap-2">
+                            <Icon name="purchase" className="w-5 h-5 text-cyan-600"/> Fiyat & Stok
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="label-style">Stok Miktarı</label>
+                                    <input type="number" name="stock" value={product.stock} onChange={handleChange} className="input-style w-full font-black text-center text-xl bg-slate-50 dark:bg-slate-900 border-dashed" />
+                                </div>
+                                <div className="col-span-2"><hr className="dark:border-slate-700"/></div>
+                                <div><label className="label-style">Alış (₺)</label><input type="text" name="buyPrice" value={product.buyPrice} onChange={handleChange} className="input-style w-full text-right" placeholder="0,00"/></div>
+                                <div><label className="label-style">Kar (%)</label><input type="text" name="margin" value={product.margin} onChange={handleChange} className="input-style w-full text-right text-emerald-600" placeholder="0,00" disabled={!product.buyPrice}/></div>
+                                <div className="col-span-2"><label className="label-style">Satış Fiyatı (₺) *</label><input type="text" name="price" value={product.price} onChange={handleChange} className="input-style w-full text-right font-black text-2xl text-cyan-600" required placeholder="0,00"/></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b dark:border-slate-700 pb-2">Kategorizasyon</h3>
+                        <div className="space-y-4">
+                             <div>
+                                <label className="label-style">Grup *</label>
+                                <div className="flex gap-2">
+                                    <select name="group" value={product.group} onChange={handleChange} className="input-style flex-grow" required disabled={!product.marka}>
+                                        <option value="">Grup Seçin</option>
+                                        {mainGroups.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}
+                                    </select>
+                                    <button type="button" onClick={() => onTriggerQuickAdd('group', undefined, (name) => setProduct(p => ({...p, group: name})))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 shrink-0 shadow-lg shadow-cyan-500/20 disabled:opacity-30 disabled:bg-slate-400" disabled={!product.marka}>
+                                        <Icon name="plus" className="w-4 h-4"/>
+                                    </button>
+                                </div>
+                             </div>
+                             <div><label className="label-style">Stok Kodu</label><input type="text" name="stokKodu" value={product.stokKodu} onChange={handleChange} className="input-style w-full" placeholder="Örn: M-456" /></div>
+                             <div><label className="label-style">Raf / Konum</label><input type="text" name="shelfLocation" value={product.shelfLocation} onChange={handleChange} className="input-style w-full" placeholder="Örn: B-04" /></div>
+                             <div><label className="label-style">Tedarikçi</label><select name="supplierId" value={product.supplierId} onChange={handleChange} className="input-style w-full"><option value="">Tedarikçi (Opsiyonel)</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-4 border-t dark:border-slate-800 pt-8 mt-4">
+                <button type="button" onClick={onClose} className="btn-secondary px-8 font-black uppercase text-xs">Vazgeç</button>
+                <button type="submit" className="btn-primary px-10 font-black uppercase text-xs shadow-xl shadow-cyan-600/30 tracking-widest">Ürünü Kaydet</button>
+            </div>
         </form>
     );
-}
+};
 
 export default AddProductModal;

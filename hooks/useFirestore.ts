@@ -86,9 +86,18 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
 
     try {
       const batch = writeBatch(db);
-      // This is a simple implementation that replaces/updates items.
-      // For a real app, we'd want to track diffs.
-      // For now, we'll just set each item.
+      
+      // 1. Identify items to delete
+      const newIds = new Set(newValue.map(item => item.id || item.barcode));
+      data.forEach(item => {
+        const id = item.id || item.barcode;
+        if (id && !newIds.has(id)) {
+          const docRef = doc(db, collectionName, id);
+          batch.delete(docRef);
+        }
+      });
+
+      // 2. Set/Update items in the new list
       newValue.forEach(item => {
         const id = item.id || item.barcode;
         if (id) {
@@ -96,6 +105,7 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
           batch.set(docRef, item);
         }
       });
+
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, collectionName);

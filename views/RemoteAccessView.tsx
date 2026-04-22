@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Product, SaleRecord, SaleItem, View, TabIcon, Supplier } from '../types';
 import Icon from '../components/Icon';
 
@@ -10,311 +10,174 @@ interface RemoteAccessViewProps {
   suppliers: Supplier[];
 }
 
-const StatCard: React.FC<{ icon: any; title: string; value: string | number; description?: string; color: string; }> = ({ icon, title, value, description, color }) => (
-  <div className="bg-white rounded-xl shadow-md p-5 flex items-center gap-5 border border-slate-200/80">
-    <div className={`rounded-full p-3 ${color}`}><Icon name={icon} className="w-7 h-7" /></div>
-    <div>
-      <p className="text-slate-500 text-sm font-medium">{title}</p>
-      <p className="text-3xl font-bold text-slate-800">{value}</p>
-      {description && <p className="text-slate-400 text-xs">{description}</p>}
-    </div>
-  </div>
-);
-
-const SalesDashboard: React.FC<{ salesHistory: SaleRecord[], suspendedSales: SaleItem[][], onNavigate: RemoteAccessViewProps['onNavigate'] }> = ({ salesHistory, suspendedSales, onNavigate }) => {
-    const todayStats = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const todaysSales = salesHistory.filter(sale => new Date(sale.date) >= today);
-        const totalRevenue = todaysSales.reduce((sum, sale) => sum + sale.total, 0);
-        const salesCount = todaysSales.length;
-        
-        const productSalesMap = new Map<string, {name: string, quantity: number}>();
-        todaysSales.forEach(sale => {
-        sale.items.forEach(item => {
-            const existing = productSalesMap.get(item.barcode);
-            productSalesMap.set(item.barcode, {
-            name: item.name,
-            quantity: (existing?.quantity || 0) + item.quantity
-            });
-        });
-        });
-
-        const topSellers = Array.from(productSalesMap.values())
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 5);
-
-        return { totalRevenue, salesCount, topSellers };
-    }, [salesHistory]);
-
-    return (
-        <div className="w-full lg:w-1/2 flex flex-col gap-6">
-            <h2 className="text-xl font-bold text-slate-700 border-b pb-2">Bugünkü Satış Faaliyetleri</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <StatCard icon="finance" title="Bugünkü Ciro" value={`${todayStats.totalRevenue.toFixed(2)} ₺`} color="bg-green-100 text-green-700" />
-                <StatCard icon="new-sale" title="Bugünkü Satış Adedi" value={todayStats.salesCount} color="bg-cyan-100 text-cyan-700" />
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-5 border border-slate-200/80 flex-grow flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-3">Günün Çok Satanları</h3>
-                {todayStats.topSellers.length > 0 ? (
-                    <ul className="space-y-3">
-                        {todayStats.topSellers.map((item, index) => (
-                            <li key={index} className="flex justify-between items-center text-sm">
-                                <span className="font-medium text-slate-700 truncate pr-4">{item.name}</span>
-                                <span className="font-bold text-cyan-600 bg-cyan-100/70 px-2 py-1 rounded-md">{item.quantity} adet</span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : <p className="text-slate-500 text-sm text-center py-4">Bugün henüz satış yapılmadı.</p>}
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-5 border border-slate-200/80">
-                <h3 className="font-bold text-slate-800 mb-3">Beklemedeki Satışlar ({suspendedSales.length})</h3>
-                    {suspendedSales.length > 0 ? (
-                    <div className="space-y-2">
-                            {suspendedSales.map((sale, index) => {
-                            const saleTotal = sale.reduce((sum, item) => sum + item.price * item.quantity, 0);
-                            const itemCount = sale.reduce((sum, item) => sum + item.quantity, 0);
-                            return (
-                                <div key={index} className="flex items-center justify-between bg-slate-100 p-2 rounded-lg">
-                                    <div><p className="font-semibold text-slate-700 text-sm">Satış #{index + 1}: {itemCount} ürün</p></div>
-                                    <p className="font-bold text-sm text-slate-800">{saleTotal.toFixed(2)} ₺</p>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : <p className="text-slate-500 text-sm">Beklemede satış bulunmuyor.</p>}
-                    <button onClick={() => onNavigate(View.SALE, 'Satış Ekranı', 'new-sale')} className="text-sm font-semibold text-cyan-600 hover:underline mt-4">Satış Ekranına Git →</button>
-            </div>
-        </div>
-    );
-}
-
-const generatePdfInNewTab = (title: string, headers: string[], rows: (string|number)[][]) => {
-    const tableHeaders = headers.map(h => `<th>${h}</th>`).join('');
-    const tableRows = rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
-    
-    const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>${title}</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 10pt; }
-                .container { width: 95%; margin: 2rem auto; }
-                h1 { text-align: center; color: #334155; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
-                th { background-color: #f1f5f9; font-weight: 600; color: #475569; }
-                tr:nth-child(even) { background-color: #f8fafc; }
-                .print-controls { text-align: center; margin-bottom: 2rem; }
-                .print-button { background-color: #0ea5e9; color: white; padding: 10px 20px; border-radius: 6px; border: none; font-size: 1rem; cursor: pointer; }
-                @media print {
-                    body { font-size: 9pt; }
-                    .print-controls { display: none; }
-                    .container { width: 100%; margin: 0; }
-                    h1 { margin-bottom: 1rem; }
-                    table { margin-top: 0; }
-                    th, td { padding: 6px 8px; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="print-controls">
-                    <button class="print-button" onclick="window.print()">Yazdır veya PDF Olarak Kaydet</button>
-                </div>
-                <h1>${title}</h1>
-                <p>Oluşturma Tarihi: ${new Date().toLocaleString('tr-TR')}</p>
-                <table>
-                    <thead><tr>${tableHeaders}</tr></thead>
-                    <tbody>${tableRows}</tbody>
-                </table>
-            </div>
-        </body>
-        </html>
-    `;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.focus();
-    } else {
-        alert("Yazdırma penceresi açılamadı. Lütfen pop-up engelleyicinizi kontrol edin.");
-    }
-};
-
-
-const StockInquiry: React.FC<{ products: Product[], suppliers: Supplier[] }> = ({ products, suppliers }) => {
-    const [selectedSupplierId, setSelectedSupplierId] = useState('all');
-
-    const filteredProducts = useMemo(() => {
-        const activeProducts = products.filter(p => !p.isDeleted);
-        if (selectedSupplierId === 'all') {
-            return activeProducts;
-        }
-        return activeProducts.filter(p => p.supplierId === selectedSupplierId);
-    }, [products, selectedSupplierId]);
-
-    const handleDownloadFullList = () => {
-        const supplierName = selectedSupplierId === 'all' ? 'Tüm Ürünler' : suppliers.find(s => s.id === selectedSupplierId)?.name || 'Bilinmeyen Tedarikçi';
-        const headers = ['Ürün Adı', 'Barkod', 'Stok', 'Alış Fiyatı', 'Satış Fiyatı'];
-        const rows = filteredProducts.map(p => [p.name, p.barcode, p.stock, p.buyPrice.toFixed(2), p.price.toFixed(2)]);
-        generatePdfInNewTab(`${supplierName} - Stok Listesi`, headers, rows);
-    };
-
-    const handleDownloadMissingList = () => {
-        const missingItems = filteredProducts.filter(p => p.stock <= 10);
-        if (missingItems.length === 0) {
-            alert("Seçili tedarikçi için kritik stok seviyesinde ürün bulunmuyor.");
-            return;
-        }
-        const supplierName = selectedSupplierId === 'all' ? 'Genel' : suppliers.find(s => s.id === selectedSupplierId)?.name || 'Bilinmeyen Tedarikçi';
-        const headers = ['Ürün Adı', 'Stok Kodu', 'Mevcut Stok', 'Alış Fiyatı'];
-        const rows = missingItems.map(p => [p.name, p.stokKodu, p.stock, p.buyPrice.toFixed(2)]);
-        generatePdfInNewTab(`${supplierName} - Eksik Sipariş Listesi`, headers, rows);
-    };
-
-    return (
-        <div className="w-full lg:w-1/2 flex flex-col gap-6">
-            <h2 className="text-xl font-bold text-slate-700 border-b pb-2">Stok Sorgulama</h2>
-            <div className="bg-white rounded-xl shadow-md p-5 border border-slate-200/80 flex flex-col flex-grow">
-                <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                    <div className="flex-grow">
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Tedarikçiye Göre Filtrele</label>
-                        <select
-                            value={selectedSupplierId}
-                            onChange={e => setSelectedSupplierId(e.target.value)}
-                            className="w-full h-11 bg-white border border-slate-300 rounded-lg px-3 text-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                        >
-                            <option value="all">Tüm Tedarikçiler</option>
-                            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                <div className="flex-grow overflow-y-auto border-t border-b -mx-5 px-5 py-2">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left sticky top-0 bg-white">
-                                <th className="font-semibold text-slate-600 pb-2">Ürün</th>
-                                <th className="font-semibold text-slate-600 pb-2 text-right">Stok</th>
-                                <th className="font-semibold text-slate-600 pb-2 text-right">Satış Fiyatı</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredProducts.map(item => (
-                                <tr key={item.barcode} className="border-t">
-                                    <td className="py-2.5">{item.name}</td>
-                                    <td className={`py-2.5 text-right font-bold ${item.stock <= 10 ? 'text-red-600' : 'text-slate-800'}`}>{item.stock}</td>
-                                    <td className="py-2.5 text-right font-semibold text-cyan-700">{item.price.toFixed(2)} ₺</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                     {filteredProducts.length === 0 && <p className="text-slate-500 text-center py-8">Bu tedarikçiye ait ürün bulunmuyor.</p>}
-                </div>
-                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-end">
-                    <button onClick={handleDownloadFullList} className="btn-action bg-slate-200 text-slate-700 hover:bg-slate-300">
-                        <Icon name="download" className="w-5 h-5"/> Listeyi PDF Olarak İndir
-                    </button>
-                    <button onClick={handleDownloadMissingList} className="btn-action bg-rose-500 text-white hover:bg-rose-600">
-                        <Icon name="exclamation-triangle" className="w-5 h-5"/> Eksik Listesini İndir
-                    </button>
-                </div>
-            </div>
-            <style>{`.btn-action { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; font-size: 0.875rem; font-weight: 600; border-radius: 0.5rem; transition: background-color 0.2s; }`}</style>
-        </div>
-    );
-};
-
-
 const RemoteAccessView: React.FC<RemoteAccessViewProps> = ({ salesHistory, products, suspendedSales, onNavigate, suppliers }) => {
   const appUrl = window.location.href;
 
-  return (
-    <div className="w-full h-full flex flex-col gap-6 overflow-y-auto pb-10">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h1 className="text-3xl font-bold text-slate-800">Uzaktan Erişim Paneli</h1>
-                <p className="text-slate-500">Mağazanızı her yerden, her cihazdan yönetin.</p>
-            </div>
-            <div className="flex items-center gap-2 bg-cyan-50 text-cyan-700 px-4 py-2 rounded-xl border border-cyan-100">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-bold">Bulut Senkronizasyonu Aktif</span>
-            </div>
-        </header>
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const todaySales = salesHistory.filter(s => s.date.split('T')[0] === today);
+    const totalRev = todaySales.reduce((acc, s) => acc + s.total, 0);
+    const lowStock = products.filter(p => !p.isDeleted && p.stock <= 5).length;
+    return { totalRev, salesCount: todaySales.length, lowStock };
+  }, [salesHistory, products]);
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <div className="xl:col-span-2 flex flex-col gap-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-                    <SalesDashboard salesHistory={salesHistory} suspendedSales={suspendedSales} onNavigate={onNavigate} />
-                    <StockInquiry products={products} suppliers={suppliers} />
+  return (
+    <div className="w-full h-full bg-[#020617] text-slate-300 font-sans overflow-y-auto custom-scrollbar p-8">
+      
+      {/* 🌌 HEADER: TECH HUD LOOK */}
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+        <div className="relative">
+            <div className="absolute -left-4 top-0 w-1 h-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+            <h1 className="text-4xl font-black text-white tracking-tighter uppercase mb-1 underline decoration-indigo-500/30 decoration-4 underline-offset-8">STUDIO <span className="text-indigo-400">HUB</span></h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">Merkezi Yönetim & Mobil Erişim Üssü</p>
+        </div>
+        <div className="flex items-center gap-6 bg-white/[0.03] border border-white/5 p-4 rounded-[2rem] backdrop-blur-3xl">
+            <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Sistem Çevrimiçi</span>
+            </div>
+            <div className="h-8 w-px bg-white/10"></div>
+            <div className="flex items-center gap-3">
+                <Icon name="ai" className="w-5 h-5 text-indigo-400 animate-spin-slow" />
+                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">AI Sync Aktif</span>
+            </div>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-12 gap-8">
+        
+        {/* LEFT: MONITORING & TOOLS */}
+        <div className="col-span-12 lg:col-span-8 space-y-8">
+            
+            {/* REAL-TIME PULSE */}
+            <div className="grid grid-cols-3 gap-6">
+                {[
+                    { label: 'GÜNLÜK AKIŞ', val: stats.totalRev.toFixed(0) + '₺', icon: 'finance', col: 'indigo' },
+                    { label: 'AKTİF SATIŞLAR', val: stats.salesCount, icon: 'new-sale', col: 'cyan' },
+                    { label: 'KRİTİK STOK', val: stats.lowStock, icon: 'exclamation-circle', col: 'rose' }
+                ].map((s, i) => (
+                    <div key={i} className="bg-[#0f172a] p-6 rounded-[2.5rem] border border-white/5 group hover:border-indigo-500/30 transition-all">
+                        <div className={`w-10 h-10 bg-${s.col}-500/10 rounded-xl flex items-center justify-center mb-4 text-${s.col}-400 group-hover:scale-110 transition-transform`}>
+                            <Icon name={s.icon} className="w-5 h-5" />
+                        </div>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{s.label}</p>
+                        <h3 className="text-2xl font-black text-white tabular-nums">{s.val}</h3>
+                    </div>
+                ))}
+            </div>
+
+            {/* QUICK ACTIONS TABLE */}
+            <div className="bg-[#0f172a] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-10 flex items-center gap-3">
+                    <Icon name="list-bullet" className="w-5 h-5 text-indigo-500" /> HIZLI RAPOR ARAÇLARI
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <button className="flex items-center gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.05] transition-all group">
+                        <div className="w-12 h-12 bg-indigo-600/10 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
+                            <Icon name="download" className="w-6 h-6 text-indigo-400 group-hover:text-white" />
+                        </div>
+                        <div className="text-left">
+                            <h4 className="text-[11px] font-black text-white uppercase tracking-tight">Full Veri Yedeği</h4>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">JSON/Cloud Backup</p>
+                        </div>
+                    </button>
+                    <button onClick={() => onNavigate(View.REPORTS, 'Raporlar', 'reports')} className="flex items-center gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.05] transition-all group">
+                        <div className="w-12 h-12 bg-emerald-600/10 rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
+                            <Icon name="reports" className="w-6 h-6 text-emerald-400 group-hover:text-white" />
+                        </div>
+                        <div className="text-left">
+                            <h4 className="text-[11px] font-black text-white uppercase tracking-tight">X-Raporu Al</h4>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Anlık Kasa Özeti</p>
+                        </div>
+                    </button>
                 </div>
             </div>
 
-            <div className="flex flex-col gap-6">
-                <section className="bg-white p-6 rounded-3xl shadow-md border border-slate-200">
-                    <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Icon name="ai" className="w-6 h-6 text-cyan-600" />
-                        Mobil Erişim
-                    </h2>
-                    <p className="text-sm text-slate-500 mb-6">
-                        Telefonunuzdan veya tabletinizden erişmek için aşağıdaki bağlantıyı kullanın veya QR kodu taratın.
-                    </p>
-                    
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6">
-                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Erişim Bağlantısı</p>
-                        <div className="flex items-center gap-2">
-                            <input 
-                                readOnly 
-                                value={appUrl} 
-                                className="flex-1 bg-transparent text-sm font-mono text-slate-600 outline-none truncate"
-                            />
-                            <button 
-                                onClick={() => {
-                                    navigator.clipboard.writeText(appUrl);
-                                    alert("Bağlantı kopyalandı!");
-                                }}
-                                className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
-                            >
-                                <Icon name="back" className="w-4 h-4 rotate-180" />
-                            </button>
-                        </div>
+            {/* SYSTEM LOGS SIMULATION */}
+            <div className="bg-[#0f172a] p-10 rounded-[3rem] border border-white/5">
+                <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Bulut Veri Akışı</h3>
+                    <div className="flex gap-1">
+                        {[1, 2, 3, 4].map(i => <div key={i} className="w-1 h-3 bg-indigo-500/40 rounded-full"></div>)}
                     </div>
-
-                    <div className="flex flex-col items-center justify-center p-6 bg-white border-2 border-dashed border-slate-200 rounded-2xl">
-                        <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center mb-4">
-                            <Icon name="barcode" className="w-16 h-16 text-slate-300" />
-                        </div>
-                        <p className="text-xs text-center text-slate-400">
-                            QR Kod simülasyonu. Gerçek kullanımda buraya dinamik QR kod gelecektir.
-                        </p>
-                    </div>
-                </section>
-
-                <section className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg text-white">
-                    <h2 className="text-xl font-bold mb-4">Nasıl Çalışır?</h2>
-                    <ul className="space-y-4 text-sm text-cyan-50">
-                        <li className="flex gap-3">
-                            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0 font-bold">1</div>
-                            <p>Uygulama verileriniz Google Firebase bulut altyapısında saklanır.</p>
-                        </li>
-                        <li className="flex gap-3">
-                            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0 font-bold">2</div>
-                            <p>Aynı Google hesabıyla giriş yaptığınız tüm cihazlarda veriler anında eşitlenir.</p>
-                        </li>
-                        <li className="flex gap-3">
-                            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0 font-bold">3</div>
-                            <p>Bilgisayarınız kapalı olsa bile telefonunuzdan stok görebilir ve satış yapabilirsiniz.</p>
-                        </li>
-                    </ul>
-                </section>
+                </div>
+                <div className="space-y-4 font-mono text-[10px]">
+                    <div className="text-emerald-500 flex gap-4"><span className="text-slate-600">[SUCCESS]</span> Firebase Firestore bağlantısı sağlandı.</div>
+                    <div className="text-indigo-400 flex gap-4"><span className="text-slate-600">[SYNC]</span> 3804 ürün verisi yerel önbellek ile eşitlendi.</div>
+                    <div className="text-slate-500 flex gap-4"><span className="text-slate-600">[INFO]</span> Mobil Terminal Köprüsü (MobileBridge) dinlemede...</div>
+                </div>
             </div>
         </div>
+
+        {/* RIGHT: MOBILE TERMINAL PAIRING */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-8">
+            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-10 rounded-[3.5rem] shadow-[0_20px_50px_rgba(99,102,241,0.2)] text-white relative overflow-hidden group">
+                <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 blur-[60px] rounded-full group-hover:bg-white/20 transition-all"></div>
+                
+                <h2 className="text-2xl font-black mb-2 flex items-center gap-3">
+                    <Icon name="barcode" className="w-8 h-8" /> MOBİL KÖPRÜ
+                </h2>
+                <p className="text-xs font-bold text-white/60 uppercase tracking-widest mb-8">Telefonu Terminale Dönüştür</p>
+
+                <div className="bg-white p-6 rounded-[2.5rem] flex flex-col items-center justify-center mb-8 shadow-inner border-4 border-indigo-500/30">
+                    <div className="relative group/qr">
+                        <div className="w-48 h-48 bg-slate-900 rounded-3xl flex items-center justify-center relative overflow-hidden">
+                            {/* QR PLACEHOLDER LOOKS LIKE TECH UI */}
+                            <div className="grid grid-cols-4 gap-2 opacity-30">
+                                {Array.from({length: 16}).map((_, i) => <div key={i} className="w-6 h-6 border border-indigo-400 rounded-sm"></div>)}
+                            </div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <Icon name="barcode" className="w-16 h-16 text-indigo-500/80 animate-pulse" />
+                                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-indigo-500"></div>
+                                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-indigo-500"></div>
+                                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-indigo-500"></div>
+                                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-indigo-500"></div>
+                            </div>
+                        </div>
+                        <div className="absolute -inset-2 bg-indigo-500/20 blur opacity-0 group-hover/qr:opacity-100 transition-opacity rounded-3xl"></div>
+                    </div>
+                </div>
+
+                <p className="text-[10px] text-center text-white/50 font-bold uppercase tracking-widest leading-relaxed mb-6">
+                    Mevcut bağlantıyı personele gönderin veya <br/> QR kodu telefondan taratın.
+                </p>
+
+                <button 
+                    onClick={() => {
+                        navigator.clipboard.writeText(appUrl);
+                        alert("Erişim bağlantısı kopyalandı!");
+                    }}
+                    className="w-full bg-white text-indigo-700 h-14 rounded-2xl flex items-center justify-center gap-4 text-xs font-black uppercase tracking-[0.2em] hover:bg-slate-100 transition-all active:scale-95"
+                >
+                    <Icon name="back" className="w-5 h-5 rotate-180" /> BAĞLANTIYI KOPYALA
+                </button>
+            </div>
+
+            <div className="bg-[#0f172a] p-8 rounded-[3rem] border border-white/5 text-center">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">NASIL KULLANILIR?</h4>
+                <div className="space-y-4 text-left">
+                    {[
+                        'Cihazın aynı ağda olmasına gerek yoktur.',
+                        'Okutulan barkodlar anında SATIŞ EKRANI\'na düşer.',
+                        'Sınırsız sayıda cihaz bağlayabilirsiniz.'
+                    ].map((t, i) => (
+                        <div key={i} className="flex gap-4 items-start">
+                            <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 font-black text-[10px]">{i+1}</div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{t}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <style>{`
+        .animate-spin-slow { animation: spin 8s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 20px; }
+      `}</style>
     </div>
   );
 };

@@ -1,4 +1,10 @@
-
+export interface Definitions {
+  brands: Brand[];
+  models: Model[];
+  colors: Color[];
+  sizes: Size[];
+  groups: Group[];
+}
 
 export interface Brand {
   id: string;
@@ -74,6 +80,8 @@ export interface Product {
   midGroup: string;
   subGroup: string;
   supplierId?: string;
+  shelfLocation?: string;
+  minStock?: number;
   isDeleted?: boolean;
   isActivated?: boolean;
 }
@@ -201,9 +209,11 @@ export enum View {
   CALCULATOR_MENU = 'CALCULATOR_MENU',
   MONEY_COUNTER = 'MONEY_COUNTER',
   SERIAL_LABEL = 'SERIAL_LABEL',
+  BULK_PRICE_UPDATE = 'BULK_PRICE_UPDATE',
+  STOCK_ORDER = 'STOCK_ORDER',
 }
 
-export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'barcode' | 'calculator-menu';
+export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'barcode' | 'calculator-menu' | 'supplier';
 
 export interface Tab {
   id: View;
@@ -224,6 +234,7 @@ export interface ProductFilters {
   group?: string;
   midGroup?: string;
   subGroup?: string;
+  shelfLocation?: string;
   minPrice?: string;
   maxPrice?: string;
   stockStatus?: 'all' | 'inStock' | 'outOfStock' | 'lowStock';

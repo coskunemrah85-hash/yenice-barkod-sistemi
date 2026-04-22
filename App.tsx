@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Product, SaleRecord, View, SaleItem, ReturnRecord, Brand, Model, Color, Size, Group, AITask, Supplier, PurchaseRecord, PaymentRecord, Tab, TabIcon, EndOfDayRecord, User, AppBackup, CompanyInfo, ReturnItem, PurchaseItem, Customer, MissingListRecord } from './types';
 import DashboardView from './views/DashboardView';
 import SaleView from './views/SaleView';
@@ -7,7 +7,7 @@ import ReportsView from './views/ReportsView';
 import Navbar from './components/Navbar';
 import ReturnView from './views/ReturnView';
 import DefinitionsView from './views/DefinitionsView';
-import { extractProductsFromContent } from './services/geminiService';
+import { extractProductsFromContent, extractSuppliersFromContent, extractPurchaseItemsFromContent, extractPriceUpdatesFromContent } from './services/geminiService';
 import AiReviewModal from './components/AiReviewModal';
 import UserManualModal from './components/UserManualModal';
 import PurchaseView from './views/PurchaseView';
@@ -24,15 +24,17 @@ import AiSettingsView from './views/AiSettingsView';
 import AiMenuView from './views/AiMenuView';
 import ExcelOperationsView from './views/ExcelOperationsView';
 import AiPriceUpdateView from './views/AiPriceUpdateView';
+import CalculatorView from './views/CalculatorView';
+import CalculatorMenuView from './views/CalculatorMenuView';
+import MoneyCounterView from './views/MoneyCounterView';
+import LabelDesigner from './views/LabelDesigner';
+import BulkPriceUpdateView from './views/BulkPriceUpdateView';
+import StockOrderView from './views/StockOrderView';
 import LoginView from './views/LoginView';
 import Icon from './components/Icon';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFirestore, useFirestoreDoc } from './hooks/useFirestore';
-import CalculatorView from './views/CalculatorView';
-import CalculatorMenuView from './views/CalculatorMenuView';
-import MoneyCounterView from './views/MoneyCounterView';
-import LabelDesigner from './views/LabelDesigner';
 import UpdateCheckModal from './components/UpdateCheckModal';
 import packageJson from './package.json';
 import ContextMenu from './components/ContextMenu';
@@ -56,6 +58,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
+  const [minimizedTasks, setMinimizedTasks] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -133,6 +136,7 @@ const App: React.FC = () => {
     phone: '',
     taxOffice: '',
     taxNumber: '',
+    darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
   });
   const [brands, setBrands] = useFirestore<Brand>('brands', []);
   const [models, setModels] = useFirestore<Model>('models', []);
@@ -144,6 +148,19 @@ const App: React.FC = () => {
   const [purchaseHistory, setPurchaseHistory] = useFirestore<PurchaseRecord>('purchaseHistory', []);
   const [paymentHistory, setPaymentHistory] = useFirestore<PaymentRecord>('paymentHistory', []);
   const [missingLists, setMissingLists] = useFirestore<MissingListRecord>('missingLists', []);
+  const [restoreAddProductSignal, setRestoreAddProductSignal] = useState(0); 
+
+  // Koyu Mod (Dark Mode) Uygulayıcı
+  useEffect(() => {
+    const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
+    if (companyInfo.darkMode) {
+      document.documentElement.classList.add('dark');
+      if (ipcRenderer) ipcRenderer.send('set-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      if (ipcRenderer) ipcRenderer.send('set-theme', 'light');
+    }
+  }, [companyInfo.darkMode]);
   // --- End of Data Persistence Logic ---
 
   // Ephemeral states (not persisted)
@@ -175,6 +192,7 @@ const App: React.FC = () => {
   }, [companyInfo.appTitle]);
 
   const navigateTo = useCallback((view: View, label: string, icon: TabIcon, payload?: any) => {
+    console.log('Navigating to:', view, label);
     setOpenTabs(prevTabs => {
         if (prevTabs.some(tab => tab.id === view)) {
             return prevTabs;
@@ -587,6 +605,19 @@ const App: React.FC = () => {
     );
   }, [setProducts, setCurrentSale, setSuspendedSales]);
 
+  const handleStartAiSupplierTask = useCallback(async (file: File, prompt: string) => {
+    // For now, extract and directly add instead of reviewing for suppliers
+    try {
+        const results = await extractSuppliersFromContent(file, prompt);
+        if (results.length > 0) {
+            setSuppliers(prev => [...prev, ...results as Supplier[]]);
+            alert(`${results.length} tedarikçi başarıyla aktarıldı.`);
+        }
+    } catch (error) {
+        alert("AI Tedarikçi Aktarımı Hatası: " + (error instanceof Error ? error.message : "Bilinmeyen hata"));
+    }
+  }, [setSuppliers]);
+
   const updateProductBuyPrice = useCallback((barcode: string, newBuyPrice: number) => {
     setProducts(prevProducts =>
         prevProducts.map(p =>
@@ -698,6 +729,23 @@ const App: React.FC = () => {
 
     return true;
   }, [products]);
+
+  const handleBulkUpdateProducts = useCallback((updates: { barcode: string, updates: Partial<Product> }[]) => {
+    console.log(`[PriceUpdate] ${updates.length} ürün güncelleniyor...`);
+    
+    setProducts(prev => {
+        const updateMap = new Map(updates.map(u => [u.barcode, u.updates]));
+        const newProducts = prev.map(p => {
+            const productUpdates = updateMap.get(p.barcode);
+            if (productUpdates) {
+                return { ...p, ...productUpdates };
+            }
+            return p;
+        });
+        console.log('[PriceUpdate] Güncelleme tamamlandı, liste yenileniyor.');
+        return newProducts;
+    });
+  }, [setProducts]);
   
   const handleLogout = () => {
     auth.signOut();
@@ -715,6 +763,29 @@ const App: React.FC = () => {
     if (window.confirm("Kullanıcıyı silmek istediğinizden emin misiniz?")) {
       setUsers(prev => prev.filter(u => u.id !== userId));
     }
+  };
+
+  const handleQuickAddDefinition = useCallback((type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => {
+    switch (type) {
+      case 'brand': setBrands(prev => [...prev, data]); break;
+      case 'model': setModels(prev => [...prev, data]); break;
+      case 'group': setGroups(prev => [...prev, data]); break;
+      case 'color': setColors(prev => [...prev, data]); break;
+      case 'size': setSizes(prev => [...prev, data]); break;
+    }
+  }, [setBrands, setModels, setGroups, setColors, setSizes]);
+
+  const toggleTaskMinimize = (task: any) => {
+    setMinimizedTasks(prev => {
+        const exists = prev.find(t => t.id === task.id);
+        if (exists) {
+            if (task.type === 'add-product') {
+                setRestoreAddProductSignal(s => s + 1); // Sinyali tetikle
+            }
+            return prev.filter(t => t.id !== task.id);
+        }
+        return [...prev, task];
+    });
   };
 
   const handleExportData = () => {
@@ -831,6 +902,7 @@ const App: React.FC = () => {
     const activeTab = openTabs.find(tab => tab.id === activeTabId);
     const viewPayload = activeTab?.payload;
 
+    console.log('Rendering View:', activeTabId);
     switch (activeTabId) {
       case View.SALE:
         return <SaleView 
@@ -869,6 +941,9 @@ const App: React.FC = () => {
             onUpdateProductBuyPrice={updateProductBuyPrice}
             onUpdateProduct={handleUpdateProduct}
             onUpdateProductStock={handleUpdateProductStock}
+            onAddDefinition={handleQuickAddDefinition}
+            onMinimizeTask={toggleTaskMinimize}
+            restoreSignal={restoreAddProductSignal}
             companyInfo={companyInfo}
         />;
       case View.REPORTS:
@@ -891,6 +966,7 @@ const App: React.FC = () => {
             suppliers={suppliers}
             customers={customers}
             products={products}
+            companyInfo={companyInfo}
             onUpdateBrands={handleUpdateBrands}
             onUpdateModels={handleUpdateModels}
             onUpdateColors={handleUpdateColors}
@@ -898,6 +974,7 @@ const App: React.FC = () => {
             onUpdateGroups={handleUpdateGroups}
             onUpdateSuppliers={handleUpdateSuppliers}
             onUpdateCustomers={handleUpdateCustomers}
+            onStartAiSupplierTask={handleStartAiSupplierTask}
         />;
       case View.PURCHASE:
         return <PurchaseView 
@@ -971,6 +1048,7 @@ const App: React.FC = () => {
           purchaseHistory={purchaseHistory}
           returnHistory={returnHistory}
           paymentHistory={paymentHistory}
+          suppliers={suppliers}
         />;
       case View.AI_SETTINGS:
         return <AiSettingsView 
@@ -1005,10 +1083,26 @@ const App: React.FC = () => {
         />;
       case View.MONEY_COUNTER:
         return <MoneyCounterView />;
+      case View.BULK_PRICE_UPDATE:
+        console.log('Rendering BulkPriceUpdateView');
+        return <BulkPriceUpdateView 
+            products={products} 
+            definitions={definitions}
+            onUpdateProducts={handleBulkUpdateProducts}
+            onNavigate={navigateTo}
+        />;
+      case View.STOCK_ORDER:
+        console.log('Rendering StockOrderView');
+        return <StockOrderView 
+            products={products}
+            suppliers={suppliers}
+            onNavigate={navigateTo}
+        />;
       case View.SERIAL_LABEL:
         return (
           <LabelDesigner 
-            products={products} // Firebase'den gelen ürün listesini gönderiyoruz
+            products={products}
+            definitions={definitions}
           />
         );
       case View.DASHBOARD:
@@ -1066,7 +1160,8 @@ const App: React.FC = () => {
         data = paymentHistory.map(p => ({
           'Tarih': new Date(p.date).toLocaleString('tr-TR'),
           'Tutar': p.amount,
-          'Tip': p.type
+          'Tip': 'Ödeme',
+          'Notlar': p.notes || ''
         }));
         filename = "finans_raporu.xlsx";
         break;
@@ -1087,7 +1182,7 @@ const App: React.FC = () => {
     { label: 'Tümünü Seç', icon: 'check', onClick: () => window.dispatchEvent(new CustomEvent('app-select-all')), variant: 'default' as const },
     { label: 'Seçimi Kaldır', icon: 'x-circle', onClick: () => window.dispatchEvent(new CustomEvent('app-deselect-all')), variant: 'default' as const },
     { label: 'Excel\'e Aktar', icon: 'excel', onClick: handleExportCurrentViewToExcel, variant: 'success' as const },
-    { label: 'Kaydet / Değişiklikleri Uygula', icon: 'success', onClick: () => console.log('Save requested'), variant: 'default' as const },
+    { label: 'Kaydet / Değişiklikleri Uygula', icon: 'check', onClick: () => console.log('Save requested'), variant: 'default' as const },
     { label: 'Kopyala (Metin Seçiliyse)', icon: 'copy', onClick: () => document.execCommand('copy'), variant: 'default' as const },
     { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData, variant: 'default' as const },
     { label: 'Sil / Arşivle', icon: 'trash', onClick: () => console.log('Delete requested'), variant: 'danger' as const },
@@ -1190,6 +1285,26 @@ const App: React.FC = () => {
           onClose={() => setShowContextMenu(false)} 
           position={contextMenuPosition}
         />
+      )}
+
+      {/* Floating Task Bar for Minimized Modals */}
+      {minimizedTasks.length > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex gap-3 p-3 bg-slate-900/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl animate-fade-in-up">
+              {minimizedTasks.map(task => (
+                  <button 
+                      key={task.id} 
+                      onClick={() => {
+                          if (task.type === 'add-product') navigateTo(View.PRODUCTS, 'Ürünler', 'products');
+                          toggleTaskMinimize(task);
+                      }}
+                      className="flex items-center gap-3 px-5 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all group shadow-lg shadow-cyan-900/40"
+                  >
+                      <Icon name="products" className="w-4 h-4" />
+                      <span>Ürün Ekleme (Devam Ediyor...)</span>
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                  </button>
+              ))}
+          </div>
       )}
     </div>
   );

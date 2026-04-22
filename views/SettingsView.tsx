@@ -72,32 +72,35 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, companyInfo, o
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 p-4 overflow-hidden">
             {notification && (
-                <div className="fixed top-24 right-6 p-2 rounded-lg shadow-lg text-white z-50 bg-green-500 animate-fade-in-up text-xs">
-                    {notification}
+                <div className="fixed top-24 right-6 p-4 rounded-2xl shadow-2xl text-white z-50 bg-cyan-600 animate-fade-in-up font-bold flex items-center gap-3">
+                    <Icon name="check" className="w-6 h-6"/> {notification}
                 </div>
             )}
-             <style>{`
-                @keyframes fade-in-up {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in-up { animation: fade-in-up 0.4s ease-out forwards; }
-            `}</style>
+            
+            <header className="view-header mb-6">
+                <h1 className="view-title">Sistem Ayarları</h1>
+                <div className="view-actions">
+                     <button
+                        onClick={handleSave}
+                        className="btn-primary"
+                    >
+                        <Icon name="check" className="w-5 h-5" /> Ayarları Kaydet
+                    </button>
+                </div>
+            </header>
 
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex-shrink-0">Sistem Ayarları</h1>
-
-            <div className="flex-grow overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
                     {/* Company Info Card (Admin only) */}
                     {currentUser.role === 'admin' && (
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                <Icon name="tag" className="w-5 h-5 text-cyan-700" />
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
+                            <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-6 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                                <Icon name="tag" className="w-5 h-5 text-cyan-600" />
                                 Firma Bilgileri
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
                                     <label className="label-style dark:text-slate-300">Uygulama Başlığı</label>
                                     <input type="text" name="appTitle" value={localCompanyInfo.appTitle} onChange={handleCompanyInfoChange} className="input-style w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
@@ -305,61 +308,31 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, companyInfo, o
                     </div>
 
                     {/* Update Settings Card */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                            <Icon name="refresh" className="w-6 h-6 text-cyan-700" />
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
+                        <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-6 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                            <Icon name="refresh" className="w-6 h-6 text-cyan-600" />
                             Güncellemeler
                         </h3>
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
+                            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
                                 <div>
-                                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Mevcut Sürüm</p>
-                                    <p className="text-2xl font-bold text-slate-800 dark:text-white">{currentVersion}</p>
+                                    <p className="text-sm text-slate-500 font-bold uppercase tracking-tighter">Mevcut Sürüm</p>
+                                    <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{currentVersion}</p>
                                 </div>
                                 <button
                                     onClick={onCheckUpdates}
-                                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md hover:shadow-cyan-500/40 flex items-center gap-2"
+                                    className="btn-primary px-8 h-[54px]"
                                 >
-                                    <Icon name="refresh" className="w-5 h-5" />
-                                    Güncellemeleri Kontrol Et
+                                    <Icon name="refresh" className="w-5 h-5" /> Güncellemeleri Kontrol Et
                                 </button>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                ✅ Uygulama otomatik olarak güncellemeleri kontrol eder. Manuel kontrol için yukarıdaki butonu kullanabilirsiniz.
+                            <p className="text-xs text-slate-500 text-center font-medium">
+                                ✅ Uygulama her açılışta güncellemeleri otomatik denetler.
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div className="flex-shrink-0 mt-4 pt-4 border-t border-slate-200 flex justify-end">
-                 <button
-                    onClick={handleSave}
-                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-8 rounded-lg transition shadow-md hover:shadow-cyan-500/40 flex items-center gap-2"
-                >
-                    <Icon name="check" className="w-5 h-5" />
-                    Ayarları Kaydet
-                </button>
-            </div>
-             <style>{`
-                .input-style {
-                    background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem;
-                    padding: 0.5rem 0.75rem; font-size: 1rem; transition: all 0.2s; height: 42px;
-                }
-                .input-style:focus {
-                    outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9;
-                }
-                .label-style {
-                    display: block;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    color: #475569;
-                    margin-bottom: 0.25rem;
-                }
-                textarea.input-style {
-                  height: auto;
-                }
-            `}</style>
         </div>
     );
 };

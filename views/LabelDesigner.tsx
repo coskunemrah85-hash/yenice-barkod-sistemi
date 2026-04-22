@@ -1,577 +1,227 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Icon from '../components/Icon';
-import JsBarcode from 'jsbarcode';
-import { Product } from '../types';
+import { Product, Definitions } from '../types';
 
 interface LabelDesignerProps {
   products: Product[];
+  definitions: Definitions;
 }
 
-// Güvenli Barkod Bileşeni (React useRef ile çökme yapmaz)
-const BarcodeSvg: React.FC<{ value: string; height?: number }> = ({ value, height = 40 }) => {
-  const barcodeRef = useRef<SVGSVGElement>(null);
+const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [printQueue, setPrintQueue] = useState<{product: Product, count: number}[]>([]);
+  
+  // Persistence Settings
+  const [engine, setEngine] = useState<'bartender' | 'argox'>((localStorage.getItem('label_engine') as any) || 'bartender');
+  const [btwPath, setBtwPath] = useState(localStorage.getItem('label_template_path') || '');
+  const [appPath, setAppPath] = useState(localStorage.getItem('label_app_path') || '');
+  
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [status, setStatus] = useState<{msg: string, type: 'success' | 'error' | 'info' | null}>({ msg: '', type: null });
 
   useEffect(() => {
-    if (barcodeRef.current && value) {
-      try {
-        JsBarcode(barcodeRef.current, value, {
-          width: 1.5,
-          height,
-          displayValue: false,
-          margin: 0,
-          background: 'transparent',
-          lineColor: '#000000'
-        });
-      } catch (error) {
-        console.error('Barkod oluşturma hatası:', error);
-      }
-    }
-  }, [value, height]);
+    localStorage.setItem('label_engine', engine);
+    localStorage.setItem('label_template_path', btwPath);
+    localStorage.setItem('label_app_path', appPath);
+  }, [engine, btwPath, appPath]);
 
-  return <svg ref={barcodeRef} className="max-w-full h-auto" />;
-};
+  // IPC Bridge Listener
+  useEffect(() => {
+    const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
+    if (!ipcRenderer) return;
 
-const LabelDesigner: React.FC<LabelDesignerProps> = ({ products }) => {
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [labelWidth, setLabelWidth] = useState<number>(50); // mm cinsinden genişlik
-  const [labelHeight, setLabelHeight] = useState<number>(30); // mm cinsinden yükseklik
-  const [printCount, setPrintCount] = useState<number>(1); // Yazdırılacak etiket adedi
-  const [isVertical, setIsVertical] = useState<boolean>(false); // Yatay/Dikey yönlendirme
-  const [selectedPrinter, setSelectedPrinter] = useState('Varsayılan Yazıcı');
-  // Eğer ürün varsa ilkini varsayılan olarak seç
+    const handleSuccess = (_: any, msg: string) => {
+        setIsPrinting(false);
+        setStatus({ msg, type: 'success' });
+        setTimeout(() => setStatus({ msg: '', type: null }), 5000);
+    };
 
+    const handleError = (_: any, msg: string) => {
+        setIsPrinting(false);
+        setStatus({ msg, type: 'error' });
+    };
 
-  // Gelişmiş filtre state'leri
-  const [filterBarcode, setFilterBarcode] = useState('');
-  const [filterName, setFilterName] = useState('');
-  const [filterGroup, setFilterGroup] = useState('');
-  const [filterSubGroup, setFilterSubGroup] = useState('');
-  const [filterStockCode, setFilterStockCode] = useState('');
-  const [filterModel, setFilterModel] = useState('');
-  const [filterAnaStokKodu, setFilterAnaStokKodu] = useState('');
+    ipcRenderer.on('print-success', handleSuccess);
+    ipcRenderer.on('print-error', handleError);
 
-  // Filtreleme butonuna basıldığında uygulanacak asıl filtre durumu
-  const [appliedFilters, setAppliedFilters] = useState({
-    barcode: '',
-    name: '',
-    group: '',
-    subGroup: '',
-    stockCode: '',
-    model: '',
-    anaStokKodu: ''
-  });
-  const [isListCleared, setIsListCleared] = useState<boolean>(false);
+    return () => {
+        ipcRenderer.removeListener('print-success', handleSuccess);
+        ipcRenderer.removeListener('print-error', handleError);
+    };
+  }, []);
 
-  // Etiket bileşenleri seçimi
-  const [labelFields, setLabelFields] = useState<{ name: boolean; barcode: boolean; barcodeText: boolean; markaBeden: boolean; price: boolean }>({
-    name: true,
-    barcode: true,
-    barcodeText: true,
-    markaBeden: true,
-    price: true,
-  });
-  const labelFieldNames = {
-    name: 'Ürün Adı',
-    barcode: 'Barkod',
-    barcodeText: 'Barkod Yazısı',
-    markaBeden: 'Marka/Beden',
-    price: 'Fiyat',
-  };
-
-  // Etiket bileşenleri tekil yön ayarları
-  const [elementRotations, setElementRotations] = useState<{ name: boolean; barcode: boolean; barcodeText: boolean; markaBeden: boolean; price: boolean }>({
-    name: false,
-    barcode: false,
-    barcodeText: false,
-    markaBeden: false,
-    price: false,
-  });
-
-  // Filtrelenmiş ürünler
   const filteredProducts = useMemo(() => {
-    if (isListCleared) return [];
-    return products.filter(p =>
-      (!appliedFilters.barcode || (p.barcode && p.barcode.toLowerCase().includes(appliedFilters.barcode.toLowerCase()))) &&
-      (!appliedFilters.name || (p.name && p.name.toLowerCase().includes(appliedFilters.name.toLowerCase()))) &&
-      (!appliedFilters.group || (p.group && p.group.toLowerCase().includes(appliedFilters.group.toLowerCase()))) &&
-      (!appliedFilters.subGroup || (p.subGroup && p.subGroup.toLowerCase().includes(appliedFilters.subGroup.toLowerCase()))) &&
-      (!appliedFilters.stockCode || (p.stokKodu && p.stokKodu.toLowerCase().includes(appliedFilters.stockCode.toLowerCase()))) &&
-      (!appliedFilters.model || (p.model && p.model.toLowerCase().includes(appliedFilters.model.toLowerCase()))) &&
-      (!appliedFilters.anaStokKodu || (p.anaStokKodu && p.anaStokKodu.toLowerCase().includes(appliedFilters.anaStokKodu.toLowerCase())))
-    );
-  }, [products, appliedFilters, isListCleared]);
+    const q = searchQuery.toLowerCase();
+    return products.filter(p => !p.isDeleted && (p.name.toLowerCase().includes(q) || p.barcode.includes(q))).slice(0, 50);
+  }, [products, searchQuery]);
 
-  const handleApplyFilter = () => {
-    setAppliedFilters({
-      barcode: filterBarcode,
-      name: filterName,
-      group: filterGroup,
-      subGroup: filterSubGroup,
-      stockCode: filterStockCode,
-      model: filterModel,
-      anaStokKodu: filterAnaStokKodu
+  const addToQueue = (product: Product) => {
+    setPrintQueue(prev => {
+        const existing = prev.find(q => q.product.barcode === product.barcode);
+        if (existing) return prev.map(q => q.product.barcode === product.barcode ? {...q, count: q.count + 1} : q);
+        return [...prev, { product, count: 1 }];
     });
-    setIsListCleared(false);
   };
-
-  const handleClearFilter = () => {
-    setFilterBarcode('');
-    setFilterName('');
-    setFilterGroup('');
-    setFilterSubGroup('');
-    setFilterStockCode('');
-    setFilterModel('');
-    setFilterAnaStokKodu('');
-    setAppliedFilters({ barcode: '', name: '', group: '', subGroup: '', stockCode: '', model: '', anaStokKodu: '' });
-    setIsListCleared(true);
-  };
-
-  useEffect(() => {
-    if (products.length > 0 && !selectedProductId) {
-      setSelectedProductId(products[0].barcode);
-    }
-  }, [products, selectedProductId]);
-
-  const selectedProduct = products.find(p => p.barcode === selectedProductId) || undefined;
 
   const handlePrint = () => {
-    if (!selectedProduct) {
-      alert('Yazdırılacak ürün bulunamadı. Lütfen stoklarınıza ürün ekleyin.');
-      return;
-    }
+    if (printQueue.length === 0) return;
+    if (!btwPath) { setStatus({ msg: `Lütfen bir ${engine === 'argox' ? 'Argox (.arp)' : 'BarTender (.btw)'} dosya yolu belirtin.`, type: 'error' }); return; }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Yazdırma penceresi açılamadı. Tarayıcınızın açılır pencere engelleyicisini kontrol edin.');
-      return;
-    }
+    const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
+    if (!ipcRenderer) { setStatus({ msg: 'Electron ortamı bulunamadı.', type: 'error' }); return; }
 
-    let labelsHtml = '';
-    // JSBarcode ile HTML String için SVG oluşturma
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    try {
-      JsBarcode(svg, selectedProduct.barcode || '', { width: 1.5, height: 40, displayValue: false, margin: 0 });
-    } catch (e) {}
+    setIsPrinting(true);
+    setStatus({ msg: `Baskı emri ${engine.toUpperCase()} motoruna iletiliyor...`, type: 'info' });
 
-    for (let i = 0; i < printCount; i++) {
-      labelsHtml += `
-        <div class="label-page">
-          <div class="content-wrapper ${isVertical ? 'vertical' : ''}">
-            ${labelFields.name ? `<div class="product-name ${elementRotations.name ? 'rotated' : ''}">${selectedProduct.name || ''}</div>` : ''}
-            ${labelFields.barcode ? `<div class="barcode-box ${elementRotations.barcode ? 'rotated' : ''}">${svg.outerHTML}</div>` : ''}
-            ${labelFields.barcodeText ? `<div class="barcode-text ${elementRotations.barcodeText ? 'rotated' : ''}">${selectedProduct.barcode || ''}</div>` : ''}
-            ${labelFields.markaBeden ? `<div class="details ${elementRotations.markaBeden ? 'rotated' : ''}">${selectedProduct.marka || 'Marka'}${selectedProduct.beden ? '- ' + selectedProduct.beden : ''}</div>` : ''}
-            ${labelFields.price ? `<div class="price ${elementRotations.price ? 'rotated' : ''}">₺${(selectedProduct.price || 0).toFixed(2)}</div>` : ''}
-          </div>
-        </div>
-      `;
-    }
+    // Prepare data
+    const dataToSend = printQueue.flatMap(item => {
+        return Array.from({ length: item.count }).map(() => ({
+            Barkod: item.product.barcode,
+            UrunAdi: item.product.name,
+            Fiyat: item.product.price.toFixed(2),
+            Marka: item.product.marka || '',
+            Beden: item.product.beden || '',
+            Renk: item.product.renk || '',
+            StokKodu: item.product.stokKodu || ''
+        }));
+    });
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Etiket Yazdır</title>
-        <style>
-          @page {
-            size: ${labelWidth}mm ${labelHeight}mm;
-            margin: 0;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: #fff;
-            color: #000;
-            font-family: 'Arial', sans-serif;
-          }
-          .label-page {
-            width: ${labelWidth}mm;
-            height: ${labelHeight}mm;
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            page-break-after: always;
-            overflow: hidden;
-          }
-          .content-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            width: 100%;
-            height: 100%;
-            padding: 2mm;
-            box-sizing: border-box;
-          }
-          .content-wrapper.vertical {
-            transform: rotate(-90deg);
-            width: ${labelHeight}mm;
-            height: ${labelWidth}mm;
-          }
-          .rotated {
-            writing-mode: vertical-rl;
-            transform: rotate(180deg);
-          }
-          .product-name {
-            font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 2px;
-            max-height: 26px;
-            overflow: hidden;
-            line-height: 1.1;
-          }
-          .barcode-box {
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            margin-bottom: 1px;
-          }
-          .barcode-box svg {
-            height: ${Math.max(20, (isVertical ? labelWidth : labelHeight) * 0.3)}px !important;
-            max-width: 90%;
-          }
-          .barcode-text {
-            font-size: 10px;
-            letter-spacing: 2px;
-            font-family: monospace;
-            font-weight: bold;
-          }
-          .details {
-            font-size: 9px;
-            color: #333;
-            margin-top: 1px;
-          }
-          .price {
-            font-size: 16px;
-            font-weight: 900;
-            margin-top: 2px;
-          }
-        </style>
-      </head>
-      <body>
-        ${labelsHtml}
-        <script>
-          window.onload = () => {
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 300);
-          };
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    ipcRenderer.send('print-to-label-software', {
+        engine: engine,
+        templatePath: btwPath,
+        data: dataToSend,
+        appPath: appPath
+    });
   };
 
   return (
-    <div className="flex h-full w-full bg-slate-900 text-slate-200 overflow-hidden font-sans">
-      {/* Özel Arka Plan Deseni */}
-      <style>
-        {`
-          .bg-checkerboard {
-            background-color: #0f172a;
-            background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), 
-                              linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
-                              linear-gradient(45deg, transparent 75%, #1e293b 75%), 
-                              linear-gradient(-45deg, transparent 75%, #1e293b 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-          }
-        `}
-      </style>
-
-      {/* Sol Menü - Ayarlar */}
-      <div className="w-80 bg-slate-800 border-r border-slate-700 flex flex-col shadow-2xl z-20">
-        <div className="p-5 border-b border-slate-700 bg-slate-800/80">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Icon name="barcode" className="w-6 h-6 text-cyan-500" /> Etiket Tasarımcısı
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">Barkod yazıcınız için etiket oluşturun.</p>
-        </div>
-
-        <div className="p-5 flex-1 overflow-y-auto space-y-6">
-          {/* Ürün Seçimi */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Yazdırılacak Ürün</label>
-            <select 
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm font-medium text-white outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              {products.length === 0 && <option value="">Ürün bulunamadı</option>}
-              {products.map(p => (
-                <option key={p.barcode} value={p.barcode}>{p.name} ({p.barcode})</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Etiket Boyutları */}
-          <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-700/50">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Etiket Boyutu (mm)</label>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-xs text-slate-500 mb-1 block">Genişlik (G)</span>
-                <div className="relative">
-                  <input type="number" min="10" max="200" value={labelWidth} onChange={(e) => setLabelWidth(Number(e.target.value) || 50)} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-cyan-500 text-center" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">mm</span>
-                </div>
-              </div>
-              <div>
-                <span className="text-xs text-slate-500 mb-1 block">Yükseklik (Y)</span>
-                <div className="relative">
-                  <input type="number" min="10" max="200" value={labelHeight} onChange={(e) => setLabelHeight(Number(e.target.value) || 30)} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none focus:border-cyan-500 text-center" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">mm</span>
-                </div>
-              </div>
+    <div className="w-full h-full flex bg-[#020617] text-slate-300 font-sans overflow-hidden">
+      
+      {/* LEFT: Product Selection */}
+      <aside className="w-[450px] flex-shrink-0 flex flex-col border-r border-white/5 bg-slate-950/40 backdrop-blur-3xl overflow-hidden">
+        <div className="p-8 border-b border-white/5">
+             <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20"><Icon name="barcode" className="w-6 h-6 text-white" /></div>
+                <div><h2 className="text-xl font-black text-white tracking-tight uppercase">PRINT <span className="text-indigo-400">BRIDGE</span></h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">Hibrit Baskı Merkezi</p></div>
             </div>
-            
-            <div className="mt-4">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Yazım Yönü</label>
-              <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-600">
-                <button
-                  onClick={() => setIsVertical(false)}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${!isVertical ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+
+            <div className="flex bg-[#0f172a] p-1 rounded-2xl border border-white/5 mb-6">
+                <button 
+                  onClick={() => setEngine('bartender')} 
+                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${engine === 'bartender' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  Yatay
+                  BarTender
                 </button>
-                <button
-                  onClick={() => setIsVertical(true)}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${isVertical ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                <button 
+                  onClick={() => setEngine('argox')} 
+                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${engine === 'argox' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  Dikey
+                  Argox (ARP)
                 </button>
-              </div>
             </div>
-          </div>
 
-          {/* Yazdırma Ayarları */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Baskı Adedi</label>
-            <input 
-              type="number" min="1" max="1000" 
-              value={printCount} 
-              onChange={(e) => setPrintCount(Number(e.target.value) || 1)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center text-white outline-none focus:ring-2 focus:ring-cyan-500" 
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hedef Yazıcı Seçimi</label>
-            <select 
-              value={selectedPrinter}
-              onChange={e => setSelectedPrinter(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-300 outline-none focus:ring-2 focus:ring-slate-500"
-            >
-              <option>Varsayılan Sistem Yazıcısı</option>
-              <option>Zebra Termal Barkod Yazıcı</option>
-              <option>Argox / Xprinter</option>
-            </select>
-          </div>
+            <div className="relative">
+                <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Ürün Ara..." className="w-full bg-[#0f172a] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-xs font-bold text-white focus:border-indigo-500/50 outline-none transition-all" />
+            </div>
         </div>
 
-        <div className="p-5 border-t border-slate-700 bg-slate-800/80">
-          <button 
-            onClick={handlePrint}
-            disabled={!selectedProduct}
-            className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white py-4 rounded-xl font-black text-lg shadow-lg shadow-green-900/50 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
-          >
-            <Icon name="printer" className="w-6 h-6" />
-            BASKIYI BAŞLAT
-          </button>
-        </div>
-      </div>
-
-
-      {/* SOL MENÜ: Gelişmiş Ürün Filtre ve Etiket Bileşen Seçimi */}
-      <div className="flex flex-row w-full">
-        {/* Sol Menü */}
-        <div className="w-80 min-w-[280px] bg-slate-800 border-r border-slate-700 flex flex-col gap-6 p-6">
-          <h3 className="text-lg font-bold text-white mb-2">Ürün Filtrele</h3>
-          <div className="flex flex-col gap-2">
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Barkod" value={filterBarcode} onChange={e => setFilterBarcode(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Ürün Adı" value={filterName} onChange={e => setFilterName(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Grup" value={filterGroup} onChange={e => setFilterGroup(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Alt Grup" value={filterSubGroup} onChange={e => setFilterSubGroup(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Stok Kodu" value={filterStockCode} onChange={e => setFilterStockCode(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Model Kodu" value={filterModel} onChange={e => setFilterModel(e.target.value)} />
-            <input className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white" placeholder="Stok Adı" value={filterAnaStokKodu} onChange={e => setFilterAnaStokKodu(e.target.value)} />
-            
-            <div className="flex gap-2 mt-2">
-              <button onClick={handleApplyFilter} className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 rounded-lg text-xs transition-colors shadow-sm">
-                Filtrele
-              </button>
-              <button onClick={handleClearFilter} className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors shadow-sm">
-                Temizle
-              </button>
-            </div>
-          </div>
-          <h3 className="text-lg font-bold text-white mt-6 mb-2">Etiket Bileşenleri</h3>
-          <div className="flex flex-col gap-3">
-            {(Object.keys(labelFields) as Array<keyof typeof labelFields>).map((key) => (
-              <div key={key} className="flex items-center justify-between bg-slate-900/50 px-3 py-2 rounded-xl border border-slate-700/50">
-                <label className="flex items-center gap-3 text-slate-200 text-sm cursor-pointer flex-1">
-                  <input 
-                    type="checkbox" 
-                    checked={labelFields[key]} 
-                    onChange={() => setLabelFields(f => ({ ...f, [key]: !f[key] }))}
-                    className="w-4 h-4 rounded border-slate-600 text-cyan-500 focus:ring-cyan-500 bg-slate-800"
-                  />
-                  {labelFieldNames[key]}
-                </label>
-                {labelFields[key] && (
-                  <button
-                    onClick={() => setElementRotations(r => ({ ...r, [key]: !r[key] }))}
-                    className={`flex items-center justify-center text-[10px] px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm ${elementRotations[key] ? 'bg-cyan-600 text-white shadow-cyan-900/50' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
-                    title="Yönü Değiştir (Yatay/Dikey)"
-                  >
-                    {elementRotations[key] ? 'DİKEY' : 'YATAY'}
-                  </button>
-                )}
-              </div>
+        <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-3">
+            {filteredProducts.map(p => (
+                <div key={p.barcode} onClick={() => addToQueue(p)} className="p-4 rounded-2xl bg-white/[0.02] hover:bg-indigo-600 border border-white/[0.03] cursor-pointer transition-all active:scale-[0.98] group">
+                    <div className="flex justify-between items-start mb-1">
+                        <span className="text-[11px] font-black text-slate-100 uppercase group-hover:text-white truncate">{p.name}</span>
+                        <span className="text-[10px] font-black text-indigo-400 group-hover:text-white">{p.price}₺</span>
+                    </div>
+                    <div className="text-[9px] text-slate-600 font-bold group-hover:text-indigo-200">{p.barcode} • {p.marka}</div>
+                </div>
             ))}
-          </div>
         </div>
+      </aside>
 
-        {/* Sağ: Ürün Listesi ve Tasarım Alanı */}
-        <div className="flex-1 flex flex-col">
-          {/* Ürün Listesi */}
-          <div className="w-full bg-slate-900 border-b border-slate-700 p-4">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-800 text-slate-400">
-                <tr>
-                  <th className="py-2 px-3">Adı</th>
-                  <th className="py-2 px-3">Barkod</th>
-                  <th className="py-2 px-3">Grup</th>
-                  <th className="py-2 px-3">Alt Grup</th>
-                  <th className="py-2 px-3">Stok Kodu</th>
-                  <th className="py-2 px-3">Model Kodu</th>
-                  <th className="py-2 px-3">Stok Adı</th>
-                  <th className="py-2 px-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-500">
-                      {isListCleared ? 'Arama yapmak için "Filtrele" butonuna tıklayın.' : 'Kriterlere uygun ürün bulunamadı.'}
-                    </td>
-                  </tr>
-                )}
-                {filteredProducts.map((p) => (
-                  <tr key={p.barcode} className={`hover:bg-slate-800 transition ${selectedProductId === p.barcode ? 'bg-cyan-900/30' : ''}`}>
-                    <td className="py-2 px-3">{p.name}</td>
-                    <td className="py-2 px-3">{p.barcode}</td>
-                    <td className="py-2 px-3">{p.group || ''}</td>
-                    <td className="py-2 px-3">{p.subGroup || ''}</td>
-                    <td className="py-2 px-3">{p.stokKodu || ''}</td>
-                    <td className="py-2 px-3">{p.model || ''}</td>
-                    <td className="py-2 px-3">{p.anaStokKodu || ''}</td>
-                    <td className="py-2 px-3">
-                      <button
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold"
-                        onClick={() => setSelectedProductId(p.barcode)}
-                      >
-                        Seç
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Sağ Kısım - Önizleme Alanı (Canvas) */}
-          <div className="flex-1 relative bg-checkerboard flex flex-col items-center justify-center overflow-auto shadow-inner">
+      {/* RIGHT: Print Configuration & Queue */}
+      <main className="flex-grow flex flex-col p-8 bg-[#020617] bg-[radial-gradient(#6366f110_1px,transparent_1px)] [background-size:32px_32px]">
         
-        {/* Önizleme Bilgi Kutusu */}
-        <div className="absolute top-6 bg-slate-900/80 backdrop-blur-md px-6 py-2 rounded-full border border-slate-700 shadow-xl flex items-center gap-4 z-10">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-            <span className="text-xs font-bold text-slate-300 tracking-wider">CANLI ÖNİZLEME</span>
-          </div>
-          <span className="text-xs text-slate-500 border-l border-slate-700 pl-4">Ölçek: 400% (Detay Görünümü)</span>
-        </div>
-
-        {/* 5'li Dikey Etiket Örneği - Döndürülebilir */}
-        {/* Gerçek ürün ve adet kadar 5'li etiket */}
-        {selectedProduct && printCount > 0 ? (
-          <div className="flex flex-row items-end justify-center gap-4 w-full py-8">
-            {Array.from({ length: Math.min(printCount, 5) }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-white text-black flex flex-col items-center justify-center shadow-[0_0_16px_rgba(0,0,0,0.10)] rounded-lg border border-slate-300 transition-all duration-300 ease-out relative"
-                style={{
-                  width: `${labelWidth * 4}px`,
-                  height: `${labelHeight * 4}px`,
-                  marginLeft: i === 0 ? 0 : '4px',
-                  marginRight: i === 4 ? 0 : '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                }}
-              >
-                <div 
-                  style={{
-                    transform: isVertical ? 'rotate(-90deg)' : 'none',
-                    width: isVertical ? `${labelHeight * 4}px` : '100%',
-                    height: isVertical ? `${labelWidth * 4}px` : '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 4px',
-                    boxSizing: 'border-box',
-                    transition: 'all 0.3s ease'
-                  }}
-                >
-                  {labelFields.name && selectedProduct && (
-                    <div className="text-center font-bold overflow-hidden leading-tight flex items-center justify-center" style={{ width: elementRotations.name ? 'auto' : '100%', fontSize: '13px', maxHeight: '30px', lineHeight: 1.1, ...(elementRotations.name ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {}) }}>
-                      {selectedProduct.name}
-                    </div>
-                  )}
-                  {labelFields.barcode && selectedProduct && (
-                    <div className="flex justify-center mt-2 mb-1 pointer-events-none" style={{ width: elementRotations.barcode ? 'auto' : '100%', ...(elementRotations.barcode ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {}) }}>
-                      <BarcodeSvg value={selectedProduct.barcode} height={isVertical ? labelWidth * 1.1 : labelHeight * 1.1} />
-                    </div>
-                  )}
-                  {labelFields.barcodeText && selectedProduct && (
-                    <div className="text-center font-mono tracking-[0.2em] font-bold flex items-center justify-center" style={{ fontSize: '11px', ...(elementRotations.barcodeText ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {}) }}>
-                      {selectedProduct.barcode}
-                    </div>
-                  )}
-                  {labelFields.markaBeden && selectedProduct && (
-                    <div className="text-center text-gray-700 font-medium mt-1 uppercase flex items-center justify-center" style={{ fontSize: '9px', ...(elementRotations.markaBeden ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {}) }}>
-                      {(selectedProduct.marka || 'Marka')}{selectedProduct.beden ? ` - ${selectedProduct.beden}` : ''}
-                    </div>
-                  )}
-                  {labelFields.price && selectedProduct && (
-                    <div className="text-center font-black tracking-tighter mt-auto flex items-center justify-center" style={{ fontSize: '18px', ...(elementRotations.price ? { writingMode: 'vertical-rl', transform: 'rotate(180deg)' } : {}) }}>
-                      ₺{(selectedProduct.price || 0).toFixed(2)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center text-slate-500 p-10 bg-slate-800/50 rounded-3xl border border-slate-700 border-dashed backdrop-blur-md">
-            <Icon name="products" className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-xl font-semibold">Stoklarınızda ürün bulunamadı</p>
-            <p className="text-sm mt-2">Etiket yazdırmak için önce sisteme ürün eklemelisiniz.</p>
-          </div>
+        {status.type && (
+            <div className={`mb-6 p-5 rounded-[2rem] flex items-center gap-4 border animate-fade-in ${
+                status.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 
+                status.type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 
+                'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+            }`}>
+                <Icon name={status.type === 'success' ? 'check-circle' : 'exclamation-circle'} className="w-6 h-6" />
+                <span className="text-[11px] font-black uppercase tracking-widest">{status.msg}</span>
+            </div>
         )}
-                  </div>
+
+        <div className="grid grid-cols-12 gap-8 h-full">
+            <div className="col-span-5 space-y-6">
+                <div className="bg-[#0f172a] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3"><Icon name="cog-6-tooth" className="w-5 h-5 text-indigo-500" /> {engine.toUpperCase()} AYARLARI</h3>
+                    
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-3">Tasarım Dosyası ({engine === 'argox' ? '.arp' : '.btw'})</label>
+                            <input type="text" value={btwPath} onChange={e => setBtwPath(e.target.value)} placeholder={`C:\\Dosyalar\\tasarim.${engine === 'argox' ? 'arp' : 'btw'}`} className="w-full bg-[#020617] border border-white/5 rounded-2xl p-4 text-xs font-bold text-indigo-400 outline-none" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-3">Program Yolu (Exe)</label>
+                            <input type="text" value={appPath} onChange={e => setAppPath(e.target.value)} placeholder={`${engine === 'argox' ? 'LabelDr.exe' : 'bartend.exe'} yolu...`} className="w-full bg-[#020617] border border-white/5 rounded-2xl p-4 text-xs font-bold text-slate-500 outline-none" />
+                        </div>
+                    </div>
                 </div>
-      </div>
+
+                <div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-[2.5rem]">
+                    <h4 className="text-[11px] font-black text-white uppercase mb-2 italic">Argox (ARP) İpucu:</h4>
+                    <p className="text-[10px] leading-relaxed text-slate-500 font-bold">Argox Label Dr. yazılımında tasarımınızı yaptıktan sonra veri kaynağı eşleşmelerini Barkod, UrunAdi, Fiyat olarak kaydetmeyi unutmayın.</p>
+                </div>
+            </div>
+
+            <div className="col-span-12 lg:col-span-7 flex flex-col bg-[#0f172a] rounded-[2.5rem] border border-white/5 shadow-2xl p-8 overflow-hidden">
+                <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3"><Icon name="queue-list" className="w-5 h-5 text-indigo-500" /> BASILACAKLAR</h3>
+                    {printQueue.length > 0 && <button onClick={() => setPrintQueue([])} className="text-[10px] font-black text-rose-500 uppercase">Temizle</button>}
+                </div>
+
+                <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3">
+                    {printQueue.map((item, i) => (
+                        <div key={item.product.barcode} className="flex items-center gap-4 bg-white/[0.02] p-4 rounded-3xl border border-white/[0.03]">
+                            <div className="flex-grow min-w-0">
+                                <h4 className="text-[11px] font-black text-white uppercase truncate">{item.product.name}</h4>
+                                <span className="text-[9px] text-slate-600 font-bold uppercase">{item.product.barcode}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setPrintQueue(prev => prev.map(q => q.product.barcode === item.product.barcode ? {...q, count: Math.max(1, q.count - 1)} : q))} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center"><Icon name="minus" className="w-3 h-3" /></button>
+                                <span className="w-8 text-center text-xs font-black text-indigo-500">{item.count}</span>
+                                <button onClick={() => setPrintQueue(prev => prev.map(q => q.product.barcode === item.product.barcode ? {...q, count: q.count + 1} : q))} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center"><Icon name="plus" className="w-3 h-3" /></button>
+                            </div>
+                            <button onClick={() => setPrintQueue(prev => prev.filter(q => q.product.barcode !== item.product.barcode))} className="p-3 text-slate-700 hover:text-rose-500 transition-all"><Icon name="trash" className="w-4 h-4" /></button>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="pt-8 mt-4 border-t border-white/5">
+                    <button 
+                        onClick={handlePrint}
+                        disabled={printQueue.length === 0 || isPrinting}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-20 text-white h-20 rounded-[2rem] flex items-center justify-center gap-6 text-[12px] font-black tracking-[0.4em] uppercase transition-all shadow-2xl shadow-indigo-600/30"
+                    >
+                        {isPrinting ? <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div> : <><Icon name="printer" className="w-6 h-6" /> {engine.toUpperCase()} İLE BAS</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+      </main>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+      `}</style>
     </div>
   );
-}
+};
 
 export default LabelDesigner;

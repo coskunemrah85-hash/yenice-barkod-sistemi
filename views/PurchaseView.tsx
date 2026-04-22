@@ -579,6 +579,24 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
 
   const addProductToCart = useCallback((product: Product, quantityToAdd: number = 1) => {
     setError(null);
+    
+    // TEDARİKÇİ DOĞRULAMA (ESNEK KİLİT)
+    if (selectedSupplier) {
+        const prodMarka = (product.marka || '').toLowerCase().trim();
+        const prodSupplier = (product.tedarikçi as string || '').toLowerCase().trim();
+        const supName = (selectedSupplier.name || '').toLowerCase().trim();
+        
+        // Eğer isimlerden biri diğerini içeriyorsa veya birebir aynıysa izin ver
+        const isMatch = (prodMarka && (supName.includes(prodMarka) || prodMarka.includes(supName))) || 
+                        (prodSupplier && (supName.includes(prodSupplier) || prodSupplier.includes(supName)));
+
+        if (!isMatch) {
+            console.warn(`[Tedarikçi Kilidi] Eşleşme Bulunamadı: Ürün:${prodMarka}/${prodSupplier} <=> Tedarikçi:${supName}`);
+            showError(`HATA: "${product.name}" ürünü ${selectedSupplier.name} firmasına ait değil!`);
+            return;
+        }
+    }
+
     setCurrentPurchase(prevCart => {
       const existingItem = prevCart.find(item => item.barcode === product.barcode);
       let productToAdd = { ...product };
@@ -1157,8 +1175,13 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
   const searchResultGroups = useMemo(() => {
     if (searchQuery.length < 2) return [];
     const lowerCaseQuery = searchQuery.toLowerCase();
+    const supplierFilter = selectedSupplier?.name.toLowerCase().trim();
     const groups = new Map<string, Product[]>();
+    
     for (const product of products) {
+      // Önce tedarikçi filtresi (Sadece seçili tedarikçinin ürünleri)
+      if (supplierFilter && (product.marka || '').toLowerCase().trim() !== supplierFilter) continue;
+
       const isMatch = product.name.toLowerCase().includes(lowerCaseQuery) || product.barcode.includes(lowerCaseQuery) || product.stokKodu.toLowerCase().includes(lowerCaseQuery) || product.anaStokKodu.toLowerCase().includes(lowerCaseQuery);
       if (isMatch) {
         if (!groups.has(product.anaStokKodu)) groups.set(product.anaStokKodu, []);

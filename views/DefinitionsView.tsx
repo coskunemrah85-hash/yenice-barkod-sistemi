@@ -1,29 +1,18 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Brand, Model, Color, Size, Group, Supplier, AITaskSupplier, Product, Customer } from '../types';
+import { Brand, Model, Color, Size, Group, Supplier, Product, Customer, CompanyInfo, Definitions } from '../types';
 import Icon from '../components/Icon';
 import SupplierEditModal from '../components/SupplierEditModal';
-import AiSupplierModal from '../components/AiSupplierModal';
-import AiSupplierReviewModal from '../components/AiSupplierReviewModal';
-import { extractSuppliersFromContent } from '../services/geminiService';
-import EditableListItem from '../components/EditableListItem';
 import CustomerEditModal from '../components/CustomerEditModal';
 
 type Tab = 'brands' | 'models' | 'colors' | 'sizes' | 'groups' | 'suppliers' | 'customers';
-
-interface Definitions {
-    brands: Brand[];
-    models: Model[];
-    colors: Color[];
-    sizes: Size[];
-    groups: Group[];
-}
 
 interface DefinitionsViewProps {
   definitions: Definitions;
   suppliers: Supplier[];
   customers: Customer[];
   products: Product[];
+  companyInfo: CompanyInfo;
   onUpdateBrands: (brands: Brand[]) => void;
   onUpdateModels: (models: Model[]) => void;
   onUpdateColors: (colors: Color[]) => void;
@@ -31,520 +20,394 @@ interface DefinitionsViewProps {
   onUpdateGroups: (groups: Group[]) => void;
   onUpdateSuppliers: (suppliers: Supplier[]) => void;
   onUpdateCustomers: (customers: Customer[]) => void;
+  onStartAiSupplierTask: (file: File, prompt: string) => void;
 }
 
-const DefinitionSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200">{title}</h3>
-        {children}
-    </div>
-);
-
 const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
-    const { definitions, suppliers, customers, products, onUpdateBrands, onUpdateModels, onUpdateColors, onUpdateSizes, onUpdateGroups, onUpdateSuppliers, onUpdateCustomers } = props;
-    const [activeTab, setActiveTab] = useState<Tab>('brands');
+    const { 
+        definitions, suppliers, customers, 
+        onUpdateBrands, onUpdateModels, onUpdateColors, onUpdateSizes, 
+        onUpdateGroups, onUpdateSuppliers, onUpdateCustomers,
+    } = props;
     
-    const [brandName, setBrandName] = useState('');
-    const [modelName, setModelName] = useState('');
-    const [selectedBrandIdForModel, setSelectedBrandIdForModel] = useState('');
-    const [colorName, setColorName] = useState('');
-    const [sizeName, setSizeName] = useState('');
+    const [activeTab, setActiveTab] = useState<Tab>('brands');
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // Filters for Groups
+    const [filterParentGroupId, setFilterParentGroupId] = useState<string | null>(null);
+    const [filterBrandIdForGroups, setFilterBrandIdForGroups] = useState<string | null>(null);
 
-    // Group states
-    const [groupName, setGroupName] = useState('');
-    const [selectedBrandIdForGroup, setSelectedBrandIdForGroup] = useState<string>('__general__');
+    // Inline Edit States
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+    // Form States
+    const [newItemName, setNewItemName] = useState('');
+    const [selectedBrandId, setSelectedBrandId] = useState<string>('');
+    const [selectedParentGroupId, setSelectedParentGroupId] = useState<string>('');
 
-    // Supplier states
+    // Modals
     const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-
-    // Customer states
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
-    // AI & Excel states for Suppliers
-    const [isAiSupplierModalOpen, setIsAiSupplierModalOpen] = useState(false);
-    const [reviewingAiSupplierTask, setReviewingAiSupplierTask] = useState<AITaskSupplier | null>(null);
-    const [isAiSupplierReviewModalOpen, setIsAiSupplierReviewModalOpen] = useState(false);
-    const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
-    const excelInputRef = useRef<HTMLInputElement>(null);
-    const excelMenuRef = useRef<HTMLDivElement>(null);
-
-
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-          if (excelMenuRef.current && !excelMenuRef.current.contains(event.target as Node)) {
-            setIsExcelMenuOpen(false);
-          }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        // Reset specific filters when tab changes
+        setFilterParentGroupId(null);
+        setFilterBrandIdForGroups(null);
+    }, [activeTab]);
 
-    // --- ADD HANDLERS ---
-    const handleAddBrand = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (brandName.trim() && !definitions.brands.some(b => b.name.toLowerCase() === brandName.trim().toLowerCase())) {
-            onUpdateBrands([...definitions.brands, { id: Date.now().toString(), name: brandName.trim() }]);
-            setBrandName('');
-        }
-    };
-    const handleAddModel = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (modelName.trim() && selectedBrandIdForModel) {
-            onUpdateModels([...definitions.models, { id: Date.now().toString(), name: modelName.trim(), brandId: selectedBrandIdForModel }]);
-            setModelName('');
-        }
-    };
-    const handleAddColor = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (colorName.trim() && !definitions.colors.some(c => c.name.toLowerCase() === colorName.trim().toLowerCase())) {
-            onUpdateColors([...definitions.colors, { id: Date.now().toString(), name: colorName.trim() }]);
-            setColorName('');
-        }
-    };
-    const handleAddSize = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (sizeName.trim() && !definitions.sizes.some(s => s.name.toLowerCase() === sizeName.trim().toLowerCase())) {
-            onUpdateSizes([...definitions.sizes, { id: Date.now().toString(), name: sizeName.trim() }]);
-            setSizeName('');
-        }
-    };
-    const handleAddGroup = (e: React.FormEvent, parentId: string | null) => {
-        e.preventDefault();
-        if (groupName.trim()) {
-            const brandId = selectedBrandIdForGroup === '__general__' ? null : selectedBrandIdForGroup;
-            onUpdateGroups([...definitions.groups, { id: Date.now().toString(), name: groupName.trim(), parentId, brandId }]);
-            setGroupName('');
-        }
-    };
-
-    const handleAddSubGroup = (parentId: string, name: string) => {
-        const brandId = selectedBrandIdForGroup === '__general__' ? null : selectedBrandIdForGroup;
-        onUpdateGroups([...definitions.groups, { id: Date.now().toString(), name: name.trim(), parentId, brandId }]);
-    };
-
-    // --- UPDATE HANDLERS ---
-    const handleUpdateBrand = (id: string, newName: string) => {
-        onUpdateBrands(definitions.brands.map(b => b.id === id ? { ...b, name: newName } : b));
-    };
-    const handleUpdateModel = (id: string, newName: string) => {
-        onUpdateModels(definitions.models.map(m => m.id === id ? { ...m, name: newName } : m));
-    };
-    const handleUpdateColor = (id: string, newName: string) => {
-        onUpdateColors(definitions.colors.map(c => c.id === id ? { ...c, name: newName } : c));
-    };
-    const handleUpdateSize = (id: string, newName: string) => {
-        onUpdateSizes(definitions.sizes.map(s => s.id === id ? { ...s, name: newName } : s));
-    };
-    const handleUpdateGroup = (id: string, newName: string) => {
-        onUpdateGroups(definitions.groups.map(g => g.id === id ? { ...g, name: newName } : g));
-    };
-
-    const handleUpdateSupplier = (supplier: Partial<Supplier>) => {
-        if (!supplier.id) { // Adding new
-            const newSupplier = { ...supplier, id: `sup-${Date.now()}` } as Supplier;
-            onUpdateSuppliers([...suppliers, newSupplier]);
-        } else { // Updating existing
-            onUpdateSuppliers(suppliers.map(s => s.id === supplier.id ? { ...s, ...supplier } : s));
-        }
-        setEditingSupplier(null);
-        setIsSupplierModalOpen(false);
-    };
-
-    const handleUpdateCustomer = (customer: Partial<Customer>) => {
-        if (!customer.id) { // Adding new
-            const newCustomer = { ...customer, id: `cust-${Date.now()}` } as Customer;
-            onUpdateCustomers([...customers, newCustomer]);
-        } else { // Updating existing
-            onUpdateCustomers(customers.map(c => c.id === customer.id ? { ...c, ...customer } : c));
-        }
-        setEditingCustomer(null);
-        setIsCustomerModalOpen(false);
-    };
-
-
-    // --- DELETE HANDLERS ---
-    const handleDeleteBrand = (id: string) => {
-        if (products.some(p => p.marka === definitions.brands.find(b => b.id === id)?.name)) {
-            alert("Bu marka ürünlerde kullanıldığı için silinemez."); return;
-        }
-        onUpdateBrands(definitions.brands.filter(b => b.id !== id));
-    };
-    const handleDeleteModel = (id: string) => {
-        if (products.some(p => p.model === definitions.models.find(m => m.id === id)?.name)) {
-            alert("Bu model ürünlerde kullanıldığı için silinemez."); return;
-        }
-        onUpdateModels(definitions.models.filter(m => m.id !== id));
-    };
-    const handleDeleteColor = (id: string) => {
-        if (products.some(p => p.renk === definitions.colors.find(c => c.id === id)?.name)) {
-            alert("Bu renk ürünlerde kullanıldığı için silinemez."); return;
-        }
-        onUpdateColors(definitions.colors.filter(c => c.id !== id));
-    };
-    const handleDeleteSize = (id: string) => {
-        if (products.some(p => p.beden === definitions.sizes.find(s => s.id === id)?.name)) {
-            alert("Bu beden ürünlerde kullanıldığı için silinemez."); return;
-        }
-        onUpdateSizes(definitions.sizes.filter(s => s.id !== id));
-    };
-     const handleDeleteGroup = (id: string) => {
-        onUpdateGroups(definitions.groups.filter(g => g.id !== id));
-    };
-    const handleDeleteSupplier = (id: string) => {
-        if(products.some(p => p.supplierId === id)) {
-            alert("Bu tedarikçi ürünlerde kullanıldığı için silinemez."); return;
-        }
-        onUpdateSuppliers(suppliers.filter(s => s.id !== id));
-    };
-     const handleDeleteCustomer = (id: string) => {
-        // Here you might check sales history if customers are linked to sales
-        onUpdateCustomers(customers.filter(c => c.id !== id));
-    };
-
-    // --- AI & Excel ---
-    const handleExportDefinitions = (type: Tab) => {
-        let data: any[] = [];
-        let filename = "";
-        let sheetName = "";
-
-        switch (type) {
-            case 'brands':
-                data = definitions.brands.map(b => ({ 'Marka Adı': b.name }));
-                filename = "markalar.xlsx"; sheetName = "Markalar";
-                break;
-            case 'models':
-                data = definitions.models.map(m => {
-                    const brand = definitions.brands.find(b => b.id === m.brandId);
-                    return { 'Marka': brand?.name || 'Bilinmiyor', 'Model Adı': m.name };
-                });
-                filename = "modeller.xlsx"; sheetName = "Modeller";
-                break;
-            case 'colors':
-                data = definitions.colors.map(c => ({ 'Renk Adı': c.name }));
-                filename = "renkler.xlsx"; sheetName = "Renkler";
-                break;
-            case 'sizes':
-                data = definitions.sizes.map(s => ({ 'Beden Adı': s.name }));
-                filename = "bedenler.xlsx"; sheetName = "Bedenler";
-                break;
-            case 'groups':
-                data = definitions.groups.map(g => {
-                    const parent = definitions.groups.find(pg => pg.id === g.parentId);
-                    const brand = definitions.brands.find(b => b.id === g.brandId);
-                    return { 'Marka': brand?.name || 'Genel', 'Üst Grup': parent?.name || '-', 'Grup Adı': g.name };
-                });
-                filename = "gruplar.xlsx"; sheetName = "Gruplar";
+    const filteredContent = useMemo(() => {
+        const lowerSearch = searchTerm.toLowerCase();
+        let content: any[] = [];
+        
+        switch (activeTab) {
+            case 'brands': content = definitions.brands; break;
+            case 'models': content = definitions.models; break;
+            case 'colors': content = definitions.colors; break;
+            case 'sizes': content = definitions.sizes; break;
+            case 'suppliers': content = suppliers; break;
+            case 'customers': content = customers; break;
+            case 'groups': 
+                content = definitions.groups;
+                // Apply Group specific filters
+                if (filterParentGroupId) content = content.filter(g => g.parentId === filterParentGroupId);
+                if (filterBrandIdForGroups) content = content.filter(g => g.brandId === filterBrandIdForGroups);
                 break;
         }
 
-        if (data.length === 0) { alert("Dışa aktarılacak veri bulunamadı."); return; }
+        const filtered = content.filter(item => {
+            const name = (item.name || '').toLowerCase();
+            const phone = ((item as any).phone || (item as any).mobilePhone || '');
+            return name.includes(lowerSearch) || phone.includes(searchTerm);
+        });
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        XLSX.writeFile(wb, filename);
-    };
-
-    const handleImportDefinitions = (type: Tab, e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const data = event.target?.result;
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-                if (json.length === 0) throw new Error("Dosya boş veya geçersiz.");
-
-                switch (type) {
-                    case 'brands':
-                        const newBrands = json.map(row => ({ id: `brand-${Date.now()}-${Math.random()}`, name: String(row['Marka Adı'] || row['marka'] || '').trim() })).filter(b => b.name);
-                        onUpdateBrands([...definitions.brands, ...newBrands]);
-                        break;
-                    case 'models':
-                        const newModels = json.map(row => {
-                            const brandName = String(row['Marka'] || '').trim();
-                            const brand = definitions.brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
-                            return { id: `model-${Date.now()}-${Math.random()}`, name: String(row['Model Adı'] || row['model'] || '').trim(), brandId: brand?.id || '' };
-                        }).filter(m => m.name && m.brandId);
-                        onUpdateModels([...definitions.models, ...newModels]);
-                        break;
-                    case 'colors':
-                        const newColors = json.map(row => ({ id: `color-${Date.now()}-${Math.random()}`, name: String(row['Renk Adı'] || row['renk'] || '').trim() })).filter(c => c.name);
-                        onUpdateColors([...definitions.colors, ...newColors]);
-                        break;
-                    case 'sizes':
-                        const newSizes = json.map(row => ({ id: `size-${Date.now()}-${Math.random()}`, name: String(row['Beden Adı'] || row['beden'] || '').trim() })).filter(s => s.name);
-                        onUpdateSizes([...definitions.sizes, ...newSizes]);
-                        break;
-                }
-                alert("Veriler başarıyla içe aktarıldı.");
-            } catch (err: any) {
-                alert(`Hata: ${err.message}`);
+        return [...filtered].sort((a, b) => {
+            if (activeTab === 'sizes') {
+                const sizeOrder: any = { 'XXS': 1, 'XS': 2, 'S': 3, 'M': 4, 'L': 5, 'XL': 6, 'XXL': 7, '2XL': 7, 'XXXL': 8, '3XL': 8 };
+                const vA = String(a.name).toUpperCase();
+                const vB = String(b.name).toUpperCase();
+                if (sizeOrder[vA] && sizeOrder[vB]) return sizeOrder[vA] - sizeOrder[vB];
+                const nA = parseInt(vA); const nB = parseInt(vB);
+                if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
+                return vA.localeCompare(vB, 'tr');
             }
-        };
-        reader.readAsArrayBuffer(file);
-        e.target.value = '';
+            return (a.name || '').localeCompare(b.name || '', 'tr', { sensitivity: 'base' });
+        });
+    }, [activeTab, searchTerm, definitions, suppliers, customers, filterParentGroupId, filterBrandIdForGroups]);
+
+    const handleAddItem = (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = newItemName.trim();
+        if (!name) return;
+        const id = Date.now().toString();
+
+        switch (activeTab) {
+            case 'brands': onUpdateBrands([...definitions.brands, { id, name }]); break;
+            case 'models':
+                if (selectedBrandId) onUpdateModels([...definitions.models, { id, name, brandId: selectedBrandId }]);
+                else alert("Lütfen bir marka seçin!");
+                break;
+            case 'colors': onUpdateColors([...definitions.colors, { id, name }]); break;
+            case 'sizes': onUpdateSizes([...definitions.sizes, { id, name }]); break;
+            case 'groups':
+                onUpdateGroups([...definitions.groups, { id, name, parentId: selectedParentGroupId || null, brandId: selectedBrandId || null }]);
+                break;
+            case 'suppliers': setEditingSupplier(null); setIsSupplierModalOpen(true); return;
+            case 'customers': setEditingCustomer(null); setIsCustomerModalOpen(true); return;
+        }
+        setNewItemName('');
     };
 
+    const handleSaveEdit = (id: string) => {
+        const val = editValue.trim();
+        if (!val) { setEditingId(null); return; }
 
-    const renderGroups = (parentId: string | null, level: number) => {
-        const brandId = selectedBrandIdForGroup === '__general__' ? null : selectedBrandIdForGroup;
-        return definitions.groups
-            .filter(g => g.parentId === parentId && g.brandId === brandId)
-            .map(group => (
-                <EditableListItem key={group.id} item={group} onUpdate={handleUpdateGroup}
-onDelete={() => handleDeleteGroup(group.id)} level={level} onAddChild={handleAddSubGroup}>
-                    {renderGroups(group.id, level + 1)}
-                </EditableListItem>
-            ));
+        switch(activeTab) {
+            case 'brands': onUpdateBrands(definitions.brands.map(x => x.id === id ? { ...x, name: val } : x)); break;
+            case 'models': onUpdateModels(definitions.models.map(x => x.id === id ? { ...x, name: val } : x)); break;
+            case 'colors': onUpdateColors(definitions.colors.map(x => x.id === id ? { ...x, name: val } : x)); break;
+            case 'sizes': onUpdateSizes(definitions.sizes.map(x => x.id === id ? { ...x, name: val } : x)); break;
+            case 'groups': onUpdateGroups(definitions.groups.map(x => x.id === id ? { ...x, name: val } : x)); break;
+        }
+        setEditingId(null);
     };
-    
 
-    const menuItems: { id: Tab; label: string; icon: 'tag' }[] = [
-        { id: 'brands', label: 'Markalar', icon: 'tag' },
-        { id: 'models', label: 'Modeller', icon: 'tag' },
-        { id: 'colors', label: 'Renkler', icon: 'tag' },
-        { id: 'sizes', label: 'Bedenler', icon: 'tag' },
-        { id: 'groups', label: 'Gruplar', icon: 'tag' },
-        { id: 'suppliers', label: 'Tedarikçiler', icon: 'tag' },
-        { id: 'customers', label: 'Müşteriler', icon: 'tag' },
+    const commitDeletion = () => {
+        if (!confirmDeleteId) return;
+        const id = confirmDeleteId;
+        switch(activeTab) {
+            case 'brands': onUpdateBrands([...definitions.brands.filter(x => x.id !== id)]); break;
+            case 'models': onUpdateModels([...definitions.models.filter(x => x.id !== id)]); break;
+            case 'colors': onUpdateColors([...definitions.colors.filter(x => x.id !== id)]); break;
+            case 'sizes': onUpdateSizes([...definitions.sizes.filter(x => x.id !== id)]); break;
+            case 'groups': onUpdateGroups([...definitions.groups.filter(x => x.id !== id)]); break;
+            case 'suppliers': onUpdateSuppliers([...suppliers.filter(x => x.id !== id)]); break;
+            case 'customers': onUpdateCustomers([...customers.filter(x => x.id !== id)]); break;
+        }
+        setConfirmDeleteId(null);
+    };
+
+    const menuItems: { id: Tab; label: string; icon: any, color: string }[] = [
+        { id: 'brands', label: 'Markalar', icon: 'tag', color: 'bg-blue-500' },
+        { id: 'models', label: 'Modeller', icon: 'products', color: 'bg-indigo-500' },
+        { id: 'colors', label: 'Renkler', icon: 'back', color: 'bg-pink-500' },
+        { id: 'sizes', label: 'Bedenler', icon: 'list-bullet', color: 'bg-purple-500' },
+        { id: 'groups', label: 'Gruplar', icon: 'database', color: 'bg-orange-500' },
+        { id: 'suppliers', label: 'Tedarikçiler', icon: 'supplier', color: 'bg-emerald-500' },
+        { id: 'customers', label: 'Müşteriler', icon: 'users', color: 'bg-cyan-500' },
     ];
 
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'brands':
-                return (
-                    <DefinitionSection title="Marka Yönetimi">
-                        <div className="flex justify-between items-center mb-4">
-                            <form onSubmit={handleAddBrand} className="flex gap-2 flex-grow mr-4">
-                                <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Yeni marka adı" className="input-style flex-grow" />
-                                <button type="submit" className="btn-primary">Ekle</button>
-                            </form>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleExportDefinitions('brands')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
-                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
-                                    <Icon name="upload" className="w-5 h-5"/>
-                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('brands', e)} />
-                                </label>
-                            </div>
-                        </div>
-                        <ul className="space-y-1 max-h-96 overflow-y-auto">
-                            {definitions.brands.map(brand => <EditableListItem key={brand.id} item={brand} onUpdate={handleUpdateBrand} onDelete={handleDeleteBrand} />)}
-                        </ul>
-                    </DefinitionSection>
-                );
-            case 'models':
-                return (
-                    <DefinitionSection title="Model Yönetimi">
-                        <div className="flex justify-between items-center mb-4">
-                            <form onSubmit={handleAddModel} className="grid grid-cols-3 gap-2 flex-grow mr-4">
-                                <select value={selectedBrandIdForModel} onChange={e => setSelectedBrandIdForModel(e.target.value)} className="input-style" required>
-                                    <option value="">Marka Seçin</option>
-                                    {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                </select>
-                                <input type="text" value={modelName} onChange={e => setModelName(e.target.value)} placeholder="Yeni model adı" className="input-style" />
-                                <button type="submit" className="btn-primary">Ekle</button>
-                            </form>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleExportDefinitions('models')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
-                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
-                                    <Icon name="upload" className="w-5 h-5"/>
-                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('models', e)} />
-                                </label>
-                            </div>
-                        </div>
-                        <ul className="space-y-1 max-h-96 overflow-y-auto">
-                            {definitions.brands.map(brand => (
-                                <li key={brand.id}>
-                                    <h4 className="font-semibold text-slate-600 mt-2">{brand.name}</h4>
-                                    <ul className="pl-4">
-                                        {definitions.models.filter(m => m.brandId === brand.id).map(model => <EditableListItem key={model.id} item={model} onUpdate={handleUpdateModel} onDelete={handleDeleteModel} />)}
-                                    </ul>
-                                </li>
-                            ))}
-                        </ul>
-                    </DefinitionSection>
-                );
-            case 'colors':
-                 return (
-                    <DefinitionSection title="Renk Yönetimi">
-                        <div className="flex justify-between items-center mb-4">
-                            <form onSubmit={handleAddColor} className="flex gap-2 flex-grow mr-4">
-                                <input type="text" value={colorName} onChange={e => setColorName(e.target.value)} placeholder="Yeni renk adı" className="input-style flex-grow" />
-                                <button type="submit" className="btn-primary">Ekle</button>
-                            </form>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleExportDefinitions('colors')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
-                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
-                                    <Icon name="upload" className="w-5 h-5"/>
-                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('colors', e)} />
-                                </label>
-                            </div>
-                        </div>
-                        <ul className="space-y-1 max-h-96 overflow-y-auto">
-                            {definitions.colors.map(color => <EditableListItem key={color.id} item={color} onUpdate={handleUpdateColor} onDelete={handleDeleteColor} />)}
-                        </ul>
-                    </DefinitionSection>
-                );
-            case 'sizes':
-                 return (
-                    <DefinitionSection title="Beden Yönetimi">
-                        <div className="flex justify-between items-center mb-4">
-                            <form onSubmit={handleAddSize} className="flex gap-2 flex-grow mr-4">
-                                <input type="text" value={sizeName} onChange={e => setSizeName(e.target.value)} placeholder="Yeni beden adı" className="input-style flex-grow" />
-                                <button type="submit" className="btn-primary">Ekle</button>
-                            </form>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleExportDefinitions('sizes')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
-                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
-                                    <Icon name="upload" className="w-5 h-5"/>
-                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('sizes', e)} />
-                                </label>
-                            </div>
-                        </div>
-                        <ul className="space-y-1 max-h-96 overflow-y-auto">
-                            {definitions.sizes.map(size => <EditableListItem key={size.id} item={size} onUpdate={handleUpdateSize} onDelete={handleDeleteSize} />)}
-                        </ul>
-                    </DefinitionSection>
-                );
-            case 'groups':
-                return (
-                    <DefinitionSection title="Grup Yönetimi">
-                        <div className="flex items-center gap-4 mb-4">
-                             <label className="font-semibold">Marka:</label>
-                             <select value={selectedBrandIdForGroup} onChange={e => setSelectedBrandIdForGroup(e.target.value)} className="input-style">
-                                <option value="__general__">Genel (Markasız)</option>
-                                {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex justify-between items-center mb-4">
-                            <form onSubmit={(e) => handleAddGroup(e, null)} className="flex gap-2 flex-grow mr-4">
-                                <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Yeni ana grup adı" className="input-style flex-grow" />
-                                <button type="submit" className="btn-primary">Ana Grup Ekle</button>
-                            </form>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleExportDefinitions('groups')} className="btn-secondary text-green-600 border-green-200" title="Dışa Aktar"><Icon name="excel" className="w-5 h-5"/></button>
-                                <label className="btn-secondary text-blue-600 border-blue-200 cursor-pointer" title="İçe Aktar">
-                                    <Icon name="upload" className="w-5 h-5"/>
-                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={(e) => handleImportDefinitions('groups', e)} />
-                                </label>
-                            </div>
-                        </div>
-                        <ul className="space-y-1 max-h-80 overflow-y-auto">
-                            {renderGroups(null, 0)}
-                        </ul>
-                    </DefinitionSection>
-                );
-            case 'suppliers':
-                return (
-                     <DefinitionSection title="Tedarikçi Yönetimi">
-                        <div className="flex items-center gap-2 mb-4">
-                           <button onClick={() => { setEditingSupplier(null); setIsSupplierModalOpen(true); }} className="btn-primary"><Icon name="plus" className="w-5 h-5"/> Yeni Ekle</button>
-                           <button onClick={() => setIsAiSupplierModalOpen(true)} className="btn-secondary bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100"><Icon name="ai" className="w-5 h-5"/> AI ile Aktar</button>
-                             <div className="relative" ref={excelMenuRef}>
-                                <button onClick={() => setIsExcelMenuOpen(prev => !prev)} className="btn-secondary bg-green-50 text-green-700 border-green-200 hover:bg-green-100">
-                                    <Icon name="excel" className="w-5 h-5"/> Excel İşlemleri
-                                </button>
-                                {isExcelMenuOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-56 bg-white border rounded-lg shadow-xl z-20">
-                                    <button onClick={handleDownloadTemplate} className="w-full text-left px-4 py-3 hover:bg-slate-100 flex items-center gap-3"><Icon name="download" className="w-5 h-5 text-slate-500" /> <span className="font-medium text-slate-700">Şablon İndir</span></button>
-                                    <button onClick={handleExcelUploadClick} className="w-full text-left px-4 py-3 hover:bg-slate-100 flex items-center gap-3 border-t"><Icon name="upload" className="w-5 h-5 text-slate-500" /> <span className="font-medium text-slate-700">Şablon Yükle</span></button>
-                                </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="max-h-96 overflow-y-auto border rounded-lg">
-                           <table className="w-full text-sm">
-                                <thead className="bg-slate-100"><tr className="text-left"><th className="p-2">Ünvan</th><th className="p-2">Telefon</th><th className="p-2">İl/İlçe</th><th className="p-2"></th></tr></thead>
-                                <tbody>
-                                    {suppliers.map(s => (
-                                        <tr key={s.id} className="border-b">
-                                            <td className="p-2 font-semibold">{s.name}</td><td className="p-2">{s.mobilePhone}</td><td className="p-2">{s.city}{s.district && `/${s.district}`}</td>
-                                            <td className="p-2 text-right">
-                                                <button onClick={() => { setEditingSupplier(s); setIsSupplierModalOpen(true); }} className="p-1 text-slate-500 hover:text-cyan-600"><Icon name="edit" className="w-5 h-5"/></button>
-                                                <button onClick={() => handleDeleteSupplier(s.id)} className="p-1 text-slate-500 hover:text-red-600"><Icon name="trash" className="w-5 h-5"/></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                           </table>
-                        </div>
-                     </DefinitionSection>
-                );
-             case 'customers':
-                return (
-                     <DefinitionSection title="Müşteri Yönetimi">
-                        <div className="flex items-center gap-2 mb-4">
-                           <button onClick={() => { setEditingCustomer(null); setIsCustomerModalOpen(true); }} className="btn-primary"><Icon name="plus" className="w-5 h-5"/> Yeni Müşteri Ekle</button>
-                        </div>
-                        <div className="max-h-96 overflow-y-auto border rounded-lg">
-                           <table className="w-full text-sm">
-                                <thead className="bg-slate-100"><tr className="text-left"><th className="p-2">İsim</th><th className="p-2">Telefon</th><th className="p-2">E-posta</th><th className="p-2"></th></tr></thead>
-                                <tbody>
-                                    {customers.map(c => (
-                                        <tr key={c.id} className="border-b">
-                                            <td className="p-2 font-semibold">{c.name}</td><td className="p-2">{c.phone}</td><td className="p-2">{c.email}</td>
-                                            <td className="p-2 text-right">
-                                                <button onClick={() => { setEditingCustomer(c); setIsCustomerModalOpen(true); }} className="p-1 text-slate-500 hover:text-cyan-600"><Icon name="edit" className="w-5 h-5"/></button>
-                                                <button onClick={() => handleDeleteCustomer(c.id)} className="p-1 text-slate-500 hover:text-red-600"><Icon name="trash" className="w-5 h-5"/></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                           </table>
-                        </div>
-                     </DefinitionSection>
-                );
-        }
-    };
-    
     return (
-        <div className="w-full h-full flex gap-4">
-            <input type="file" ref={excelInputRef} style={{ display: 'none' }} accept=".xlsx,.xls" onChange={handleExcelFileSelected} />
-            {isSupplierModalOpen && <SupplierEditModal isOpen={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} onSave={handleUpdateSupplier} supplierToEdit={editingSupplier} />}
-            {isCustomerModalOpen && <CustomerEditModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} onSave={handleUpdateCustomer} customerToEdit={editingCustomer} />}
-            {isAiSupplierModalOpen && <AiSupplierModal onClose={() => setIsAiSupplierModalOpen(false)} onStartTask={handleStartAiSupplierTask}/>}
-            {isAiSupplierReviewModalOpen && <AiSupplierReviewModal task={reviewingAiSupplierTask} onClose={handleDismissAiSupplierTask} onCommit={handleCommitAiSupplierResults} onDismiss={handleDismissAiSupplierTask} />}
+        <div className="flex w-full h-full bg-[#0f172a] text-slate-300 overflow-hidden font-sans relative">
+            
+            {/* 🔴 SİLME ONAY MODALI */}
+            {confirmDeleteId && (
+                <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+                    <div className="bg-[#1e293b] border border-white/10 p-10 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center">
+                        <div className="w-16 h-16 bg-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500 mx-auto mb-6">
+                            <Icon name="trash" className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-black text-white uppercase mb-2">Emin misiniz?</h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase mb-8">Bu kayıt kalıcı olarak silinecek.</p>
+                        <div className="flex gap-4">
+                            <button onClick={() => setConfirmDeleteId(null)} className="flex-1 h-12 bg-white/5 hover:bg-white/10 rounded-xl font-black text-[10px] uppercase transition-all">VAZGEÇ</button>
+                            <button onClick={commitDeletion} className="flex-1 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black text-[10px] uppercase shadow-lg shadow-rose-900/20 transition-all">EVET, SİL</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-            <aside className="w-48 flex-shrink-0">
-                <h2 className="text-lg font-bold text-slate-800 mb-4 px-2">Tanımlar</h2>
-                <nav className="space-y-1">
+            {/* Sidebar */}
+            <aside className="w-80 border-r border-white/5 bg-slate-950/30 flex flex-col shrink-0">
+                <div className="p-8 pb-4">
+                    <h1 className="text-xl font-black text-white tracking-tighter mb-1 uppercase italic">Studio <span className="text-cyan-500">Pro</span></h1>
+                    <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Sistem Parametreleri</p>
+                </div>
+                <nav className="flex-grow px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
                     {menuItems.map(item => (
-                        <button
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left font-semibold transition-all text-xs ${
-                            activeTab === item.id 
-                            ? 'bg-cyan-100 text-cyan-800' 
-                            : 'text-slate-600 hover:bg-slate-200/70'
-                        }`}
-                        >
-                        <Icon name={item.icon} className="w-4 h-4" />
-                        <span>{item.label}</span>
+                        <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full group flex items-center gap-4 px-6 py-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-cyan-600 text-white shadow-xl shadow-cyan-900/20' : 'text-slate-500 hover:bg-white/5'}`}>
+                            <Icon name={item.icon} className="w-5 h-5" />
+                            <span className="text-xs font-black uppercase tracking-widest">{item.label}</span>
                         </button>
                     ))}
                 </nav>
             </aside>
 
-            <main className="flex-1 min-w-0">
-                {renderContent()}
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col min-w-0 bg-[#020617]">
+                <header className="h-24 px-8 border-b border-white/5 flex items-center justify-between sticky top-0 z-30 bg-[#020617]/80 backdrop-blur-xl">
+                    <div className="flex items-center gap-6">
+                        <div>
+                            <h2 className="text-2xl font-black text-white uppercase tracking-tight italic">{menuItems.find(m => m.id === activeTab)?.label}</h2>
+                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{filteredContent.length} TOPLAM KAYIT</p>
+                        </div>
+                        <div className="relative w-80">
+                            <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700" />
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Hızlı Ara..." className="w-full h-11 pl-11 pr-4 bg-white/5 border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-cyan-500/50 transition-all font-mono placeholder:text-slate-800" />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        {activeTab === 'groups' && (filterParentGroupId || filterBrandIdForGroups) && (
+                            <button onClick={() => { setFilterParentGroupId(null); setFilterBrandIdForGroups(null); }} className="flex items-center gap-2 text-[10px] font-black text-rose-500 uppercase bg-rose-500/10 px-4 py-2 rounded-full border border-rose-500/20 hover:bg-rose-500/20 transition-all">
+                                <Icon name="back" className="w-3 h-3" /> FİLTREYİ TEMİZLE
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => {
+                                if(activeTab === 'suppliers') { setEditingSupplier(null); setIsSupplierModalOpen(true); }
+                                else if(activeTab === 'customers') { setEditingCustomer(null); setIsCustomerModalOpen(true); }
+                                else { document.getElementById('new-item-input')?.focus(); }
+                            }}
+                            className="px-8 h-12 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-900/40 active:scale-95 flex items-center gap-2"
+                        >
+                            <Icon name="plus" className="w-4 h-4" /> YENİ {menuItems.find(m => m.id === activeTab)?.label.slice(0, -3).toUpperCase()} EKLE
+                        </button>
+                    </div>
+                </header>
+
+                <div className="flex-grow flex p-8 gap-8 overflow-hidden">
+                    {/* Filter and Add Form Area */}
+                    <div className="w-80 shrink-0 space-y-6">
+                        
+                        {/* Special Group Filters */}
+                        {activeTab === 'groups' && (
+                            <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5 space-y-4">
+                                <span className="text-[9px] font-black text-cyan-500 uppercase tracking-[0.2em] px-1">Özel Filtreleme</span>
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[8px] font-black text-slate-500 uppercase">Markaya Göre Süz</label>
+                                        <select value={filterBrandIdForGroups || ''} onChange={e => setFilterBrandIdForGroups(e.target.value || null)} className="w-full h-10 bg-slate-900 border border-white/10 rounded-xl px-3 text-[10px] font-bold text-white outline-none">
+                                            <option value="">Tüm Markalar</option>
+                                            {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[8px] font-black text-slate-500 uppercase">Ana Gruba Göre Süz</label>
+                                        <select value={filterParentGroupId || ''} onChange={e => setFilterParentGroupId(e.target.value || null)} className="w-full h-10 bg-slate-900 border border-white/10 rounded-xl px-3 text-[10px] font-bold text-white outline-none">
+                                            <option value="">Tüm Gruplar</option>
+                                            {definitions.groups.filter(g => !g.parentId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Add Form */}
+                        {['brands', 'models', 'colors', 'sizes', 'groups'].includes(activeTab) && (
+                            <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                                <span className="text-[10px] font-black text-cyan-500 uppercase tracking-widest mb-6 block px-1">YENİ TANIMLAMA</span>
+                                <form onSubmit={handleAddItem} className="space-y-6">
+                                    {activeTab === 'models' && (
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase px-1">Marka Seçimi</label>
+                                            <select value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
+                                                <option value="">İlgili Marka Seçin</option>
+                                                {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                    {activeTab === 'groups' && (
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase px-1">ÜST GRUP (VARSA)</label>
+                                                <select value={selectedParentGroupId} onChange={e => setSelectedParentGroupId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
+                                                    <option value="">Ana Grup Olarak Ekle</option>
+                                                    {definitions.groups.filter(g => !g.parentId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase px-1">İLGİLİ MARKA</label>
+                                                <select value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
+                                                    <option value="">Genel (Tüm Markalar)</option>
+                                                    {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase px-1">AD TANIMI</label>
+                                        <input 
+                                            id="new-item-input"
+                                            type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} 
+                                            placeholder={`Örn: Yeni ${menuItems.find(m => m.id === activeTab)?.label.slice(0, -3)}...`}
+                                            className="w-full h-14 bg-slate-900 border-2 border-transparent focus:border-cyan-500/50 rounded-2xl px-6 text-sm font-bold text-white outline-none transition-all placeholder:text-slate-800"
+                                            required 
+                                        />
+                                    </div>
+                                    <button type="submit" className="w-full h-14 bg-white text-slate-900 rounded-[1.2rem] font-black uppercase text-[10px] tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl">KAYDET</button>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Data Table Area */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-4">
+                        
+                        {/* List Layout */}
+                        <div className="space-y-3">
+                            {filteredContent.map((item: any, idx: number) => (
+                                <div 
+                                    key={item.id} 
+                                    className={`group flex items-center gap-6 p-2 pr-6 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:bg-white/[0.04] transition-all cursor-pointer ${item.id === filterParentGroupId ? 'border-cyan-500/40 bg-cyan-500/5' : ''}`}
+                                    onClick={() => {
+                                        if (activeTab === 'groups' && !item.parentId) {
+                                            setFilterParentGroupId(item.id);
+                                        }
+                                    }}
+                                >
+                                    <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-[10px] font-black text-cyan-500 shadow-inner shrink-0 relative">
+                                        #{idx + 1}
+                                    </div>
+                                    <div className="flex-grow min-w-0">
+                                        {editingId === item.id ? (
+                                            <input 
+                                                autoFocus
+                                                value={editValue}
+                                                onChange={e => setEditValue(e.target.value)}
+                                                onBlur={() => handleSaveEdit(item.id)}
+                                                onKeyDown={e => e.key === 'Enter' && handleSaveEdit(item.id)}
+                                                className="w-full h-10 bg-slate-900 border border-cyan-500/50 rounded-lg px-4 text-sm font-bold text-white outline-none shadow-xl"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <h3 className="text-sm font-black text-white uppercase truncate tracking-tight">{item.name}</h3>
+                                        )}
+                                        <div className="flex gap-2 items-center mt-0.5">
+                                            <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest italic">{item.barcode || item.id.slice(-6)}</p>
+                                            {item.parentId && (
+                                                <span className="bg-orange-500/10 text-orange-500 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                                    Alt Grup: {definitions.groups.find(g => g.id === item.parentId)?.name}
+                                                </span>
+                                            )}
+                                            {item.brandId && (
+                                                <span className="bg-indigo-500/10 text-indigo-500 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                                    Marka: {definitions.brands.find(b => b.id === item.brandId)?.name}
+                                                </span>
+                                            )}
+                                            {activeTab === 'groups' && !item.parentId && (
+                                                <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter animate-pulse">Ana Grup Click</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transition-duration-300">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if(['suppliers', 'customers'].includes(activeTab)) {
+                                                    if(activeTab === 'suppliers') { setEditingSupplier(item); setIsSupplierModalOpen(true); }
+                                                    else { setEditingCustomer(item); setIsCustomerModalOpen(true); }
+                                                } else {
+                                                    setEditingId(item.id);
+                                                    setEditValue(item.name);
+                                                }
+                                            }}
+                                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 text-slate-500 hover:text-cyan-400 hover:bg-cyan-400/10 transition-all"
+                                        >
+                                            <Icon name="edit" className="w-5 h-5" />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(item.id); }} 
+                                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                        >
+                                            <Icon name="trash" className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredContent.length === 0 && (
+                                <div className="py-20 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-[3rem]">
+                                    <Icon name="search" className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Aradığınız kritere uygun kayıt bulunamadı</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </main>
 
+            {isSupplierModalOpen && <SupplierEditModal isOpen={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} supplierToEdit={editingSupplier} onSave={(s) => {
+                if (!s.id) onUpdateSuppliers([...suppliers, { ...s, id: `sup-${Date.now()}` } as Supplier]);
+                else onUpdateSuppliers(suppliers.map(x => x.id === s.id ? { ...x, ...s } : x));
+                setIsSupplierModalOpen(false);
+            }} />}
+
+            {isCustomerModalOpen && <CustomerEditModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} customerToEdit={editingCustomer} onSave={(c) => {
+                if (!c.id) onUpdateCustomers([...customers, { ...c, id: `cust-${Date.now()}` } as Customer]);
+                else onUpdateCustomers(customers.map(x => x.id === c.id ? { ...x, ...c } : x));
+                setIsCustomerModalOpen(false);
+            }} />}
+
             <style>{`
-                .input-style { background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.25rem 0.5rem; transition: all 0.2s; height: 32px; font-size: 0.75rem; }
-                .input-style:focus { outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9; }
-                .btn-primary { display: flex; align-items: center; justify-content: center; gap: 0.5rem; background-color: #0ea5e9; color: white; font-weight: 600; padding: 0 1rem; border-radius: 0.5rem; transition: all 0.2s; height: 32px; font-size: 0.75rem; }
-                .btn-primary:hover { background-color: #0284c7; }
-                .btn-secondary { display: flex; align-items: center; justify-content: center; gap: 0.5rem; background-color: white; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; padding: 0 0.75rem; border-radius: 0.5rem; transition: all 0.2s; height: 32px; font-size: 0.75rem; }
-                .btn-secondary:hover { background-color: #f1f5f9; }
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 20px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+                @keyframes fade-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                .animate-fade-in { animation: fade-in 0.3s cubic-bezier(0,0,0.2,1); }
             `}</style>
         </div>
     );

@@ -29,6 +29,9 @@ interface ProductsViewProps {
   onUpdateProductBuyPrice: (barcode: string, newBuyPrice: number) => void;
   onUpdateProduct: (originalBarcode: string, updates: Partial<Product>) => boolean;
   onUpdateProductStock: (barcode: string, newStock: number) => void;
+  onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
+  onMinimizeTask?: (task: any) => void;
+  restoreSignal?: number;
   companyInfo: CompanyInfo;
 }
 
@@ -38,7 +41,8 @@ const allColumns = [
   { id: 'marka', label: 'Marka', minWidth: 100 },
   { id: 'model', label: 'Model', minWidth: 100 },
   { id: 'anaStokKodu', label: 'Ana Stok Kodu', minWidth: 120 },
-  { id: 'stock', label: 'Stok', minWidth: 120, align: 'right' as const },
+  { id: 'shelfLocation', label: 'Raf/Konum', minWidth: 120 },
+  { id: 'stock', label: 'Stok', minWidth: 100, align: 'right' as const },
   { id: 'buyPrice', label: 'Alış Fiyatı', minWidth: 120, align: 'right' as const },
   { id: 'price', label: 'Satış Fiyatı', minWidth: 120, align: 'right' as const },
   { id: 'stokKodu', label: 'Stok Kodu', minWidth: 120 },
@@ -67,7 +71,7 @@ const defaultOrder = allColumns.map(c => c.id);
 
 
 const ProductsView: React.FC<ProductsViewProps> = (props) => {
-    const { products, suppliers, salesHistory, onAddProduct, onAddMultipleProducts, onStartAiTask, definitions, onDeleteProduct, onRestoreProduct, onUpdateProductPrice, onUpdateProductBuyPrice, onUpdateProduct, onUpdateProductStock } = props;
+    const { products, suppliers, salesHistory, onAddProduct, onAddMultipleProducts, onStartAiTask, definitions, onDeleteProduct, onRestoreProduct, onUpdateProductPrice, onUpdateProductBuyPrice, onUpdateProduct, onUpdateProductStock, onAddDefinition, onMinimizeTask } = props;
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -86,17 +90,36 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const [editValue, setEditValue] = useState<string>('');
 
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-        try { const saved = localStorage.getItem(COLUMN_WIDTHS_KEY); return saved ? { ...defaultWidths, ...JSON.parse(saved) } : defaultWidths; } 
+        try { 
+            const saved = localStorage.getItem(COLUMN_WIDTHS_KEY); 
+            const parsed = saved ? JSON.parse(saved) : null;
+            return parsed && typeof parsed === 'object' ? { ...defaultWidths, ...parsed } : defaultWidths; 
+        } 
         catch (e) { return defaultWidths; }
     });
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
-        try { const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY); return saved ? new Set(JSON.parse(saved)) : defaultHidden; }
+        try { 
+            const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY); 
+            const parsed = saved ? JSON.parse(saved) : null;
+            return parsed && Array.isArray(parsed) ? new Set(parsed) : defaultHidden; 
+        } 
         catch (e) { return defaultHidden; }
     });
+
+    // Auto-open logic for restored tasks
+    useEffect(() => {
+        if (props.restoreSignal && props.restoreSignal > 0) {
+            setIsAddModalOpen(true);
+        }
+    }, [props.restoreSignal]);
+
     const [columnOrder, setColumnOrder] = useState<string[]>(() => {
         try {
             const saved = localStorage.getItem(COLUMN_ORDER_KEY);
-            if(saved) { const parsed = JSON.parse(saved); if (defaultOrder.every(id => parsed.includes(id))) return parsed; }
+            if(saved) { 
+                const parsed = JSON.parse(saved); 
+                if (Array.isArray(parsed) && defaultOrder.every(id => parsed.includes(id))) return parsed; 
+            }
             return defaultOrder;
         } catch (e) { return defaultOrder; }
     });
@@ -107,12 +130,60 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const draggedColumn = useRef<string | null>(null);
     const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
     const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
-    const [displayLimit, setDisplayLimit] = useState(100);
-    const filteredProductsRef = useRef(filteredProducts);
+    
+    // 1. Calculate filtered products first so they can be referenced
+    const filteredProducts = useMemo(() => {
+        return products.filter(p => {
+            const f = filters;
+            if (f.showDeleted) {
+                if(!p.isDeleted) return false;
+            } else {
+                if(p.isDeleted) return false;
+            }
+            if (f.name && !p.name.toLowerCase().includes(f.name.toLowerCase())) return false;
+            if (f.stokKodu && !p.stokKodu.toLowerCase().includes(f.stokKodu.toLowerCase())) return false;
+            if (f.anaStokKodu && !p.anaStokKodu.toLowerCase().includes(f.anaStokKodu.toLowerCase())) return false;
+            if (f.barcode && !p.barcode.includes(f.barcode)) return false;
+            if (f.marka && p.marka !== f.marka) return false;
+            if (f.model && p.model !== f.model) return false;
+            if (f.group && p.group !== f.group) return false;
+            if (f.midGroup && p.midGroup !== f.midGroup) return false;
+            if (f.subGroup && p.subGroup !== f.subGroup) return false;
+            if (f.shelfLocation && !p.shelfLocation?.toLowerCase().includes(f.shelfLocation.toLowerCase())) return false;
+            if (f.minPrice && p.price < parseFloat(f.minPrice)) return false;
+            if (f.maxPrice && p.price > parseFloat(f.maxPrice)) return false;
+            if (f.stockStatus === 'inStock' && p.stock <= 0) return false;
+            if (f.stockStatus === 'outOfStock' && p.stock > 0) return false;
+            if (f.stockStatus === 'lowStock' && p.stock > 10) return false;
+            return true;
+        });
+    }, [products, filters]);
 
+    const productGroups = useMemo(() => {
+        const groups = new Map<string, Product[]>();
+        filteredProducts.forEach(product => {
+            const key = product.anaStokKodu || product.stokKodu || product.barcode;
+            if (!groups.has(key)) {
+                groups.set(key, []);
+            }
+            groups.get(key)!.push(product);
+        });
+        return Array.from(groups.values()).sort((a, b) => (a[0]?.name || '').localeCompare(b[0]?.name || ''));
+    }, [filteredProducts]);
+
+    // 2. Refs and state that use computed values
+    const [displayLimit, setDisplayLimit] = useState(100);
+    const filteredProductsRef = useRef<Product[]>([]);
+
+    // 3. Effects
     useEffect(() => {
         filteredProductsRef.current = filteredProducts;
     }, [filteredProducts]);
+
+    // Reset display limit when filters change to show fresh results
+    useEffect(() => {
+        setDisplayLimit(100);
+    }, [filters]);
 
     // Listen to global selection events
     useEffect(() => {
@@ -186,6 +257,8 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         'altgrubu': 'subGroup',
         'marka': 'marka',
         'model': 'model',
+        'raf': 'shelfLocation',
+        'konum': 'shelfLocation',
     };
 
     const showNotificationMessage = (type: 'success' | 'error', message: string) => {
@@ -230,6 +303,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             'Satış Fiyatı': p.price,
             'Stok Kodu': p.stokKodu,
             'Ana Stok Kodu': p.anaStokKodu,
+            'Raf/Konum': p.shelfLocation || '',
             'Marka': p.marka,
             'Model': p.model,
             'Renk': p.renk,
@@ -366,7 +440,8 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 group: finalProduct.group ?? '',
                                 midGroup: finalProduct.midGroup ?? '',
                                 subGroup: finalProduct.subGroup ?? '',
-                                isActivated: false,
+                                shelfLocation: finalProduct.shelfLocation ?? '',
+                                isActivated: true,
                             });
                         });
 
@@ -402,13 +477,13 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         setIsAddModalOpen(false);
     };
 
-    const handleSaveAndCloseEditModal = (updatedProducts: Product[]) => {
-        updatedProducts.forEach(p => {
-            const original = editingProductGroup?.find(og => og.stokKodu === p.stokKodu);
-            if (original) {
-                onUpdateProduct(original.barcode, p);
-            }
-        });
+    const handleSaveAndCloseEditModal = (allProducts: Product[]) => {
+        if (allProducts.length > 0) {
+            onAddMultipleProducts(allProducts);
+            setNotification({ type: 'success', message: `${allProducts.length} ürün ve varyasyon başarıyla güncellendi/eklendi.` });
+            setTimeout(() => setNotification(null), 3000);
+        }
+        
         setEditingProductGroup(null);
     };
     
@@ -420,45 +495,6 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             alert("Bu ürüne ait varyasyon grubu bulunamadı.");
         }
     };
-
-    const filteredProducts = useMemo(() => {
-        setDisplayLimit(100);
-        return products.filter(p => {
-            const f = filters;
-            if (f.showDeleted) {
-                if(!p.isDeleted) return false;
-            } else {
-                if(p.isDeleted) return false;
-            }
-            if (f.name && !p.name.toLowerCase().includes(f.name.toLowerCase())) return false;
-            if (f.stokKodu && !p.stokKodu.toLowerCase().includes(f.stokKodu.toLowerCase())) return false;
-            if (f.anaStokKodu && !p.anaStokKodu.toLowerCase().includes(f.anaStokKodu.toLowerCase())) return false;
-            if (f.barcode && !p.barcode.includes(f.barcode)) return false;
-            if (f.marka && p.marka !== f.marka) return false;
-            if (f.model && p.model !== f.model) return false;
-            if (f.group && p.group !== f.group) return false;
-            if (f.midGroup && p.midGroup !== f.midGroup) return false;
-            if (f.subGroup && p.subGroup !== f.subGroup) return false;
-            if (f.minPrice && p.price < parseFloat(f.minPrice)) return false;
-            if (f.maxPrice && p.price > parseFloat(f.maxPrice)) return false;
-            if (f.stockStatus === 'inStock' && p.stock <= 0) return false;
-            if (f.stockStatus === 'outOfStock' && p.stock > 0) return false;
-            if (f.stockStatus === 'lowStock' && p.stock > 10) return false;
-            return true;
-        });
-    }, [products, filters]);
-
-    const productGroups = useMemo(() => {
-        const groups = new Map<string, Product[]>();
-        filteredProducts.forEach(product => {
-            const key = product.anaStokKodu || product.stokKodu || product.barcode;
-            if (!groups.has(key)) {
-                groups.set(key, []);
-            }
-            groups.get(key)!.push(product);
-        });
-        return Array.from(groups.values()).sort((a, b) => (a[0]?.name || '').localeCompare(b[0]?.name || ''));
-    }, [filteredProducts]);
 
     const toggleGroup = (key: string) => {
         setExpandedGroups(prev => {
@@ -606,8 +642,18 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
     return (
         <div className="w-full h-full flex flex-col gap-4 relative">
-            <style>{`.drag-over-indicator-products::before { content: ''; position: absolute; top: 10%; left: -2px; width: 4px; height: 80%; background-color: #a855f7; border-radius: 4px; }`}</style>
-            {isAddModalOpen && <AddProductModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveAndCloseAddModal} definitions={definitions} suppliers={suppliers} products={products} />}
+            {isAddModalOpen && <AddProductModal 
+                onClose={() => setIsAddModalOpen(false)} 
+                onSave={handleSaveAndCloseAddModal} 
+                definitions={definitions} 
+                suppliers={suppliers} 
+                products={products} 
+                onAddDefinition={onAddDefinition} 
+                onMinimize={() => {
+                    if (onMinimizeTask) onMinimizeTask({ id: 'add-product', type: 'add-product' });
+                    setIsAddModalOpen(false);
+                }}
+            />}
             {isAiModalOpen && <AiProductModal onClose={() => setIsAiModalOpen(false)} onStartTask={onStartAiTask} />}
             {editingProductGroup && <EditProductModal isOpen={!!editingProductGroup} onClose={() => setEditingProductGroup(null)} productGroup={editingProductGroup} onSave={handleSaveAndCloseEditModal} definitions={definitions}/>}
             <ProductFiltersPanel isOpen={isFiltersOpen} onClose={() => setIsFiltersOpen(false)} onApply={handleApplyFilters} definitions={definitions} currentFilters={filters} />
@@ -619,16 +665,24 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                 </div>
             )}
 
-            <div className="flex-shrink-0 flex items-center justify-between">
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">Ürünler ve Stok Yönetimi</h1>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setIsFiltersOpen(true)} className="btn-secondary bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-200/70 dark:hover:bg-sky-800/50"><Icon name="filter" className="w-5 h-5"/> Filtrele</button>
+            <div className="view-header">
+                <h1 className="view-title">Ürünler ve Stok Yönetimi</h1>
+                <div className="view-actions">
+                    <button onClick={() => setIsAddModalOpen(true)} className="btn-primary">
+                        <Icon name="plus" className="w-5 h-5"/> Ürün Ekle
+                    </button>
+                    <button onClick={() => setIsAiModalOpen(true)} className="btn-secondary text-pink-600 border-pink-200 hover:bg-pink-50">
+                        <Icon name="ai" className="w-5 h-5"/> AI ile Oluştur
+                    </button>
+                    <button onClick={() => setIsFiltersOpen(true)} className="btn-secondary">
+                        <Icon name="filter" className="w-5 h-5"/> Filtrele
+                    </button>
                     <div className="relative" ref={columnManagerRef}>
-                        <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="btn-secondary bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-300/80 dark:hover:bg-slate-600">
+                        <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="btn-secondary">
                             <Icon name="view-columns" className="w-5 h-5"/> Sütunlar
                         </button>
                         {isColumnManagerOpen && (
-                            <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl z-30 p-4">
+                            <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-xl z-30 p-4">
                                 <p className="text-sm font-bold text-slate-600 dark:text-slate-300 px-2 pb-2 border-b border-slate-200 dark:border-slate-700 mb-2">Gösterilecek Sütunlar</p>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                                 {allColumns.filter(c => c.id !== 'actions').map(col => (
@@ -750,6 +804,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                             </tr>
                                         ))}
                                     </React.Fragment>
+                                );
                             })}
                         </tbody>
                     </table>

@@ -267,21 +267,21 @@ const ReportsView: React.FC<ReportsViewProps> = (props) => {
   };
 
   return (
-    <div className="w-full h-full flex gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200/80 shadow-xl overflow-hidden">
-      <aside className="w-48 flex-shrink-0">
-        <h2 className="text-lg font-bold text-slate-800 mb-4 px-2">Rapor Türleri</h2>
+    <div className="w-full h-full flex gap-6 bg-slate-50 dark:bg-slate-900 p-4">
+      <aside className="w-56 flex-shrink-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 overflow-y-auto">
+        <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Rapor Türleri</h2>
         <nav className="space-y-1">
           {menuItems.map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left font-semibold transition-all text-xs ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold transition-all text-sm ${
                 activeTab === item.id 
-                  ? 'bg-cyan-500 text-white shadow-md' 
-                  : 'text-slate-600 hover:bg-slate-200/70'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/20' 
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
-              <Icon name={item.icon} className="w-4 h-4" />
+              <Icon name={item.icon} className="w-5 h-5" />
               <span>{item.label}</span>
             </button>
           ))}
@@ -289,32 +289,30 @@ const ReportsView: React.FC<ReportsViewProps> = (props) => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex-shrink-0 pb-2 border-b border-slate-200">
-            <h2 className="text-xl font-bold text-slate-800 mb-2">{menuItems.find(m => m.id === activeTab)?.label}</h2>
+        <header className="view-header bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <h2 className="view-title">{menuItems.find(m => m.id === activeTab)?.label}</h2>
             {activeTab === 'endOfDay' ? (
-                <div className="flex items-center gap-4">
-                    <label htmlFor="eod-date" className="font-semibold text-slate-700">Tarih Seçin:</label>
+                <div className="view-actions">
+                    <label htmlFor="eod-date" className="font-bold text-slate-500 dark:text-slate-400 text-sm">Tarih:</label>
                     <input type="date" id="eod-date" value={eodDate} onChange={e => setEodDate(e.target.value)} className="input-style" />
-                    <button onClick={handleCloseDay} className="btn-primary flex items-center gap-2 bg-rose-600 hover:bg-rose-700">
-                        <Icon name="check" className="w-5 h-5" />
-                        <span>Günü Kapat</span>
+                    <button onClick={handleCloseDay} className="btn-danger">
+                        <Icon name="check" className="w-5 h-5" /> Günü Kapat
                     </button>
                 </div>
             ) : (
-                <div className="flex items-center gap-4 flex-wrap">
+                <div className="view-actions">
                     <div className="flex items-center gap-2">
                          <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="input-style"/>
-                         <span className="font-semibold text-slate-500">-</span>
+                         <span className="font-bold text-slate-300">-</span>
                          <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="input-style"/>
                     </div>
-                     <div className="flex items-center gap-2">
-                         <button onClick={() => setDateRangePreset('today')} className="btn-preset">Bugün</button>
-                         <button onClick={() => setDateRangePreset('week')} className="btn-preset">Bu Hafta</button>
-                         <button onClick={() => setDateRangePreset('month')} className="btn-preset">Bu Ay</button>
+                     <div className="flex items-center gap-1.5">
+                         <button onClick={() => setDateRangePreset('today')} className="btn-secondary px-3">Bugün</button>
+                         <button onClick={() => setDateRangePreset('week')} className="btn-secondary px-3">Hafta</button>
+                         <button onClick={() => setDateRangePreset('month')} className="btn-secondary px-3">Ay</button>
                          {(activeTab === 'sales' || activeTab === 'purchases') && (
-                             <button onClick={handleExportToExcel} className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 ml-2">
-                                 <Icon name="excel" className="w-4 h-4" />
-                                 <span>Excel'e Aktar</span>
+                             <button onClick={handleExportToExcel} className="btn-success">
+                                 <Icon name="excel" className="w-5 h-5" /> Excel
                              </button>
                          )}
                     </div>
@@ -326,17 +324,6 @@ const ReportsView: React.FC<ReportsViewProps> = (props) => {
             {renderContent()}
         </div>
       </main>
-      <style>{`
-        .input-style { background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.9rem; transition: all 0.2s; }
-        .input-style:focus { outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9; }
-        .btn-preset { background-color: #e2e8f0; color: #475569; font-weight: 600; border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem; transition: all 0.2s; }
-        .btn-preset:hover { background-color: #cbd5e1; }
-        .btn-primary {
-            background-color: #0ea5e9; color: white; font-weight: bold; border-radius: 0.5rem;
-            padding: 0.5rem 1.25rem; transition: background-color 0.2s; height: 40px;
-        }
-        .btn-primary:hover { background-color: #0284c7; }
-      `}</style>
     </div>
   );
 };

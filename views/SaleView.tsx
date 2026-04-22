@@ -838,25 +838,25 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
         <div className="px-2 py-1 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 bg-slate-100 dark:bg-slate-900">
             <div className="flex items-start gap-3">
                 <form onSubmit={handleBarcodeSubmit} className="relative flex-grow">
-                <Icon name="barcode" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-yellow-700 dark:text-yellow-500" />
-                <input
+                  <Icon name="barcode" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-yellow-600 z-10" />
+                  <input
                     ref={barcodeInputRef}
                     type="text"
                     value={barcode}
                     onChange={handleBarcodeChange}
                     placeholder="Barkod okutun (Örn: 2 * 12345...)"
-                    className="w-full h-10 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-900 dark:text-yellow-200 placeholder:text-yellow-700/70 dark:placeholder:text-yellow-500/50 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg pl-11 pr-4 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                />
+                    className="input-style w-full pl-11 bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-900/30 font-bold"
+                  />
                 </form>
                 <div className="relative flex-grow" ref={searchContainerRef}>
-                    <Icon name="tag" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-green-700 dark:text-green-500" />
+                    <Icon name="tag" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600 z-10" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={handleSearchKeyDown}
                         placeholder="Ürün adı, model, stok kodu ile ara..."
-                        className="w-full h-10 bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200 placeholder:text-green-700/70 dark:placeholder:text-green-500/50 border-2 border-green-300 dark:border-green-700 rounded-lg pl-11 pr-4 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                        className="input-style w-full pl-11 bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-900/30"
                     />
                     {searchResultGroups.length > 0 && (
                         <div ref={searchResultsRef} className="absolute top-full mt-2 w-full bg-white border border-slate-300 rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto">
@@ -921,13 +921,13 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
                         </div>
                     ) : (
                         <div className="relative">
-                            <Icon name="customer" className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-red-700 dark:text-red-500" />
+                            <Icon name="customer" className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-rose-600 z-10" />
                             <input
                                 type="text"
                                 value={customerSearch}
                                 onChange={e => setCustomerSearch(e.target.value)}
                                 placeholder="Müşteri Ara veya Seç"
-                                className="h-10 w-full rounded-lg border-2 bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200 placeholder:text-red-700/70 dark:placeholder:text-red-500/50 border-red-300 dark:border-red-700 pl-11 pr-4 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition"
+                                className="input-style w-full pl-11 bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-900/30"
                             />
                             {filteredCustomers.length > 0 && (
                                 <div className="absolute top-full z-30 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
@@ -947,32 +947,32 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
                     )}
                 </div>
                 <div className="flex-shrink-0 flex items-center gap-2">
-                    <button onClick={() => setIsAddCustomerModalOpen(true)} className="h-10 flex items-center gap-2 px-3 bg-sky-600 border-2 border-sky-700 text-white rounded-lg hover:bg-sky-700 transition focus:outline-none focus:ring-2 focus:ring-sky-500">
-                        <Icon name="plus" className="w-4 h-4"/><span className="font-semibold text-sm">Yeni Müşteri</span>
+                    <button onClick={() => setIsAddCustomerModalOpen(true)} className="btn-secondary" title="Yeni Müşteri">
+                        <Icon name="plus" className="w-5 h-5"/>
                     </button>
-                    <button onClick={() => setIsBulkPriceModalOpen(true)} disabled={currentSale.length === 0} className="h-10 flex items-center gap-2 px-3 bg-purple-600 border-2 border-purple-700 text-white rounded-lg hover:bg-purple-700 transition focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-200/50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:border-slate-300 disabled:text-opacity-70">
-                        <Icon name="edit" className="w-4 h-4"/><span className="font-semibold text-sm">Toplu Fiyat</span>
+                    <button onClick={() => setIsBulkPriceModalOpen(true)} disabled={currentSale.length === 0} className="btn-secondary" title="Toplu Fiyat Değiştir">
+                        <Icon name="edit" className="w-5 h-5"/>
                     </button>
                     <div className="relative" ref={columnManagerRef}>
-                        <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="h-10 flex items-center gap-2 px-3 bg-indigo-600 border-2 border-indigo-700 text-white rounded-lg hover:bg-indigo-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <Icon name="view-columns" className="w-4 h-4"/><span className="font-semibold text-sm">Sütunlar</span>
+                        <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="btn-secondary" title="Sütunlar">
+                            <Icon name="view-columns" className="w-5 h-5"/>
                         </button>
                         {isColumnManagerOpen && (
-                            <div className="absolute top-full mt-2 right-0 w-80 bg-white border border-slate-300 rounded-lg shadow-xl z-30 p-4">
+                            <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-xl z-30 p-4">
                                 <p className="text-sm font-bold text-slate-600 px-2 pb-2 border-b mb-2">Gösterilecek Sütunlar</p>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                                 {allColumns.filter(c => c.id !== 'actions').map(col => (
-                                    <label key={col.id} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-slate-100 cursor-pointer">
+                                    <label key={col.id} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">
                                         <input type="checkbox" checked={!hiddenColumns.has(col.id)} onChange={() => toggleColumn(col.id)} className="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
-                                        <span className="text-slate-700 select-none">{col.label}</span>
+                                        <span className="text-slate-700 dark:text-slate-200 select-none">{col.label}</span>
                                     </label>
                                 ))}
                                 </div>
                             </div>
                         )}
                     </div>
-                    <button onClick={handlePrintReceipt} disabled={currentSale.length === 0} className="h-10 flex items-center gap-2 px-3 bg-amber-500 border-2 border-amber-600 text-white rounded-lg hover:bg-amber-600 transition focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-slate-200/50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:border-slate-300 disabled:text-opacity-70">
-                        <Icon name="printer" className="w-4 h-4"/><span className="font-semibold text-sm">Önizleme</span>
+                    <button onClick={handlePrintReceipt} disabled={currentSale.length === 0} className="btn-secondary" title="Fiş Yazdır">
+                        <Icon name="printer" className="w-5 h-5"/>
                     </button>
                 </div>
             </div>
@@ -1028,34 +1028,68 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
           </table>
         </div>
       </div>
-      <div className="flex-shrink-0 bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-900 dark:to-slate-950 text-white rounded-lg shadow-2xl p-2 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <div>
-                    <p className="text-xs font-medium text-slate-200 dark:text-slate-400">Genel Toplam</p>
-                    <p className="text-2xl font-bold tracking-tight text-cyan-300 dark:text-cyan-400">{total.toFixed(2)}<span className="text-lg ml-1">₺</span></p>
-                </div>
-                {totalItems > 0 && (
-                    <>
-                        <div className="h-10 w-px bg-slate-600 dark:bg-slate-800"></div>
-                        <div>
-                            <p className="text-[10px] font-medium text-slate-200 dark:text-slate-400">Ürün Adedi</p>
-                            <p className="text-lg font-bold text-white dark:text-slate-200">{totalItems}</p>
-                        </div>
-                    </>
-                )}
+      <div className="bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 p-3 flex-shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-col lg:flex-row items-center gap-4">
+          
+          {/* Information Section */}
+          <div className="flex items-center gap-2 flex-grow w-full lg:w-auto">
+            <div className="flex-1 lg:flex-none bg-white dark:bg-slate-800 px-6 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 shadow-sm">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Toplam Adet</span>
+                <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{totalItems} <small className="text-[10px] font-bold text-slate-400 uppercase">Ürün</small></span>
+              </div>
             </div>
             
-            <div className="flex items-center gap-2">
-                <button onClick={cancelSale} disabled={currentSale.length === 0} className="bg-red-500/20 text-red-300 hover:bg-red-500/40 font-semibold py-1 px-3 rounded-lg transition text-[10px] disabled:bg-slate-600/50 disabled:text-slate-400 disabled:cursor-not-allowed">İptal Et</button>
-                <button onClick={handleSuspendSale} disabled={currentSale.length === 0} className="w-24 bg-orange-500 text-white font-bold text-[10px] py-1.5 rounded-lg transition shadow-md hover:shadow-orange-500/40 disabled:bg-slate-500 disabled:shadow-none disabled:cursor-not-allowed transform hover:-translate-y-0.5">Beklemeye Al</button>
-                <button onClick={() => setIsSuspendedSalesModalOpen(true)} className="relative w-24 bg-yellow-500 text-white font-bold text-[10px] py-1.5 rounded-lg transition shadow-md hover:shadow-yellow-500/40 transform hover:-translate-y-0.5">
-                    Bekleyenler
-                    {suspendedSales.length > 0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">{suspendedSales.length}</span>}
-                </button>
-                <button onClick={() => handleCompleteSale('Nakit')} disabled={currentSale.length === 0} className="w-32 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-xs py-1.5 rounded-lg transition shadow-lg hover:shadow-green-500/40 disabled:bg-slate-500 disabled:from-slate-500 disabled:shadow-none disabled:cursor-not-allowed transform hover:-translate-y-0.5">Nakit</button>
-                <button onClick={() => handleCompleteSale('Kredi Kartı')} disabled={currentSale.length === 0} className="w-32 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold text-xs py-1.5 rounded-lg transition shadow-lg hover:shadow-blue-500/40 disabled:bg-slate-500 disabled:from-slate-500 disabled:shadow-none disabled:cursor-not-allowed transform hover:-translate-y-0.5">Kredi Kartı</button>
+            <div className="flex-[2] lg:flex-none bg-cyan-600 dark:bg-cyan-700 px-8 py-2 rounded-2xl flex items-center gap-6 shadow-lg shadow-cyan-900/10 min-w-[240px]">
+              <div className="bg-white/20 p-2 rounded-xl">
+                 <Icon name="sale" className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-white/60 uppercase tracking-widest leading-none mb-1">Toplam Ödenecek</span>
+                <span className="text-3xl font-black text-white tracking-tighter leading-none">{total.toFixed(2)} ₺</span>
+              </div>
             </div>
+          </div>
+
+          {/* Action Buttons Section */}
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+             {/* Secondary Actions */}
+             <div className="flex items-center gap-1 mr-2 px-3 border-r dark:border-slate-700">
+                <button onClick={cancelSale} disabled={currentSale.length === 0} className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all" title="Satışı İptal Et">
+                   <Icon name="trash" className="w-5 h-5" />
+                </button>
+                <button onClick={handleSuspendSale} disabled={currentSale.length === 0} className="p-2.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl transition-all" title="Satışı Beklet">
+                   <Icon name="refresh" className="w-5 h-5" />
+                </button>
+                <button onClick={() => setIsSuspendedSalesModalOpen(true)} className="relative p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all" title="Bekleyen Satışlar">
+                   <Icon name="list-bullet" className="w-5 h-5" />
+                   {suspendedSales.length > 0 && (
+                     <span className="absolute top-1 right-1 w-4 h-4 bg-amber-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-slate-100 dark:border-slate-900 animate-pulse">{suspendedSales.length}</span>
+                   )}
+                </button>
+             </div>
+
+             {/* Primary Actions */}
+             <div className="flex items-center gap-2">
+                <button
+                    onClick={() => handleCompleteSale('Nakit')}
+                    disabled={currentSale.length === 0}
+                    className="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                    <Icon name="check" className="w-5 h-5" /> NAKİT
+                </button>
+                <button
+                    onClick={() => handleCompleteSale('Kredi Kartı')}
+                    disabled={currentSale.length === 0}
+                    className="flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-900/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                    <Icon name="finance" className="w-5 h-5" /> KREDİ KARTI
+                </button>
+             </div>
+          </div>
+
         </div>
+      </div>
     </div>
   );
 };

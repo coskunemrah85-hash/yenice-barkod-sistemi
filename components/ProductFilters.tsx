@@ -113,6 +113,7 @@ const ProductFiltersPanel: React.FC<ProductFiltersPanelProps> = ({
                             <input type="text" name="stokKodu" value={localFilters.stokKodu || ''} onChange={handleChange} placeholder="Stok Kodu" className="input-style w-full" />
                             <input type="text" name="anaStokKodu" value={localFilters.anaStokKodu || ''} onChange={handleChange} placeholder="Ana Stok Kodu" className="input-style w-full" />
                             <input type="text" name="barcode" value={localFilters.barcode || ''} onChange={handleChange} placeholder="Barkod" className="input-style w-full" />
+                            <input type="text" name="shelfLocation" value={localFilters.shelfLocation || ''} onChange={handleChange} placeholder="Raf / Konum" className="input-style w-full" />
                         </div>
                         
                         <div className="space-y-4">

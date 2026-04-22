@@ -44,6 +44,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                 subGroup: firstProduct.subGroup,
                 buyPrice: firstProduct.buyPrice,
                 price: firstProduct.price,
+                shelfLocation: firstProduct.shelfLocation || '',
             });
             
             const deepCopiedGroup = JSON.parse(JSON.stringify(productGroup));
@@ -80,11 +81,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+        const numValue = parseFloat(value.replace(',', '.')) || 0;
         
         setCommonData(prev => ({ ...prev, [name]: value }));
         
         if (applyPricesToAll) {
-            setVariations(vars => vars.map(v => ({ ...v, [name]: value })));
+            setVariations(vars => vars.map(v => ({ ...v, [name]: numValue })));
         }
     };
 
@@ -97,146 +99,186 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
         }));
     };
 
+    const addVariation = () => {
+        const lastVar = variations[variations.length - 1];
+        const newBarcode = (parseInt(lastVar?.barcode || '100000000000') + 1).toString();
+        
+        const newVariation: Product = {
+            ...productGroup[0],
+            barcode: newBarcode,
+            stokKodu: `${commonData.anaStokKodu}-${variations.length + 1}`,
+            renk: '',
+            beden: '',
+            stock: 0,
+            buyPrice: parseFloat(String(commonData.buyPrice || 0).replace(',', '.')) || 0,
+            price: parseFloat(String(commonData.price || 0).replace(',', '.')) || 0,
+            isActivated: true
+        };
+        setVariations([...variations, newVariation]);
+    };
+
+    const removeVariation = (index: number) => {
+        if(variations.length === 1) return;
+        setVariations(variations.filter((_, i) => i !== index));
+    };
+
     const handleSave = () => {
         const finalProducts = variations.map(v => {
             const baseName = commonData.name || '';
             const newName = v.renk && v.beden ? `${baseName} (${v.renk} - ${v.beden})` : baseName;
+            
+            const buyPrice = applyPricesToAll ? (parseFloat(String(commonData.buyPrice || 0).replace(',', '.')) || 0) : (parseFloat(String(v.buyPrice).replace(',', '.')) || 0);
+            const price = applyPricesToAll ? (parseFloat(String(commonData.price || 0).replace(',', '.')) || 0) : (parseFloat(String(v.price).replace(',', '.')) || 0);
+
             return {
                 ...v,
                 ...commonData,
-                price: parseFloat(String(v.price).replace(',', '.')) || 0,
-                buyPrice: parseFloat(String(v.buyPrice).replace(',', '.')) || 0,
+                buyPrice,
+                price,
                 name: newName,
             };
         });
-
-        const changedProducts = finalProducts.filter(updatedProduct => {
-            const originalProduct = initialVariations.current.find(p => p.stokKodu === updatedProduct.stokKodu);
-            return !originalProduct || JSON.stringify(originalProduct) !== JSON.stringify(updatedProduct);
-        });
-
-        if (changedProducts.length > 0) {
-            onSave(changedProducts);
-        }
+        onSave(finalProducts as Product[]);
         onClose();
     };
 
     const selectedBrand = useMemo(() => definitions.brands.find(b => b.name === commonData.marka), [commonData.marka, definitions.brands]);
     const filteredModels = useMemo(() => selectedBrand ? definitions.models.filter(m => m.brandId === selectedBrand.id) : [], [selectedBrand, definitions.models]);
+    
     const mainGroups = useMemo(() => {
         const selectedBrandId = selectedBrand?.id || null;
         return definitions.groups.filter(g => g.parentId === null && (g.brandId === selectedBrandId || g.brandId === null));
     }, [definitions.groups, selectedBrand]);
+    
     const midGroups = useMemo(() => {
         const selectedGroup = mainGroups.find(g => g.name === commonData.group);
         if (!selectedGroup) return [];
-        return definitions.groups.filter(g => g.parentId === selectedGroup.id && g.brandId === selectedGroup.brandId);
+        return definitions.groups.filter(g => g.parentId === selectedGroup.id);
     }, [commonData.group, mainGroups, definitions.groups]);
+    
     const subGroups = useMemo(() => {
         const selectedMidGroup = midGroups.find(g => g.name === commonData.midGroup);
         if (!selectedMidGroup) return [];
-        return definitions.groups.filter(g => g.parentId === selectedMidGroup.id && g.brandId === selectedMidGroup.brandId);
+        return definitions.groups.filter(g => g.parentId === selectedMidGroup.id);
     }, [commonData.midGroup, midGroups, definitions.groups]);
 
-
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <header className="p-5 border-b flex justify-between items-center bg-slate-50">
-                    <h2 className="text-2xl font-bold text-slate-800">Ürün Grubu Düzenle: {commonData.anaStokKodu}</h2>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200"><Icon name="x-circle" className="w-7 h-7 text-slate-500"/></button>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={onClose}>
+            <div className="bg-[#0f172a] border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
+                
+                {/* Header */}
+                <header className="p-8 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-xl">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-cyan-400">
+                            <Icon name="edit" className="w-6 h-6"/>
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white uppercase tracking-tight italic">Ürün Grubu Düzenle</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ANA STOK KODU: <span className="text-cyan-500">{commonData.anaStokKodu}</span></p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+                        <Icon name="x-circle" className="w-7 h-7"/>
+                    </button>
                 </header>
-                <main className="flex-grow p-6 overflow-y-auto space-y-6">
-                     {error && <p className="text-red-600 bg-red-100 p-3 rounded-lg">{error}</p>}
-                    <section>
-                        <h3 className="text-lg font-semibold text-slate-700 mb-3 border-b pb-2">Ortak Bilgiler</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="col-span-2">
-                                <label className="label-style">Ürün Adı (Temel)</label>
-                                <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-style w-full"/>
-                            </div>
-                             <div className="col-span-2 row-span-2">
-                                <label className="label-style">Ürün Açıklaması</label>
-                                <div className="relative h-full">
-                                    <textarea name="description" value={commonData.description || ''} onChange={handleCommonDataChange} className="input-style w-full h-full" rows={4}></textarea>
-                                    <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="absolute bottom-2 right-2 btn-secondary-sm bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 disabled:bg-slate-200 disabled:text-slate-500">
-                                        {isGeneratingDescription ? (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-700"></div>
-                                        ) : (
-                                            <Icon name="ai" className="w-4 h-4"/>
-                                        )}
-                                        <span>Oluştur</span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div><label className="label-style">Ana Stok Kodu</label><input type="text" name="anaStokKodu" value={commonData.anaStokKodu || ''} onChange={handleCommonDataChange} className="input-style w-full"/></div>
-                            <div><label className="label-style">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-style w-full"><option value="">Seçiniz</option>{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
-                            <div><label className="label-style">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-style w-full" disabled={!commonData.marka}><option value="">Seçiniz</option>{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                             <div><label className="label-style">Grup</label><select name="group" value={commonData.group || ''} onChange={handleCommonDataChange} className="input-style w-full"><option value="">Seçiniz</option>{mainGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                             <div><label className="label-style">Ara Grup</label><select name="midGroup" value={commonData.midGroup || ''} onChange={handleCommonDataChange} className="input-style w-full" disabled={!commonData.group}><option value="">Seçiniz</option>{midGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                             <div><label className="label-style">Alt Grup</label><select name="subGroup" value={commonData.subGroup || ''} onChange={handleCommonDataChange} className="input-style w-full" disabled={!commonData.midGroup}><option value="">Seçiniz</option>{subGroups.map(g=><option key={g.id} value={g.name}>{g.name} {g.brandId === null && '(Genel)'}</option>)}</select></div>
-                        </div>
-                    </section>
 
-                    <section>
-                        <h3 className="text-lg font-semibold text-slate-700 mb-3 border-b pb-2">Toplu Fiyatlandırma</h3>
-                         <div className="flex items-end gap-4">
-                            <div><label className="label-style">Alış Fiyatı</label><input type="text" name="buyPrice" value={commonData.buyPrice || ''} onChange={handlePriceChange} className="input-style"/></div>
-                            <div><label className="label-style">Satış Fiyatı</label><input type="text" name="price" value={commonData.price || ''} onChange={handlePriceChange} className="input-style"/></div>
-                            <label className="flex items-center gap-2 pb-2 cursor-pointer"><input type="checkbox" checked={applyPricesToAll} onChange={(e) => setApplyPricesToAll(e.target.checked)} className="h-5 w-5 rounded text-cyan-600 focus:ring-cyan-500"/> Fiyatları tüm varyasyonlara uygula</label>
-                        </div>
-                    </section>
+                <main className="flex-grow p-8 overflow-y-auto space-y-10 custom-scrollbar">
+                    {error && <p className="text-[10px] font-black text-rose-500 bg-rose-500/10 p-4 rounded-xl uppercase tracking-widest">{error}</p>}
                     
-                    <section>
-                         <h3 className="text-lg font-semibold text-slate-700 mb-3 border-b pb-2">Varyasyonlar</h3>
-                         <div className="overflow-x-auto border rounded-lg">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100">
+                    {/* Common Info */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white/[0.02] p-8 rounded-[2rem] border border-white/5">
+                        <div className="md:col-span-2">
+                            <label className="label-pro">Temel Ürün Adı</label>
+                            <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-pro w-full"/>
+                        </div>
+                        <div><label className="label-pro">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
+                        <div><label className="label-pro">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                        <div className="md:col-span-1"><label className="label-pro text-emerald-500">Global Alış</label><input type="text" name="buyPrice" value={commonData.buyPrice || ''} onChange={handlePriceChange} className="input-pro w-full border-emerald-500/20"/></div>
+                        <div className="md:col-span-1"><label className="label-pro text-cyan-500">Global Satış</label><input type="text" name="price" value={commonData.price || ''} onChange={handlePriceChange} className="input-pro w-full border-cyan-500/20"/></div>
+                        <div className="md:col-span-2 flex items-center gap-4 mt-6">
+                            <button onClick={() => setApplyPricesToAll(!applyPricesToAll)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${applyPricesToAll ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${applyPricesToAll ? 'bg-cyan-500 border-cyan-400' : 'border-white/20'}`}>
+                                    {applyPricesToAll && <Icon name="check" className="w-3 h-3 text-slate-900"/>}
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Fiyatları Tüm Listeye Uygula</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Table View */}
+                    <section className="space-y-6">
+                        <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                                <div className="w-1.5 h-6 bg-purple-500 rounded-full"></div>
+                                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Varyasyon Listesi ({variations.length})</h3>
+                             </div>
+                             <button onClick={addVariation} className="h-11 px-6 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-purple-900/20 flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95">
+                                <Icon name="plus" className="w-4 h-4"/> YENİ VARYASYON EKLE
+                             </button>
+                        </div>
+
+                        <div className="bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden">
+                            <table className="w-full text-xs text-left border-collapse">
+                                <thead className="bg-[#1e293b] text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-white/5">
                                     <tr>
-                                        <th className="th-style">Renk</th><th className="th-style">Beden</th>
-                                        <th className="th-style">Stok Kodu</th><th className="th-style">Barkod</th>
-                                        <th className="th-style text-right">Stok</th><th className="th-style text-right">Alış Fiyatı</th>
-                                        <th className="th-style text-right">Satış Fiyatı</th>
+                                        <th className="px-6 py-4">Sıra</th>
+                                        <th className="px-6 py-4">Renk</th>
+                                        <th className="px-6 py-4">Beden</th>
+                                        <th className="px-6 py-4">Barkod</th>
+                                        <th className="px-6 py-4">Stok Kodu</th>
+                                        <th className="px-6 py-4 text-center">Stok</th>
+                                        {!applyPricesToAll && <><th className="px-6 py-4 text-right">Alış</th><th className="px-6 py-4 text-right">Satış</th></>}
+                                        <th className="px-6 py-4 text-center">İşlem</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                {variations.map((v, index) => (
-                                    <tr key={index} className="border-b last:border-b-0 hover:bg-slate-50">
-                                        <td className="td-style"><input value={v.renk} onChange={e=>handleVariationChange(index, 'renk', e.target.value)} className="table-input"/></td>
-                                        <td className="td-style"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input"/></td>
-                                        <td className="td-style"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input"/></td>
-                                        <td className="td-style"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input"/></td>
-                                            <td className="td-style text-right font-semibold">{v.stock}</td>
-                                        <td className="td-style"><input value={v.buyPrice} onChange={e=>handleVariationChange(index, 'buyPrice', e.target.value)} className="table-input text-right" disabled={applyPricesToAll}/></td>
-                                        <td className="td-style"><input value={v.price} onChange={e=>handleVariationChange(index, 'price', e.target.value)} className="table-input text-right" disabled={applyPricesToAll}/></td>
+                                <tbody className="divide-y divide-white/5">
+                                    {variations.map((v, index) => (
+                                        <tr key={index} className="hover:bg-white/[0.03] transition-colors group">
+                                            <td className="px-6 py-3 font-mono text-slate-600 text-[10px]">#{index + 1}</td>
+                                            <td className="px-4 py-2"><input value={v.renk} onChange={e=>handleVariationChange(index, 'renk', e.target.value)} className="table-input-pro" placeholder="Renk"/></td>
+                                            <td className="px-4 py-2"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input-pro" placeholder="Beden"/></td>
+                                            <td className="px-4 py-2"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-40"/></td>
+                                            <td className="px-4 py-2"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input-pro font-mono text-slate-500 w-40"/></td>
+                                            <td className="px-4 py-2 text-center text-white font-bold">{v.stock}</td>
+                                            {!applyPricesToAll && (
+                                                <>
+                                                    <td className="px-4 py-2"><input value={v.buyPrice} onChange={e=>handleVariationChange(index, 'buyPrice', e.target.value)} className="table-input-pro text-right text-emerald-500"/></td>
+                                                    <td className="px-4 py-2"><input value={v.price} onChange={e=>handleVariationChange(index, 'price', e.target.value)} className="table-input-pro text-right text-cyan-500"/></td>
+                                                </>
+                                            )}
+                                            <td className="px-6 py-2 text-center">
+                                                <button onClick={() => removeVariation(index)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white">
+                                                    <Icon name="trash" className="w-4 h-4"/>
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                         </div>
+                        </div>
                     </section>
                 </main>
-                <footer className="p-4 border-t bg-slate-100 flex justify-end gap-4">
-                    <button onClick={onClose} className="btn-secondary">İptal</button>
-                    <button onClick={handleSave} className="btn-primary">Değişiklikleri Kaydet</button>
+
+                <footer className="p-8 border-t border-white/5 bg-slate-900/50 backdrop-blur-xl flex justify-end gap-6">
+                    <button onClick={onClose} className="px-10 h-14 bg-white/5 hover:bg-white/10 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">Vazgeç</button>
+                    <button onClick={handleSave} className="px-12 h-14 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-cyan-900/40 transform hover:scale-105 active:scale-95 transition-all">Değişiklikleri Uygula</button>
                 </footer>
             </div>
+            
             <style>{`
-                .label-style { display: block; font-size: 0.875rem; font-weight: 500; color: #475569; margin-bottom: 0.25rem; }
-                .input-style { background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem 0.75rem; transition: all 0.2s; height: 42px; }
-                .input-style:focus { outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9; }
-                textarea.input-style { height: auto; }
-                .th-style { padding: 0.75rem; text-align: left; font-semibold; color: #475569; }
-                .td-style { padding: 0.25rem 0.5rem; }
-                .table-input { width: 100%; border: 1px solid transparent; background: transparent; padding: 0.5rem; border-radius: 0.25rem; }
-                .table-input:focus { background: white; border-color: #0ea5e9; outline: none; box-shadow: 0 0 0 2px #e0f2fe; }
-                .table-input:disabled { background: #f1f5f9; color: #64748b; cursor: not-allowed; }
-                .btn-primary { background-color: #0ea5e9; color: white; font-weight: bold; border-radius: 0.5rem; padding: 0.6rem 1.5rem; transition: background-color 0.2s; }
-                .btn-primary:hover { background-color: #0284c7; }
-                .btn-secondary { background-color: white; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; border-radius: 0.5rem; padding: 0.6rem 1.5rem; transition: all 0.2s; }
-                .btn-secondary:hover { background-color: #f1f5f9; border-color: #94a3b8; }
-                .btn-secondary-sm { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; font-weight: 600; padding: 0 0.75rem; border-radius: 0.375rem; transition: all 0.2s; height: 32px; font-size: 0.8rem; border: 1px solid #cbd5e1; }
-                .btn-secondary-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+                .label-pro { display: block; font-size: 9px; font-black text-slate-500 uppercase tracking-widest mb-2 px-1; }
+                .input-pro { background-color: rgba(255, 255, 255, 0.03); border: 2px solid rgba(255, 255, 255, 0.05); border-radius: 1.25rem; padding: 0.8rem 1.25rem; color: white; font-size: 0.85rem; font-weight: 700; transition: all 0.3s; outline: none; }
+                .input-pro:focus { border-color: rgba(6, 182, 212, 0.5); background-color: rgba(255, 255, 255, 0.06); }
+                
+                .table-input-pro { background: transparent; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 0.75rem; padding: 0.5rem 0.75rem; color: white; font-size: 11px; font-weight: 700; width: 100%; outline: none; transition: all 0.2s; }
+                .table-input-pro:focus { background: rgba(255, 255, 255, 0.05); border-color: rgba(147, 51, 234, 0.4); }
+
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+                
+                @keyframes fade-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+                .animate-fade-in { animation: fade-in 0.3s ease-out; }
             `}</style>
         </div>
     );

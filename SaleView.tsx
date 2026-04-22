@@ -589,6 +589,25 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
     }
   };
 
+  const handleWhatsAppReceipt = () => {
+    if (currentSale.length === 0) return;
+    
+    let message = `*${companyInfo.name}* - Müşteri Bilgi Fişi\n`;
+    message += `----------------------------\n`;
+    currentSale.forEach(item => {
+        message += `• ${item.name}\n  ${item.quantity} x ${item.price.toFixed(2)}₺ = *${(item.quantity * item.price).toFixed(2)}₺*\n`;
+    });
+    message += `----------------------------\n`;
+    message += `*TOPLAM: ${total.toFixed(2)} ₺*\n\n`;
+    message += `Bizi tercih ettiğiniz için teşekkür ederiz. 🙏`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const phone = selectedCustomer?.phone?.replace(/\D/g, '') || '';
+    
+    const whatsappUrl = `https://wa.me/${phone.startsWith('90') ? phone : '90' + phone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   // FIX: Added return type and return statement to satisfy the 'onSave' prop type of AddCustomerModal.
   const handleSaveAndSelectCustomer = (customer: Omit<Customer, 'id'>): Customer => {
       const newCustomer = onAddCustomer(customer);
@@ -972,6 +991,9 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
                     </div>
                     <button onClick={handlePrintReceipt} disabled={currentSale.length === 0} className="h-10 flex items-center gap-2 px-3 bg-blue-50 border-2 border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-200/50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:border-slate-300">
                         <Icon name="printer" className="w-4 h-4 text-blue-600"/><span className="font-semibold text-sm">Önizleme</span>
+                    </button>
+                    <button onClick={handleWhatsAppReceipt} disabled={currentSale.length === 0} className="h-10 flex items-center gap-2 px-3 bg-emerald-50 border-2 border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-100 transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-200/50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:border-slate-300">
+                        <Icon name="whatsapp" className="w-5 h-5 text-emerald-600"/><span className="font-semibold text-sm">WhatsApp</span>
                     </button>
                 </div>
             </div>
