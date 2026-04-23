@@ -451,7 +451,14 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
         `*Toplam:* ${totalQuantity} adet ürün\n\n` +
         `Teşekkürler.`;
         
-      const whatsappUrl = `https://wa.me/${supplier.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+      let phone = supplier.whatsapp.replace(/\D/g, '');
+      if (phone.length === 10 && phone.startsWith('5')) {
+          phone = '90' + phone;
+      } else if (phone.length === 11 && phone.startsWith('05')) {
+          phone = '90' + phone.substring(1);
+      }
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
   };
 

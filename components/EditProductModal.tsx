@@ -15,11 +15,14 @@ interface EditProductModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (updatedProducts: Product[]) => void;
-    productGroup: Product[];
+    products: Product[];
     definitions: Definitions;
+    suppliers: Supplier[];
+    onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
+    onMinimize?: (task: any) => void;
 }
 
-const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, onSave, productGroup, definitions }) => {
+const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, onSave, products, definitions, suppliers, onAddDefinition, onMinimize }) => {
     const [commonData, setCommonData] = useState<Partial<Product>>({});
     const [variations, setVariations] = useState<Product[]>([]);
     const [applyPricesToAll, setApplyPricesToAll] = useState(true);
@@ -28,8 +31,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (isOpen && productGroup.length > 0) {
-            const firstProduct = productGroup[0];
+        if (isOpen && products.length > 0) {
+            const firstProduct = products[0];
             const baseNameMatch = firstProduct.name.match(/^(.*?)(\s*\(.*\))?$/);
             const baseName = baseNameMatch ? baseNameMatch[1].trim() : firstProduct.name;
             
@@ -47,11 +50,11 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                 shelfLocation: firstProduct.shelfLocation || '',
             });
             
-            const deepCopiedGroup = JSON.parse(JSON.stringify(productGroup));
+            const deepCopiedGroup = JSON.parse(JSON.stringify(products));
             setVariations(deepCopiedGroup);
             initialVariations.current = deepCopiedGroup;
         }
-    }, [isOpen, productGroup]);
+    }, [isOpen, products]);
     
     if (!isOpen) return null;
 
@@ -104,7 +107,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
         const newBarcode = (parseInt(lastVar?.barcode || '100000000000') + 1).toString();
         
         const newVariation: Product = {
-            ...productGroup[0],
+            ...products[0],
             barcode: newBarcode,
             stokKodu: `${commonData.anaStokKodu}-${variations.length + 1}`,
             renk: '',
@@ -142,6 +145,23 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
         onClose();
     };
 
+    const handleMinimize = () => {
+        if (onMinimize) {
+            const task = {
+                id: 'edit-product-' + Date.now(),
+                type: 'edit_product',
+                title: commonData.name || 'Ürün Düzenleme',
+                data: {
+                    commonData,
+                    variations,
+                    applyPricesToAll
+                }
+            };
+            onMinimize(task);
+            onClose();
+        }
+    };
+
     const selectedBrand = useMemo(() => definitions.brands.find(b => b.name === commonData.marka), [commonData.marka, definitions.brands]);
     const filteredModels = useMemo(() => selectedBrand ? definitions.models.filter(m => m.brandId === selectedBrand.id) : [], [selectedBrand, definitions.models]);
     
@@ -177,9 +197,14 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">DÜZENLENEN GRUP: <span className="text-cyan-500">{commonData.anaStokKodu || commonData.model || 'GENEL'}</span></p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-                        <Icon name="x-circle" className="w-7 h-7"/>
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button onClick={handleMinimize} title="Küçült" className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-cyan-400 hover:bg-white/10 transition-all">
+                             <Icon name="minus" className="w-6 h-6" />
+                        </button>
+                        <button onClick={onClose} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all">
+                            <Icon name="x-circle" className="w-7 h-7"/>
+                        </button>
+                    </div>
                 </header>
 
                 <main className="flex-grow p-8 overflow-y-auto space-y-10 custom-scrollbar">

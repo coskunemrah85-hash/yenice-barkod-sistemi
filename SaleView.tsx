@@ -602,9 +602,16 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
     message += `Bizi tercih ettiğiniz için teşekkür ederiz. 🙏`;
 
     const encodedMessage = encodeURIComponent(message);
-    const phone = selectedCustomer?.phone?.replace(/\D/g, '') || '';
+    let phone = selectedCustomer?.phone?.replace(/\D/g, '') || '';
     
-    const whatsappUrl = `https://wa.me/${phone.startsWith('90') ? phone : '90' + phone}?text=${encodedMessage}`;
+    // Türkiye numarası formatlama
+    if (phone.length === 10 && phone.startsWith('5')) {
+        phone = '90' + phone;
+    } else if (phone.length === 11 && phone.startsWith('05')) {
+        phone = '90' + phone.substring(1);
+    }
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
   };
 

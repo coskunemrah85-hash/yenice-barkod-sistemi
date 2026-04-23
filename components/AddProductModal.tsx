@@ -4,13 +4,14 @@ import Icon from './Icon';
 import { generateProductDescription } from '../services/geminiService';
 
 interface AddProductModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onSave: (products: Product[]) => void;
   definitions: Definitions;
   suppliers: Supplier[];
   products: Product[];
   onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
-  onMinimize?: () => void;
+  onMinimize?: (task: any) => void;
 }
 
 type VariationEntry = {
@@ -46,7 +47,9 @@ const initialVariationState = {
     stock: '0',
 };
 
-const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, definitions, suppliers, products, onAddDefinition, onMinimize }) => {
+const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSave, definitions, suppliers, products, onAddDefinition, onMinimize }) => {
+    if (!isOpen) return null;
+
     const [mode, setMode] = useState<'single' | 'variation'>('single');
     const [error, setError] = useState('');
     
@@ -207,6 +210,26 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
         }
     };
 
+    const selectedBrand = useMemo(() => definitions.brands.find(b => b.name === commonData.marka), [commonData.marka, definitions.brands]);
+    const filteredModels = useMemo(() => selectedBrand ? definitions.models.filter(m => m.brandId === selectedBrand.id) : [], [selectedBrand, definitions.models]);
+    
+    const mainGroups = useMemo(() => {
+        const selectedBrandId = selectedBrand?.id || null;
+        return definitions.groups.filter(g => g.parentId === null && (g.brandId === selectedBrandId || g.brandId === null));
+    }, [definitions.groups, selectedBrand]);
+    
+    const midGroups = useMemo(() => {
+        const selectedGroup = mainGroups.find(g => g.name === commonData.group);
+        if (!selectedGroup) return [];
+        return definitions.groups.filter(g => g.parentId === selectedGroup.id);
+    }, [commonData.group, mainGroups, definitions.groups]);
+    
+    const subGroups = useMemo(() => {
+        const selectedMidGroup = midGroups.find(g => g.name === commonData.midGroup);
+        if (!selectedMidGroup) return [];
+        return definitions.groups.filter(g => g.parentId === selectedMidGroup.id);
+    }, [commonData.midGroup, midGroups, definitions.groups]);
+
     const handleVariationSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -250,23 +273,23 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
         onClose();
     };
 
-    // --- Dynamic dropdowns for variation mode ---
-    const selectedBrand = useMemo(() => definitions.brands.find(b => b.name === commonData.marka), [commonData.marka, definitions.brands]);
-    const filteredModels = useMemo(() => selectedBrand ? definitions.models.filter(m => m.brandId === selectedBrand.id) : [], [selectedBrand, definitions.models]);
-    const mainGroups = useMemo(() => {
-      const selectedBrandId = selectedBrand?.id || null;
-      return definitions.groups.filter(g => g.parentId === null && (g.brandId === selectedBrandId || g.brandId === null));
-    }, [definitions.groups, selectedBrand]);
-    const midGroups = useMemo(() => {
-      const selectedGroup = mainGroups.find(g => g.name === commonData.group);
-      if(!selectedGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedGroup.id);
-    }, [commonData.group, mainGroups, definitions.groups]);
-    const subGroups = useMemo(() => {
-      const selectedMidGroup = midGroups.find(g => g.name === commonData.midGroup);
-      if(!selectedMidGroup) return [];
-      return definitions.groups.filter(g => g.parentId === selectedMidGroup.id);
-    }, [commonData.midGroup, midGroups, definitions.groups]);
+    const handleMinimize = () => {
+        if (onMinimize) {
+            const task = {
+                id: 'add-product-' + Date.now(),
+                type: 'add_product',
+                title: commonData.name || 'Yeni Ürün Ekleme',
+                data: {
+                    mode,
+                    commonData,
+                    addedVariations,
+                    currentVariation
+                }
+            };
+            onMinimize(task);
+            onClose();
+        }
+    };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden" onClick={onClose}>
@@ -290,7 +313,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
                         <button type="button" onClick={() => setMode('variation')} className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${mode === 'variation' ? 'bg-white dark:bg-slate-800 text-cyan-600' : 'text-slate-500 hover:text-slate-700'}`}>Varyasyonlu Takım</button>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button type="button" onClick={onMinimize} title="Aşağı İndir" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 hover:bg-cyan-100 dark:bg-cyan-900/20 dark:text-cyan-400 transition-all border border-cyan-200/50">
+                        <button type="button" onClick={handleMinimize} title="Aşağı İndir" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 hover:bg-cyan-100 dark:bg-cyan-900/20 dark:text-cyan-400 transition-all border border-cyan-200/50">
                              <Icon name="minus" className="w-5 h-5" />
                         </button>
                         <button type="button" onClick={onClose} title="Kapat" className="w-10 h-10 flex items-center justify-center rounded-2xl bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 transition-all border border-rose-200/50">
@@ -343,6 +366,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
                         definitions={definitions} 
                         suppliers={suppliers} 
                         products={products} 
+                        onTriggerQuickAdd={triggerQuickAdd}
                         generateUniqueBarcode={(p) => {
                             let barcode;
                             do {
@@ -350,7 +374,6 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
                             } while (p.some(pr => pr.barcode === barcode));
                             return barcode;
                         }}
-                        onTriggerQuickAdd={triggerQuickAdd}
                     />
                 ) : (
                     <form onSubmit={handleVariationSubmit} className="space-y-8">
@@ -498,7 +521,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onSave, defi
 };
 
 // Standalone component for single product mode to keep the main component cleaner
-const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave'> & {
+const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'> & {
     onSave: (products: Product[]) => void; 
     generateUniqueBarcode: (p: Product[]) => string;
     onTriggerQuickAdd: (type: 'brand' | 'model' | 'group' | 'color' | 'size', brandName?: string, callback?: (name: string) => void) => void;

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Product, Brand, Model, Color, Size, Group, ProductFilters, Supplier, CompanyInfo, SaleRecord } from '../types';
 import Icon from '../components/Icon';
 import AddProductModal from '../components/AddProductModal';
@@ -29,6 +30,7 @@ interface ProductsViewProps {
   onUpdateProductBuyPrice: (barcode: string, newBuyPrice: number) => void;
   onUpdateProduct: (originalBarcode: string, updates: Partial<Product>) => boolean;
   onUpdateProductStock: (barcode: string, newStock: number) => void;
+  onBulkUpdateProducts?: (updates: { barcode: string, updates: Partial<Product> }[]) => void;
   onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
   onMinimizeTask?: (task: any) => void;
   restoreSignal?: number;
@@ -45,6 +47,8 @@ const allColumns = [
   { id: 'stock', label: 'Stok', minWidth: 100, align: 'right' as const },
   { id: 'buyPrice', label: 'Alış Fiyatı', minWidth: 120, align: 'right' as const },
   { id: 'price', label: 'Satış Fiyatı', minWidth: 120, align: 'right' as const },
+  { id: 'profit', label: 'Kar (₺)', minWidth: 100, align: 'right' as const },
+  { id: 'profitMargin', label: '% Kar', minWidth: 80, align: 'right' as const },
   { id: 'stokKodu', label: 'Stok Kodu', minWidth: 120 },
   { id: 'barcode', label: 'Barkod', minWidth: 140 },
   { id: 'renk', label: 'Renk', minWidth: 80 },
@@ -56,9 +60,8 @@ const allColumns = [
 ];
 
 const CSV_HEADERS = [
-  'Stok Kodu', 'Ana Stok Kodu', 'Stok Adı', 'Kalan Miktar', 'ALIŞ FİYATI 1',
-  'SATIŞ FİYATI 1', 'Barkodu', 'Beden', 'Renk', 'Grubu', 'Ara Grubu',
-  'Alt Grubu', 'Marka', 'Model'
+  'Stok Kodu', 'Ana Stok Kodu',  'Stok Adı', 'Kalan Miktar', 'ALIŞ FİYATI 1', 'SATIŞ FİYATI 1', 'Kar (₺)', '% Kar',
+  'Barkodu', 'Beden', 'Renk', 'Grubu', 'Ara Grubu', 'Alt Grubu', 'Marka', 'Model'
 ];
 
 const COLUMN_WIDTHS_KEY = 'yenice_products_view_column_widths';
@@ -71,7 +74,7 @@ const defaultOrder = allColumns.map(c => c.id);
 
 
 const ProductsView: React.FC<ProductsViewProps> = (props) => {
-    const { products, suppliers, salesHistory, onAddProduct, onAddMultipleProducts, onStartAiTask, definitions, onDeleteProduct, onRestoreProduct, onUpdateProductPrice, onUpdateProductBuyPrice, onUpdateProduct, onUpdateProductStock, onAddDefinition, onMinimizeTask } = props;
+    const { products, suppliers, salesHistory, onAddProduct, onAddMultipleProducts, onStartAiTask, definitions, onDeleteProduct, onRestoreProduct, onUpdateProductPrice, onUpdateProductBuyPrice, onUpdateProduct, onUpdateProductStock, onBulkUpdateProducts, onAddDefinition, onMinimizeTask } = props;
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -86,7 +89,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const [isFabOpen, setIsFabOpen] = useState(false);
     
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-    const [editingCell, setEditingCell] = useState<{ barcode: string; field: 'stock' | 'buyPrice' | 'price' } | null>(null);
+    const [editingCell, setEditingCell] = useState<{ barcode: string; field: 'stock' | 'buyPrice' | 'price'; isGroup?: boolean } | null>(null);
     const [editValue, setEditValue] = useState<string>('');
 
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
@@ -105,6 +108,19 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         } 
         catch (e) { return defaultHidden; }
     });
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (excelMenuRef.current && !excelMenuRef.current.contains(event.target as Node)) {
+                setIsExcelMenuOpen(false);
+            }
+            if (columnManagerRef.current && !columnManagerRef.current.contains(event.target as Node)) {
+                setIsColumnManagerOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Auto-open logic for restored tasks
     useEffect(() => {
@@ -243,72 +259,111 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const [displayLimit, setDisplayLimit] = useState(100);
     const filteredProductsRef = useRef<Product[]>([]);
 
-    const handleExportStock = useCallback(() => {
+    const handleExportStock = useCallback(async () => {
         try {
-            console.log('handleExportStock started...');
+            console.log('handleExportStock started with ExcelJS...');
             
-            const xlsxLib = XLSX || (window as any).XLSX;
-            if (!xlsxLib) {
-                // Fallback to CSV if library is missing
-                const headers = ['Grup Kodu / Model', 'Barkod', 'Ürün Adı', 'Stok', 'Alış Fiyatı', 'Satış Fiyatı', 'Stok Kodu', 'Ana Stok Kodu', 'Raf/Konum', 'Marka', 'Model', 'Renk', 'Beden', 'Grup', 'Durum'];
-                let csvContent = "\uFEFF" + headers.join(';') + "\r\n";
-                productGroups.forEach(group => {
-                    const groupKey = (group[0].anaStokKodu || group[0].model || group[0].stokKodu || '').replace(/;/g, ',');
-                    group.forEach((p, idx) => {
-                        csvContent += [idx === 0 ? groupKey : '', p.barcode, p.name, p.stock, p.buyPrice, p.price, p.stokKodu, p.anaStokKodu, p.shelfLocation, p.marka, p.model, p.renk, p.beden, p.group, p.isActivated ? 'Aktif' : 'Pasif'].join(';') + "\r\n";
-                    });
-                    csvContent += ";;;;;;;;;;;;;;\r\n";
-                });
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = "Stok_Listesi.csv";
-                link.click();
-                return;
-            }
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Stok Listesi');
 
-            const data: any[] = [];
-            productGroups.forEach(group => {
+            // Define headers
+            const headers = [
+                'Grup Kodu / Model', 'Barkod', 'Ürün Adı', 'Stok', 
+                'Alış Fiyatı', 'Satış Fiyatı', 'Kar (₺)', '% Kar', 'Stok Kodu', 'Ana Stok Kodu', 
+                'Raf/Konum', 'Marka', 'Model', 'Renk', 'Beden', 'Grup', 'Durum'
+            ];
+
+            const headerRow = worksheet.addRow(headers);
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0891B2' } // Cyan-600
+            };
+            headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+            let rowIndex = 0;
+            // If there are selected items, only export those. Otherwise export all filtered groups.
+            const groupsToExport = selectedBarcodes.size > 0 
+                ? productGroups.map(group => group.filter(p => selectedBarcodes.has(p.barcode))).filter(g => g.length > 0)
+                : productGroups;
+
+            groupsToExport.forEach((group) => {
                 const mainP = group[0];
                 const groupKey = mainP.anaStokKodu || mainP.model || mainP.stokKodu || mainP.barcode;
+                const bgColor = rowIndex % 2 === 0 ? 'FFFFFFFF' : 'FFD1FAE5'; // White vs Emerald-100
 
                 group.forEach((p, idx) => {
-                    data.push({
-                        'Grup Kodu / Model': idx === 0 ? groupKey : '',
-                        'Barkod': p.barcode || '',
-                        'Ürün Adı': p.name || '',
-                        'Stok': p.stock ?? 0,
-                        'Alış Fiyatı': p.buyPrice ?? 0,
-                        'Satış Fiyatı': p.price ?? 0,
-                        'Stok Kodu': p.stokKodu || '',
-                        'Ana Stok Kodu': p.anaStokKodu || '',
-                        'Raf/Konum': p.shelfLocation || '',
-                        'Marka': p.marka || '',
-                        'Model': p.model || '',
-                        'Renk': p.renk || '',
-                        'Beden': p.beden || '',
-                        'Grup': p.group || '',
-                        'Durum': p.isActivated ? 'Aktif' : 'Pasif'
+                    const profit = p.price - p.buyPrice;
+                    const margin = p.buyPrice > 0 ? (profit / p.buyPrice) * 100 : 0;
+                    const rowData = [
+                        idx === 0 ? groupKey : '',
+                        p.barcode || '',
+                        p.name || '',
+                        p.stock ?? 0,
+                        p.buyPrice ?? 0,
+                        p.price ?? 0,
+                        profit.toFixed(2),
+                        margin.toFixed(2) + '%',
+                        p.stokKodu || '',
+                        p.anaStokKodu || '',
+                        p.shelfLocation || '',
+                        p.marka || '',
+                        p.model || '',
+                        p.renk || '',
+                        p.beden || '',
+                        p.group || '',
+                        p.isActivated ? 'Aktif' : 'Pasif'
+                    ];
+                    const row = worksheet.addRow(rowData);
+                    
+                    // Apply background color to all cells in the row
+                    row.eachCell((cell) => {
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: bgColor }
+                        };
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+                        };
                     });
                 });
-                data.push({}); // Empty row between groups
+                
+                // Add an empty separator row if needed, or just increment index
+                // worksheet.addRow([]); 
+                rowIndex++;
             });
 
-            const ws = xlsxLib.utils.json_to_sheet(data);
-            const wb = xlsxLib.utils.book_new();
-            xlsxLib.utils.book_append_sheet(wb, ws, "Stok Listesi");
-            
-            // Generate Excel file
-            xlsxLib.writeFile(wb, "Stok_Listesi.xlsx", { bookType: 'xlsx', type: 'binary' });
+            // Auto-filter and column widths
+            worksheet.autoFilter = {
+                from: { row: 1, column: 1 },
+                to: { row: 1, column: headers.length }
+            };
+
+            worksheet.columns.forEach(column => {
+                column.width = 20;
+            });
+
+            // Generate buffer and save
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Stok_Listesi_${new Date().toLocaleDateString('tr-TR')}.xlsx`;
+            link.click();
             
             setIsExcelMenuOpen(false);
-            showSuccess("Excel dosyası başarıyla oluşturuldu.");
+            showSuccess("Renkli Excel dosyası başarıyla oluşturuldu.");
 
         } catch (err: any) {
             console.error('Export error:', err);
             showError(`Dışa aktarma hatası: ${err.message}`);
         }
-    }, [productGroups, showError, showSuccess]);
+    }, [productGroups, selectedBarcodes, showError, showSuccess]);
 
     // 3. Effects
     useEffect(() => {
@@ -368,15 +423,6 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     }, [handleExportStock]);
 
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-          if (excelMenuRef.current && !excelMenuRef.current.contains(event.target as Node)) setIsExcelMenuOpen(false);
-          if (columnManagerRef.current && !columnManagerRef.current.contains(event.target as Node)) setIsColumnManagerOpen(false);
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
     useEffect(() => { try { localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(columnWidths)); } catch(e) { console.error(e); } }, [columnWidths]);
     useEffect(() => { try { localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify(Array.from(hiddenColumns))); } catch(e) { console.error(e); } }, [hiddenColumns]);
     useEffect(() => { try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columnOrder)); } catch(e) { console.error(e); } }, [columnOrder]);
@@ -406,23 +452,64 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         });
     }, []);
 
+    const normalizeHeader = (s: string) => {
+        return s.trim().toLowerCase()
+            .replace(/ı/g, 'i')
+            .replace(/ğ/g, 'g')
+            .replace(/ü/g, 'u')
+            .replace(/ş/g, 's')
+            .replace(/ö/g, 'o')
+            .replace(/ç/g, 'c')
+            .replace(/\s+/g, '')
+            .replace(/[^a-z0-9]/g, '');
+    };
+
     const CSV_PRODUCT_HEADER_MAP: { [key: string]: keyof Partial<Product> } = {
         'stokkodu': 'stokKodu',
+        'stokkod': 'stokKodu',
+        'skodu': 'stokKodu',
         'anastokkodu': 'anaStokKodu',
-        'stokadı': 'name',
+        'anastokkod': 'anaStokKodu',
+        'askodu': 'anaStokKodu',
+        'stokadi': 'name',
+        'stokisimi': 'name',
+        'urunadi': 'name',
+        'urunisimi': 'name',
+        'adi': 'name',
+        'isimi': 'name',
         'kalanmiktar': 'stock',
-        'alışfiyatı1': 'buyPrice',
-        'satışfiyatı1': 'price',
+        'stok': 'stock',
+        'miktar': 'stock',
+        'adet': 'stock',
+        'alis' : 'buyPrice',
+        'alisfiyati': 'buyPrice',
+        'alisfiyati1': 'buyPrice',
+        'birimalis': 'buyPrice',
+        'satis': 'price',
+        'satisfiyati': 'price',
+        'satisfiyati1': 'price',
+        'birimsatis': 'price',
+        'fiyati': 'price',
         'barkodu': 'barcode',
+        'barkod': 'barcode',
         'beden': 'beden',
+        'olcu': 'beden',
         'renk': 'renk',
+        'renkkodu': 'renk',
         'grubu': 'group',
+        'grup': 'group',
+        'kategori': 'group',
         'aragrubu': 'midGroup',
+        'aragrup': 'midGroup',
+        'arakategori': 'midGroup',
         'altgrubu': 'subGroup',
+        'altgrup': 'subGroup',
+        'altkategori': 'subGroup',
         'marka': 'marka',
         'model': 'model',
         'raf': 'shelfLocation',
         'konum': 'shelfLocation',
+        'raflokasyonu': 'shelfLocation',
     };
 
 
@@ -488,7 +575,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
                     const firstLine = lines[0];
                     const separator = firstLine.includes(';') ? ';' : ',';
-                    const headers = firstLine.split(separator).map(h => h.trim().toLowerCase().replace(/"/g, '').replace(/\uFEFF/g, ''));
+                    const headers = firstLine.split(separator).map(h => normalizeHeader(h.replace(/"/g, '').replace(/\uFEFF/g, '')));
                     
                     const CHUNK_SIZE = 500;
                     let currentIndex = 1; // Start from index 1 to skip header row
@@ -517,7 +604,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                             const product: Partial<Product> = {};
                             
                             headers.forEach((header, index) => {
-                                const fieldKey = CSV_PRODUCT_HEADER_MAP[header.replace(/\s+/g, '')];
+                                const fieldKey = CSV_PRODUCT_HEADER_MAP[header];
                                 if (fieldKey) {
                                     let value: string | number | undefined = data[index];
                                     if (['buyPrice', 'price', 'stock'].includes(String(fieldKey))) {
@@ -655,10 +742,32 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         if (originalProduct[field] !== newValue) {
             if (field === 'stock') {
                 onUpdateProductStock(barcode, Math.round(newValue));
-            } else if (field === 'buyPrice') {
-                onUpdateProductBuyPrice(barcode, newValue);
-            } else if (field === 'price') {
-                onUpdateProductPrice(barcode, newValue);
+            } else if (editingCell.isGroup) {
+                // If editing from the Group Row, sync across the entire group
+                const groupKey = getGroupKey(originalProduct);
+                const variations = products.filter(p => getGroupKey(p) === groupKey);
+                
+                if (onBulkUpdateProducts) {
+                    const updates = variations.map(v => ({
+                        barcode: v.barcode,
+                        updates: { [field]: newValue }
+                    }));
+                    onBulkUpdateProducts(updates);
+                } else {
+                    // Fallback to individual updates if bulk is not provided
+                    if (field === 'buyPrice') {
+                        variations.forEach(v => onUpdateProductBuyPrice(v.barcode, newValue));
+                    } else if (field === 'price') {
+                        variations.forEach(v => onUpdateProductPrice(v.barcode, newValue));
+                    }
+                }
+            } else {
+                // Individual variation edit
+                if (field === 'buyPrice') {
+                    onUpdateProductBuyPrice(barcode, newValue);
+                } else if (field === 'price') {
+                    onUpdateProductPrice(barcode, newValue);
+                }
             }
         }
         setEditingCell(null);
@@ -673,8 +782,8 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         }
     };
 
-    const renderEditableCell = (product: Product, field: 'stock' | 'buyPrice' | 'price') => {
-        const isEditing = editingCell?.barcode === product.barcode && editingCell?.field === field;
+    const renderEditableCell = (product: Product, field: 'stock' | 'buyPrice' | 'price', isGroup: boolean = false) => {
+        const isEditing = editingCell?.barcode === product.barcode && editingCell?.field === field && !!editingCell?.isGroup === isGroup;
         const value = product[field];
 
         if (isEditing) {
@@ -694,12 +803,13 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
         return (
             <div 
-                onClick={() => {
-                    setEditingCell({ barcode: product.barcode, field });
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setEditingCell({ barcode: product.barcode, field, isGroup });
                     setEditValue(value.toString().replace('.', ','));
                 }}
                 className="cursor-pointer p-1 -m-1 rounded hover:bg-cyan-100/70 dark:hover:bg-cyan-900/30"
-                title={`${field === 'stock' ? 'Stok' : field === 'buyPrice' ? 'Alış Fiyatı' : 'Satış Fiyatı'} düzenle`}
+                title={`${field === 'stock' ? 'Stok' : field === 'buyPrice' ? 'Alış Fiyatı' : 'Satış Fiyatı'} düzenlemek için çift tıklayın`}
             >
                 {field === 'stock' ? value : `${value.toFixed(2)} ₺`}
             </div>
@@ -716,28 +826,44 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const visibleColumns = useMemo(() => orderedColumns.filter(c => !hiddenColumns.has(c.id)), [orderedColumns, hiddenColumns]);
 
     const handleMouseDown = useCallback((e: React.MouseEvent, columnId: string) => {
+      e.preventDefault();
       isResizing.current = columnId;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
+      
+      const startX = e.clientX;
+      const startWidth = columnWidths[columnId] || 100;
+      const minWidth = allColumns.find(c => c.id === columnId)?.minWidth || 50;
+
       const handleMouseMove = (event: MouseEvent) => {
           if (isResizing.current) {
-              setColumnWidths(prev => {
-                  const newWidth = (prev[isResizing.current!] || 100) + event.movementX;
-                  const minWidth = allColumns.find(c => c.id === isResizing.current)?.minWidth || 50;
-                  return { ...prev, [isResizing.current!]: Math.max(newWidth, minWidth) };
-              });
+              const deltaX = event.clientX - startX;
+              const newWidth = Math.max(startWidth + deltaX, minWidth);
+              
+              setColumnWidths(prev => ({
+                  ...prev,
+                  [columnId]: newWidth
+              }));
           }
       };
+
       const handleMouseUp = () => {
           isResizing.current = null;
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
+          
+          // Save to localStorage on completion
+          setColumnWidths(current => {
+              localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(current));
+              return current;
+          });
       };
+
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-    }, []);
+    }, [columnWidths]);
 
     const toggleColumn = (columnId: string) => {
       setHiddenColumns(prev => {
@@ -772,28 +898,6 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
     return (
         <div className="w-full h-full flex flex-col gap-4 relative">
-            {isAddModalOpen && <AddProductModal 
-                onClose={() => setIsAddModalOpen(false)} 
-                onSave={handleSaveAndCloseAddModal} 
-                definitions={definitions} 
-                suppliers={suppliers} 
-                products={products} 
-                onAddDefinition={onAddDefinition} 
-                onMinimize={() => {
-                    if (onMinimizeTask) onMinimizeTask({ id: 'add-product', type: 'add-product' });
-                    setIsAddModalOpen(false);
-                }}
-            />}
-            {isAiModalOpen && <AiProductModal onClose={() => setIsAiModalOpen(false)} onStartTask={onStartAiTask} />}
-            {editingProductGroup && <EditProductModal isOpen={!!editingProductGroup} onClose={() => setEditingProductGroup(null)} productGroup={editingProductGroup} onSave={handleSaveAndCloseEditModal} definitions={definitions}/>}
-            <ProductFiltersPanel isOpen={isFiltersOpen} onClose={() => setIsFiltersOpen(false)} onApply={handleApplyFilters} definitions={definitions} currentFilters={filters} />
-            <input type="file" ref={excelInputRef} style={{ display: 'none' }} accept=".csv,.xlsx,.xls" onChange={handleExcelFileSelected} />
-
-            {notification && (
-                <div className={`fixed top-24 right-6 p-4 rounded-lg shadow-lg text-white z-50 ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-                    {notification.message}
-                </div>
-            )}
 
             <div className="view-header">
                 <h1 className="view-title">Ürünler ve Stok Yönetimi</h1>
@@ -820,28 +924,42 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 </button>
                             )}
                         </div>
-                        <button
-                        onClick={handleExportStock}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium shadow-sm"
-                        title="Hiyerarşik Excel Aktar"
-                    >
-                        <Icon name="excel" className="w-5 h-5" />
-                        <span>Excel Aktar</span>
-                    </button>
+                    </div>
 
-                    <button
-                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-                            className={`btn-secondary relative ${Object.keys(filters).length > 0 ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300' : ''}`}
-                            title="Detaylı Filtreleme"
-                        >
-                            <Icon name="filter" className="w-5 h-5"/>
-                            {Object.keys(filters).length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-600 rounded-full border-2 border-white dark:border-slate-900"></span>
+                    <div className="flex items-center gap-2">
+                        {/* Excel İşlemleri Dropdown */}
+                        <div className="relative" ref={excelMenuRef}>
+                            <button 
+                                onClick={() => setIsExcelMenuOpen(!isExcelMenuOpen)} 
+                                className="btn-secondary flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                            >
+                                <Icon name="excel" className="w-5 h-5"/>
+                                <span>Excel İşlemleri</span>
+                                <Icon name="chevron-down" className={`w-4 h-4 transition-transform ${isExcelMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isExcelMenuOpen && (
+                                <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden">
+                                    <button onClick={handleDownloadTemplate} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                                        <Icon name="download" className="w-5 h-5 text-slate-400" />
+                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon İndir</span>
+                                    </button>
+                                    <button onClick={handleExcelUploadClick} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 transition-colors">
+                                        <Icon name="upload" className="w-5 h-5 text-slate-400" />
+                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon Yükle</span>
+                                    </button>
+                                    <button onClick={handleExportStock} className="w-full text-left px-4 py-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 transition-colors">
+                                        <Icon name="excel" className="w-5 h-5 text-emerald-600" />
+                                        <span className="font-medium text-emerald-700 dark:text-emerald-400">Listeyi Dışa Aktar</span>
+                                    </button>
+                                </div>
                             )}
-                        </button>
+                        </div>
+
+                        {/* Sütun Yönetimi */}
                         <div className="relative" ref={columnManagerRef}>
                             <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="btn-secondary">
-                                <Icon name="view-columns" className="w-5 h-5"/> Sütunlar
+                                <Icon name="view-columns" className="w-5 h-5"/> 
+                                <span className="hidden lg:inline ml-2">Sütunlar</span>
                             </button>
                             {isColumnManagerOpen && (
                                 <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-xl z-30 p-4">
@@ -857,15 +975,23 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 </div>
                             )}
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setIsAddModalOpen(true)} className="btn-primary">
-                            <Icon name="plus" className="w-5 h-5"/> Ürün Ekle
+                        <button onClick={() => setIsFiltersOpen(!isFiltersOpen)} className={`btn-secondary ${Object.keys(filters).length > 0 ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : ''}`}>
+                            <Icon name="filter" className="w-5 h-5"/>
                         </button>
-                        <button onClick={() => setIsAiModalOpen(true)} className="btn-secondary text-pink-600 border-pink-200 hover:bg-pink-50">
-                            <Icon name="ai" className="w-5 h-5"/> AI ile Oluştur
+
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+
+                        <button onClick={() => setIsAddModalOpen(true)} className="btn-primary flex items-center gap-2">
+                            <Icon name="plus" className="w-5 h-5"/> 
+                            <span className="hidden sm:inline">Ürün Ekle</span>
                         </button>
+                        
+                        {props.companyInfo.aiEnabled && (
+                            <button onClick={() => setIsAiModalOpen(true)} className="btn-secondary text-pink-600 border-pink-200 hover:bg-pink-50 dark:hover:bg-pink-900/10">
+                                <Icon name="ai" className="w-5 h-5"/>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -895,7 +1021,12 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 {visibleColumns.map(col => (
                                     <th key={col.id} scope="col" className={`px-2 py-1.5 font-bold relative group border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-move ${draggedColumn.current === col.id ? 'opacity-30' : ''} ${dragOverColumn === col.id && draggedColumn.current !== col.id ? 'drag-over-indicator-products' : ''}`} style={{ width: `${columnWidths[col.id]}px` }} draggable onDragStart={(e) => handleDragStart(e, col.id)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)} onDragEnd={handleDragEnd} onDragEnter={(e) => handleDragEnter(e, col.id)}>
                                         <div className="flex items-center justify-between"><span style={{textAlign: col.align || 'left', width: '100%'}}>{col.label}</span><Icon name="arrows-vertical" className="w-3 h-3 ml-1 text-slate-400 shrink-0" /></div>
-                                        <div onMouseDown={(e) => handleMouseDown(e, col.id)} className="absolute top-0 right-[-4px] h-full w-2 cursor-col-resize z-20 group-hover:bg-purple-300/50 transition-colors"/>
+                                        <div 
+                                            onMouseDown={(e) => handleMouseDown(e, col.id)} 
+                                            className="absolute top-0 right-[-6px] h-full w-3 cursor-col-resize z-20 transition-all duration-200 hover:bg-cyan-500/20 group-hover:bg-slate-300/20 flex items-center justify-center"
+                                        >
+                                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 rounded-full group-hover:bg-cyan-500 transition-colors" />
+                                        </div>
                                     </th>
                                 ))}
                             </tr>
@@ -903,7 +1034,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                         <tbody className="text-xs">
                             {productGroups.length === 0 ? (
                                 <tr><td colSpan={visibleColumns.length + 2} className="text-center p-16 text-slate-500 font-medium">Böyle bir ürün bulunamadı.</td></tr>
-                            ) : productGroups.slice(0, displayLimit).map(group => {
+                            ) : productGroups.slice(0, displayLimit).map((group, index) => {
                                 const mainProduct = group[0];
                                 const groupKey = getGroupKey(mainProduct);
 
@@ -914,8 +1045,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 return (
                                     <React.Fragment key={groupKey}>
                                         <tr 
-                                            className={`border-b dark:border-slate-700 font-semibold transition-colors cursor-pointer ${isExpanded ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : 'bg-slate-50/70 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                                            onClick={(e) => toggleGroup(groupKey, e)}
+                                            className={`border-b dark:border-slate-700 font-semibold transition-colors ${isExpanded ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : (index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-emerald-100/50 dark:bg-emerald-900/20')} hover:bg-rose-100/60 dark:hover:bg-rose-900/20`}
                                         >
                                             <td className="p-2 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
                                                 <div className="flex items-center justify-center">
@@ -927,13 +1057,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                                     />
                                                 </div>
                                             </td>
-                                            <td className="p-2 text-center border-r dark:border-slate-700">
+                                            <td 
+                                                className="p-2 text-center border-r dark:border-slate-700 cursor-pointer hover:bg-rose-200/50 dark:hover:bg-rose-800/30 transition-colors"
+                                                onClick={(e) => toggleGroup(groupKey, e)}
+                                                title={isExpanded ? 'Kapat' : 'Genişlet'}
+                                            >
                                                 <div className="flex items-center justify-center w-full">
-                                                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-4 h-4 text-cyan-600 dark:text-cyan-400 transition-transform`} />
+                                                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-4 h-4 text-rose-600 dark:text-rose-400 transition-transform`} />
                                                 </div>
                                             </td>
                                             {visibleColumns.map(col => (
-                                                <td key={col.id} className="px-2 py-2 border-r dark:border-slate-700 last:border-r-0 truncate" style={{ textAlign: col.align || 'left'}}>
+                                                <td key={col.id} className={`px-2 py-2 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
                                                     {(() => {
                                                         if (col.id === 'name') return (
                                                             <div className="flex flex-col">
@@ -958,8 +1092,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                                         );
                                                         if (col.id === 'actions') return (
                                                             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                                                                 <button onClick={() => handleEditProductGroup(groupKey)}
- className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600 dark:hover:text-cyan-400" title="Ürün Grubunu Düzenle">
+                                                                 <button onClick={() => handleEditProductGroup(groupKey)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600 dark:hover:text-cyan-400" title="Ürün Grubunu Düzenle">
                                                                     <Icon name="edit" className="w-5 h-5"/>
                                                                 </button>
                                                             </div>
@@ -971,19 +1104,29 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                                         }
                                                         
                                                         if (['buyPrice', 'price'].includes(col.id)) {
-                                                            const min = Math.min(...group.map(p => (p as any)[col.id]));
-                                                            const max = Math.max(...group.map(p => (p as any)[col.id]));
-                                                            if (min === max) return `${min.toFixed(2)} ₺`;
-                                                            return `${min.toFixed(2)} - ${max.toFixed(2)} ₺`;
+                                                            return <div className="w-full flex justify-end">{renderEditableCell(mainProduct, col.id as any, true)}</div>;
                                                         }
 
+                                                        if (col.id === 'profit') {
+                                                            const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
+                                                            const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
+                                                            return <div className="text-right w-full font-bold text-emerald-600 dark:text-emerald-400">{(avgPrice - avgBuy).toFixed(2)} ₺</div>;
+                                                        }
+                                                        
+                                                        if (col.id === 'profitMargin') {
+                                                            const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
+                                                            const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
+                                                            const margin = avgBuy > 0 ? ((avgPrice - avgBuy) / avgBuy) * 100 : 0;
+                                                            return <div className="text-right w-full font-bold text-slate-500">{margin.toFixed(1)}%</div>;
+                                                        }
+                                                        
                                                         return '--';
                                                     })()}
                                                 </td>
                                             ))}
                                         </tr>
                                         {isExpanded && group.map(p => (
-                                            <tr key={p.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-900/40 hover:bg-cyan-50/30 dark:hover:bg-cyan-900/20 transition-colors">
+                                            <tr key={p.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-900/40 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 transition-colors">
                                                 <td className="p-2 text-center border-r dark:border-slate-700">
                                                     <input 
                                                         type="checkbox" 
@@ -994,13 +1137,18 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                                 </td>
                                                 <td className="border-r dark:border-slate-700"></td>
                                                 {visibleColumns.map(col => (
-                                                    <td key={col.id} className="px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0" style={{ textAlign: col.align || 'left'}}>
+                                                    <td key={col.id} className={`px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
                                                         {(() => {
                                                             if (col.id === 'name') return <div className="flex flex-col"><span className="font-semibold text-slate-700 dark:text-slate-300">{p.renk} / {p.beden}</span><span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{p.barcode}</span></div>;
-                                                            if (col.id === 'stock') return <div className="font-semibold text-right w-full pr-1">{renderEditableCell(p, 'stock')}</div>;
-                                                            if (col.id === 'buyPrice') return <div className="text-slate-500 dark:text-slate-400 text-right w-full pr-1">{renderEditableCell(p, 'buyPrice')}</div>;
-                                                            if (col.id === 'price') return <div className="font-semibold text-cyan-700 dark:text-cyan-400 text-right w-full pr-1">{renderEditableCell(p, 'price')}</div>;
-                                                             if (col.id === 'actions') return <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}><button onClick={() => handleEditProductGroup(getGroupKey(p))} className="p-1.5 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-4 h-4"/></button>
+                                                            if (col.id === 'stock') return <div className="w-full flex justify-end">{renderEditableCell(p, 'stock')}</div>;
+                                                            if (col.id === 'buyPrice') return <div className="w-full flex justify-end">{renderEditableCell(p, 'buyPrice')}</div>;
+                                                            if (col.id === 'price') return <div className="w-full flex justify-end">{renderEditableCell(p, 'price')}</div>;
+                                                            if (col.id === 'profit') return <div className="text-right w-full font-medium text-emerald-500">{(p.price - p.buyPrice).toFixed(2)} ₺</div>;
+                                                            if (col.id === 'profitMargin') {
+                                                                const margin = p.buyPrice > 0 ? ((p.price - p.buyPrice) / p.buyPrice) * 100 : 0;
+                                                                return <div className="text-right w-full font-medium text-slate-400">{margin.toFixed(1)}%</div>;
+                                                            }
+                                                            if (col.id === 'actions') return <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}><button onClick={() => handleEditProductGroup(getGroupKey(p))} className="p-1.5 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-4 h-4"/></button>
 {p.isDeleted ? <button onClick={() => onRestoreProduct(p.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" title="Geri Yükle"><Icon name="restore" className="w-4 h-4"/></button> : <button onClick={() => onDeleteProduct(p.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600" title="Arşivle"><Icon name="trash" className="w-4 h-4"/></button>}</div>;
                                                             if (col.id === 'renk') return p.renk;
                                                             if (col.id === 'beden') return p.beden;
@@ -1035,80 +1183,70 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                 </div>
             </div>
 
-            {/* --- START of FAB --- */}
-            <div className="absolute bottom-6 right-6 z-30">
-                <div className="flex flex-col items-end gap-4">
-                    {/* Action Buttons */}
-                    <div 
-                        className={`flex flex-col items-end gap-4 transition-all duration-300 ease-in-out ${
-                            isFabOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5 pointer-events-none'
-                        }`}
-                    >
-                        {/* Excel Action */}
-                        <div className="flex items-center gap-3 relative" ref={excelMenuRef}>
-                            <span className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold px-3 py-1.5 rounded-lg shadow-md">Excel İşlemleri</span>
-                            <button onClick={() => setIsExcelMenuOpen(prev => !prev)} className="w-14 h-14 flex items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 transition">
-                                <Icon name="excel" className="w-7 h-7"/>
-                            </button>
-                            {isExcelMenuOpen && (
-                                <div className="absolute bottom-0 right-16 mb-0 w-56 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg shadow-xl z-20">
-                                    <button onClick={handleDownloadTemplate} className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3">
-                                        <Icon name="download" className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon İndir</span>
-                                    </button>
-                                    <button onClick={handleExcelUploadClick} className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 border-t dark:border-slate-700">
-                                        <Icon name="upload" className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon Yükle</span>
-                                    </button>
-                                    <button onClick={handleExportStock} className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 border-t dark:border-slate-700">
-                                        <Icon name="excel" className="w-5 h-5 text-emerald-600" />
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">Listeyi Dışa Aktar</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* AI Action */}
-                        {props.companyInfo.aiEnabled && (
-                            <div className="flex items-center gap-3">
-                                <span className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold px-3 py-1.5 rounded-lg shadow-md">AI ile Aktar</span>
-                                <button onClick={() => { setIsAiModalOpen(true); setIsFabOpen(false); }} className="w-14 h-14 flex items-center justify-center rounded-full bg-pink-600 text-white shadow-lg hover:bg-pink-700 transition">
-                                    <Icon name="ai" className="w-7 h-7"/>
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Add Product Action */}
-                        <div className="flex items-center gap-3">
-                            <span className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold px-3 py-1.5 rounded-lg shadow-md">Yeni Ürün Ekle</span>
-                            <button onClick={() => { setIsAddModalOpen(true); setIsFabOpen(false); }} className="w-14 h-14 flex items-center justify-center rounded-full bg-sky-600 text-white shadow-lg hover:bg-sky-700 transition">
-                                <Icon name="plus" className="w-7 h-7"/>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Main FAB Button */}
-                    <div className="flex justify-end">
-                        <button 
-                            onClick={() => {
-                                setIsFabOpen(prev => !prev);
-                                if (isFabOpen) setIsExcelMenuOpen(false); // Close excel menu when closing FAB
-                            }} 
-                            className="w-16 h-16 flex items-center justify-center rounded-full bg-cyan-600 text-white shadow-xl hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-300 transition-all duration-300 transform hover:scale-105"
-                        >
-                            <Icon name="plus" className={`w-8 h-8 transition-transform duration-300 ${isFabOpen ? 'rotate-45' : ''}`} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {/* --- END of FAB --- */}
-
             <style>{`
               .btn-primary { display: inline-flex; align-items: center; gap: 0.5rem; background-color: #0ea5e9; color: white; font-weight: 600; padding: 0.6rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
               .btn-primary:hover { background-color: #0284c7; }
               .btn-secondary { display: inline-flex; align-items: center; gap: 0.5rem; background-color: white; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; padding: 0.6rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
               .btn-secondary:hover { background-color: #f1f5f9; }
             `}</style>
+
+            <AddProductModal 
+                isOpen={isAddModalOpen} 
+                onClose={() => setIsAddModalOpen(false)} 
+                onSave={handleSaveAndCloseAddModal}
+                suppliers={suppliers}
+                definitions={definitions}
+                products={products}
+                onAddDefinition={onAddDefinition}
+                onMinimize={onMinimizeTask}
+            />
+
+            {isAiModalOpen && (
+                <AiProductModal
+                    onClose={() => setIsAiModalOpen(false)}
+                    onStartTask={onStartAiTask}
+                />
+            )}
+
+            {editingProductGroup && (
+                <EditProductModal
+                    isOpen={true}
+                    onClose={() => setEditingProductGroup(null)}
+                    onSave={handleSaveAndCloseEditModal}
+                    products={editingProductGroup}
+                    suppliers={suppliers}
+                    definitions={definitions}
+                    onAddDefinition={onAddDefinition}
+                    onMinimize={onMinimizeTask}
+                />
+            )}
+
+            <ProductFiltersPanel
+                isOpen={isFiltersOpen}
+                onClose={() => setIsFiltersOpen(false)}
+                onApply={handleApplyFilters}
+                currentFilters={filters}
+                definitions={definitions}
+            />
+
+            <input
+                type="file"
+                ref={excelInputRef}
+                onChange={handleExcelFileSelected}
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                style={{ display: 'none' }}
+            />
+
+            {notification && (
+                <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-4 rounded-2xl shadow-2xl z-50 flex items-center gap-3 animate-bounce-in border-2 ${
+                    notification.type === 'success' 
+                        ? 'bg-emerald-500 border-emerald-400 text-white' 
+                        : 'bg-rose-500 border-rose-400 text-white'
+                }`}>
+                    <Icon name={notification.type === 'success' ? 'check-circle' : 'exclamation-circle'} className="w-6 h-6" />
+                    <span className="font-bold tracking-wide">{notification.message}</span>
+                </div>
+            )}
         </div>
     );
 }

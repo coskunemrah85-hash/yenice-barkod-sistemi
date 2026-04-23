@@ -82,31 +82,45 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
 
   const setValue = useCallback(async (value: T[] | ((val: T[]) => T[])) => {
     const newValue = value instanceof Function ? value(data) : value;
+    const oldData = data;
     setData(newValue); // Optimistic update
 
     try {
       const batch = writeBatch(db);
+      let opsCount = 0;
       
       // 1. Identify items to delete
       const newIds = new Set(newValue.map(item => item.id || item.barcode));
-      data.forEach(item => {
+      const oldItemsMap = new Map(oldData.map(item => [item.id || item.barcode, item]));
+
+      oldData.forEach(item => {
         const id = item.id || item.barcode;
         if (id && !newIds.has(id)) {
           const docRef = doc(db, collectionName, id);
           batch.delete(docRef);
+          opsCount++;
         }
       });
 
-      // 2. Set/Update items in the new list
+      // 2. Set/Update ONLY changed items
       newValue.forEach(item => {
         const id = item.id || item.barcode;
         if (id) {
-          const docRef = doc(db, collectionName, id);
-          batch.set(docRef, item);
+          const oldItem = oldItemsMap.get(id);
+          // Simple shallow comparison to check if update is needed
+          if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+            const docRef = doc(db, collectionName, id);
+            batch.set(docRef, item);
+            opsCount++;
+          }
         }
       });
 
-      await batch.commit();
+      if (opsCount > 0) {
+        // If there are more than 500 operations, we might need multiple batches, 
+        // but for now let's just commit if any.
+        await batch.commit();
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, collectionName);
     }

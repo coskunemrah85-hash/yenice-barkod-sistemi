@@ -496,55 +496,131 @@ const App: React.FC = () => {
   }, [setProducts]);
 
   const handleAddMultipleProducts = useCallback((newProducts: Product[]) => {
+      // 1. Create a mapping of names to IDs for all definition types to ensure consistency
+      const brandMap = new Map(brands.map(b => [b.name.trim().toLowerCase(), b.id]));
+      const modelMap = new Map(models.map(m => [m.name.trim().toLowerCase(), m.id]));
+      const groupMap = new Map(groups.map(g => [g.name.trim().toLowerCase(), g.id]));
+      const colorMap = new Map(colors.map(c => [c.name.trim().toLowerCase(), c.id]));
+      const sizeMap = new Map(sizes.map(s => [s.name.trim().toLowerCase(), s.id]));
+
+      const newBrands: Brand[] = [];
+      const newModels: Model[] = [];
+      const newGroups: Group[] = [];
+      const newColors: Color[] = [];
+      const newSizes: Size[] = [];
+
+      // Relationship mapping for models to brands
+      const modelToBrand = new Map<string, string>(); // modelName -> brandName
+
+      newProducts.forEach(p => {
+          const bName = p.marka?.trim();
+          const mName = p.model?.trim();
+          const gName = p.group?.trim();
+          const cName = p.renk?.trim();
+          const sName = p.beden?.trim();
+
+          if (bName && !brandMap.has(bName.toLowerCase())) {
+              const id = `brand-${Date.now()}-${Math.random()}`;
+              brandMap.set(bName.toLowerCase(), id);
+              newBrands.push({ id, name: bName });
+          }
+
+          if (mName && bName) {
+              modelToBrand.set(mName.toLowerCase(), bName.toLowerCase());
+          }
+
+          if (mName && !modelMap.has(mName.toLowerCase())) {
+              const id = `model-${Date.now()}-${Math.random()}`;
+              modelMap.set(mName.toLowerCase(), id);
+              newModels.push({ id, name: mName, brandId: '' }); // Will fill brandId below
+          }
+
+          if (gName && !groupMap.has(gName.toLowerCase())) {
+              const id = `group-${Date.now()}-${Math.random()}`;
+              groupMap.set(gName.toLowerCase(), id);
+              newGroups.push({ id, name: gName, parentId: null, brandId: null });
+          }
+
+          if (cName && !colorMap.has(cName.toLowerCase())) {
+              const id = `color-${Date.now()}-${Math.random()}`;
+              colorMap.set(cName.toLowerCase(), id);
+              newColors.push({ id, name: cName, code: '#CCCCCC' });
+          }
+
+          if (sName && !sizeMap.has(sName.toLowerCase())) {
+              const id = `size-${Date.now()}-${Math.random()}`;
+              sizeMap.set(sName.toLowerCase(), id);
+              newSizes.push({ id, name: sName });
+          }
+      });
+
+      // Update brand IDs in newly created models
+      newModels.forEach(m => {
+          const bName = modelToBrand.get(m.name.toLowerCase());
+          if (bName) {
+              m.brandId = brandMap.get(bName) || '';
+          }
+      });
+
+      // 2. Commit new definitions
+      if (newBrands.length > 0) setBrands(prev => [...prev, ...newBrands]);
+      if (newModels.length > 0) setModels(prev => [...prev, ...newModels]);
+      if (newGroups.length > 0) setGroups(prev => [...prev, ...newGroups]);
+      if (newColors.length > 0) setColors(prev => [...prev, ...newColors]);
+      if (newSizes.length > 0) setSizes(prev => [...prev, ...newSizes]);
+
+      // 3. Update Products
       setProducts(prevProducts => {
           const productMap = new Map(prevProducts.map(p => [p.barcode, p]));
-          let newProductCount = 0;
-          let updatedProductCount = 0;
-          newProducts.forEach(newProduct => {
-              let barcode = String(newProduct.barcode || '').trim();
-              if (!barcode || barcode.trim() === '') {
+          let newCount = 0;
+          let updateCount = 0;
+
+          newProducts.forEach(newP => {
+              let barcode = String(newP.barcode || '').trim();
+              if (!barcode) {
                   barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
-                  newProduct.barcode = barcode;
+                  newP.barcode = barcode;
               }
               
-              const parsedStock = parseInt(String(newProduct.stock), 10) || 0;
-              const parsedBuyPrice = parseFloat(String(newProduct.buyPrice).replace(',', '.')) || 0;
-              const parsedPrice = parseFloat(String(newProduct.price).replace(',', '.')) || 0;
+              const parsedStock = parseInt(String(newP.stock), 10) || 0;
+              const parsedBuyPrice = parseFloat(String(newP.buyPrice).replace(',', '.')) || 0;
+              const parsedPrice = parseFloat(String(newP.price).replace(',', '.')) || 0;
 
               if (!productMap.has(barcode)) {
                   productMap.set(barcode, {
-                      ...newProduct,
+                      ...newP,
                       barcode,
                       stock: parsedStock,
                       buyPrice: parsedBuyPrice,
                       price: parsedPrice,
                       isActivated: true
                   });
-                  newProductCount++;
+                  newCount++;
               } else {
                   const existing = productMap.get(barcode)!;
                   productMap.set(barcode, {
                       ...existing,
-                      name: newProduct.name || existing.name,
-                      marka: newProduct.marka || existing.marka,
-                      model: newProduct.model || existing.model,
-                      renk: newProduct.renk || existing.renk,
-                      beden: newProduct.beden || existing.beden,
-                      stokKodu: newProduct.stokKodu || existing.stokKodu,
-                      anaStokKodu: newProduct.anaStokKodu || existing.anaStokKodu,
-                      group: newProduct.group || existing.group,
+                      name: newP.name || existing.name,
+                      marka: newP.marka || existing.marka,
+                      model: newP.model || existing.model,
+                      renk: newP.renk || existing.renk,
+                      beden: newP.beden || existing.beden,
+                      stokKodu: newP.stokKodu || existing.stokKodu,
+                      anaStokKodu: newP.anaStokKodu || existing.anaStokKodu,
+                      group: newP.group || existing.group,
                       buyPrice: parsedBuyPrice > 0 ? parsedBuyPrice : existing.buyPrice,
                       price: parsedPrice > 0 ? parsedPrice : existing.price,
-                      stock: (Number(existing.stock) || 0) + parsedStock,
+                      stock: parsedStock,
                       isActivated: true
                   });
-                  updatedProductCount++;
+                  updateCount++;
               }
           });
-          console.log(`${newProductCount} yeni ürün eklendi, ${updatedProductCount} ürün güncellendi.`);
+
+          console.log(`${newCount} yeni ürün eklendi, ${updateCount} ürün güncellendi.`);
           return Array.from(productMap.values());
       });
-  }, [setProducts]);
+  }, [setProducts, setBrands, setModels, setGroups, setColors, setSizes]);
 
   const handleStartAiTask = useCallback(async (file: File, prompt: string) => {
     const taskId = `task-${Date.now()}`;
@@ -941,6 +1017,7 @@ const App: React.FC = () => {
             onUpdateProductBuyPrice={updateProductBuyPrice}
             onUpdateProduct={handleUpdateProduct}
             onUpdateProductStock={handleUpdateProductStock}
+            onBulkUpdateProducts={handleBulkUpdateProducts}
             onAddDefinition={handleQuickAddDefinition}
             onMinimizeTask={toggleTaskMinimize}
             restoreSignal={restoreAddProductSignal}
@@ -1096,6 +1173,7 @@ const App: React.FC = () => {
         return <StockOrderView 
             products={products}
             suppliers={suppliers}
+            definitions={definitions}
             onNavigate={navigateTo}
         />;
       case View.SERIAL_LABEL:

@@ -213,7 +213,7 @@ export enum View {
   STOCK_ORDER = 'STOCK_ORDER',
 }
 
-export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'barcode' | 'calculator-menu' | 'supplier';
+export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'pdf' | 'whatsapp' | 'barcode' | 'calculator-menu' | 'supplier';
 
 export interface Tab {
   id: View;
