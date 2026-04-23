@@ -35,6 +35,8 @@ jobs:
         run: npm run electron:build 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       - name: Create GitHub Release
         # Sadece v ile başlayan tag'ler pushlandığında çalışır
