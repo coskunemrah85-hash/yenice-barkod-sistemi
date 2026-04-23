@@ -11,7 +11,7 @@ import {
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAwSbijlE1EtKYfEHjJDBLYWs_t_ikdYHs",
+  apiKey: process.env.FIREBASE_API_KEY,
   authDomain: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec.firebaseapp.com",
   projectId: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec",
   storageBucket: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec.firebasestorage.app",
