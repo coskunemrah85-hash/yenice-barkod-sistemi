@@ -495,7 +495,7 @@ const App: React.FC = () => {
     });
   }, [setProducts]);
 
-  const handleAddMultipleProducts = useCallback((newProducts: Product[]) => {
+  const handleAddMultipleProducts = useCallback((newProducts: Product[], mode: 'add' | 'set' = 'add') => {
       setProducts(prevProducts => {
           const productMap = new Map(prevProducts.map(p => [p.barcode, p]));
           let newProductCount = 0;
@@ -535,13 +535,14 @@ const App: React.FC = () => {
                       group: newProduct.group || existing.group,
                       buyPrice: parsedBuyPrice > 0 ? parsedBuyPrice : existing.buyPrice,
                       price: parsedPrice > 0 ? parsedPrice : existing.price,
-                      stock: (Number(existing.stock) || 0) + parsedStock,
+                      // MODE CHECK: 'add' increments, 'set' overwrites
+                      stock: mode === 'add' ? (Number(existing.stock) || 0) + parsedStock : parsedStock,
                       isActivated: true
                   });
                   updatedProductCount++;
               }
           });
-          console.log(`${newProductCount} yeni ürün eklendi, ${updatedProductCount} ürün güncellendi.`);
+          console.log(`${newProductCount} yeni ürün eklendi, ${updatedProductCount} ürün güncellendi. Mod: ${mode}`);
           return Array.from(productMap.values());
       });
   }, [setProducts]);

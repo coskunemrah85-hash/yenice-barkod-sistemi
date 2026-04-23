@@ -20,7 +20,7 @@ interface ProductsViewProps {
   suppliers: Supplier[];
   salesHistory: SaleRecord[];
   onAddProduct: (product: Product) => void;
-  onAddMultipleProducts: (products: Product[]) => void;
+  onAddMultipleProducts: (products: Product[], mode?: 'add' | 'set') => void;
   onStartAiTask: (file: File, prompt: string) => void;
   definitions: Definitions;
   onDeleteProduct: (barcode: string) => void;
@@ -227,17 +227,15 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         });
         groups.forEach((groupProducts, key) => {
             groupProducts.sort((a, b) => {
-                // If a product's stokKodu or barcode matches the key exactly, it's likely the parent
                 const aIsParent = a.stokKodu === key || a.barcode === key;
                 const bIsParent = b.stokKodu === key || b.barcode === key;
                 if (aIsParent && !bIsParent) return -1;
                 if (!aIsParent && bIsParent) return 1;
-                // Fallback to name length (shorter names are usually parents)
                 return a.name.length - b.name.length;
             });
         });
         return Array.from(groups.values()).sort((a, b) => (a[0]?.name || '').localeCompare(b[0]?.name || ''));
-    }, [filteredProducts]);
+    }, [filteredProducts, getGroupKey]);
 
     // 2. Refs and state that use computed values
     const [displayLimit, setDisplayLimit] = useState(100);
@@ -601,13 +599,13 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     };
 
     const handleSaveAndCloseAddModal = (productsToAdd: Product[]) => {
-        onAddMultipleProducts(productsToAdd);
+        onAddMultipleProducts(productsToAdd, 'add');
         setIsAddModalOpen(false);
     };
 
     const handleSaveAndCloseEditModal = (allProducts: Product[]) => {
         if (allProducts.length > 0) {
-            onAddMultipleProducts(allProducts);
+            onAddMultipleProducts(allProducts, 'set');
             setNotification({ type: 'success', message: `${allProducts.length} ürün ve varyasyon başarıyla güncellendi/eklendi.` });
             setTimeout(() => setNotification(null), 3000);
         }
@@ -642,7 +640,10 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         if (!editingCell) return;
         const { barcode, field } = editingCell;
         const originalProduct = products.find(p => p.barcode === barcode);
-        if (!originalProduct) return;
+        if (!originalProduct) {
+            setEditingCell(null);
+            return;
+        }
 
         const newValue = parseFloat(editValue.replace(',', '.'));
 
@@ -653,6 +654,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         }
 
         if (originalProduct[field] !== newValue) {
+            // Immediate UI feedback attempt: we update the local prop if possible or just rely on parent
             if (field === 'stock') {
                 onUpdateProductStock(barcode, Math.round(newValue));
             } else if (field === 'buyPrice') {
@@ -660,6 +662,9 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             } else if (field === 'price') {
                 onUpdateProductPrice(barcode, newValue);
             }
+            
+            // Show a quick success message to confirm action
+            showSuccess(`${field === 'stock' ? 'Stok' : 'Fiyat'} güncellendi.`);
         }
         setEditingCell(null);
     };
@@ -821,13 +826,12 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                             )}
                         </div>
                         <button
-                        onClick={handleExportStock}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium shadow-sm"
-                        title="Hiyerarşik Excel Aktar"
-                    >
-                        <Icon name="excel" className="w-5 h-5" />
-                        <span>Excel Aktar</span>
-                    </button>
+                            onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); }}
+                            className="btn-secondary px-3 py-2.5"
+                            title="Aramayı Temizle"
+                        >
+                            <Icon name="refresh" className="w-5 h-5"/>
+                        </button>
 
                     <button
                         onClick={() => setIsFiltersOpen(!isFiltersOpen)}
@@ -871,8 +875,16 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             </div>
 
             <div className="flex-grow bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col">
-                <div className="p-4 text-sm text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                  Toplam {productGroups.length} ürün grubu ({filteredProducts.length} varyasyon) bulundu.
+                <div className="p-4 text-sm flex items-center justify-between text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                  <span>Toplam <b>{productGroups.length}</b> ürün grubu (<b>{filteredProducts.length}</b> varyasyon) bulundu.</span>
+                  {(activeSearchQuery || Object.keys(filters).length > 0) && (
+                      <button 
+                        onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setFilters({}); }}
+                        className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold flex items-center gap-1"
+                      >
+                          <Icon name="x-circle" className="w-4 h-4" /> Filtreleri Temizle
+                      </button>
+                  )}
                 </div>
                 <div className="flex-grow overflow-auto">
                     <table className="w-full text-sm table-fixed">
