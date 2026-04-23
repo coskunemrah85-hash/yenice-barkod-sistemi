@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, nativeTheme, dialog } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -259,6 +259,25 @@ ipcMain.on('print-to-label-software', (event, { engine, templatePath, data, appP
 
   } catch (err) {
     event.reply('print-error', 'Beklenmedik hata: ' + err.message);
+  }
+});
+
+ipcMain.on('save-excel', async (event, { buffer, filename }) => {
+  try {
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: 'Excel Dosyasını Kaydet',
+      defaultPath: path.join(app.getPath('downloads'), filename),
+      filters: [
+        { name: 'Excel Dosyaları', extensions: ['xlsx'] }
+      ]
+    });
+
+    if (filePath) {
+      fs.writeFileSync(filePath, Buffer.from(buffer));
+      event.reply('save-excel-success', filePath);
+    }
+  } catch (err) {
+    event.reply('save-excel-error', err.message);
   }
 });
 

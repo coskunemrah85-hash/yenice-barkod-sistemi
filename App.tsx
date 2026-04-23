@@ -1123,22 +1123,7 @@ const App: React.FC = () => {
     let filename = "yenice_disa_aktarim.xlsx";
 
     switch (activeTabId) {
-      case View.PRODUCTS:
-        data = products.map(p => ({
-          'Barkod': p.barcode,
-          'Stok Kodu': p.stokKodu,
-          'Ana Stok Kodu': p.anaStokKodu,
-          'Ürün Adı': p.name,
-          'Marka': p.marka,
-          'Model': p.model,
-          'Renk': p.renk,
-          'Beden': p.beden,
-          'Alış Fiyatı': p.buyPrice,
-          'Satış Fiyatı': p.price,
-          'Stok': p.stock
-        }));
-        filename = "urun_listesi.xlsx";
-        break;
+      // Products view handles its own hierarchical export via event
       case View.REPORTS:
         data = salesHistory.map(s => ({
           'Tarih': new Date(s.date).toLocaleString('tr-TR'),
@@ -1181,12 +1166,23 @@ const App: React.FC = () => {
   const contextMenuOptions = useMemo(() => [
     { label: 'Tümünü Seç', icon: 'check', onClick: () => window.dispatchEvent(new CustomEvent('app-select-all')), variant: 'default' as const },
     { label: 'Seçimi Kaldır', icon: 'x-circle', onClick: () => window.dispatchEvent(new CustomEvent('app-deselect-all')), variant: 'default' as const },
-    { label: 'Excel\'e Aktar', icon: 'excel', onClick: handleExportCurrentViewToExcel, variant: 'success' as const },
+    { label: 'Excele Aktar', icon: 'excel', onClick: () => {
+      console.log('Export requested for tab:', activeTabId);
+      if (activeTabId === View.PRODUCTS) {
+        if ((window as any).handleExportStock) {
+           (window as any).handleExportStock();
+        } else {
+           window.dispatchEvent(new CustomEvent('app-export-excel'));
+        }
+      } else {
+        handleExportCurrentViewToExcel();
+      }
+    }, variant: 'success' as const },
     { label: 'Kaydet / Değişiklikleri Uygula', icon: 'check', onClick: () => console.log('Save requested'), variant: 'default' as const },
     { label: 'Kopyala (Metin Seçiliyse)', icon: 'copy', onClick: () => document.execCommand('copy'), variant: 'default' as const },
     { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData, variant: 'default' as const },
     { label: 'Sil / Arşivle', icon: 'trash', onClick: () => console.log('Delete requested'), variant: 'danger' as const },
-  ], [handleExportCurrentViewToExcel, handleExportData]);
+  ], [handleExportCurrentViewToExcel, handleExportData, activeTabId]);
 
   if (!isAuthReady) {
     return (

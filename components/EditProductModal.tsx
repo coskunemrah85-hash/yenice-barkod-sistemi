@@ -174,7 +174,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-white uppercase tracking-tight italic">Ürün Grubu Düzenle</h2>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ANA STOK KODU: <span className="text-cyan-500">{commonData.anaStokKodu}</span></p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">DÜZENLENEN GRUP: <span className="text-cyan-500">{commonData.anaStokKodu || commonData.model || 'GENEL'}</span></p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all">
@@ -189,19 +189,62 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white/[0.02] p-8 rounded-[2rem] border border-white/5">
                         <div className="md:col-span-2">
                             <label className="label-pro">Temel Ürün Adı</label>
-                            <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-pro w-full"/>
+                            <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="Örn: Pamuklu Boxer"/>
                         </div>
-                        <div><label className="label-pro">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
-                        <div><label className="label-pro">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                        <div>
+                            <label className="label-pro">Ana Stok Kodu (Model Kodu)</label>
+                            <input type="text" name="anaStokKodu" value={commonData.anaStokKodu || ''} onChange={handleCommonDataChange} className="input-pro w-full text-cyan-400 font-mono" placeholder="Örn: MDL-101"/>
+                        </div>
+                        <div>
+                            <label className="label-pro">Raf / Konum</label>
+                            <input type="text" name="shelfLocation" value={commonData.shelfLocation || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="Örn: A-12"/>
+                        </div>
+
+                        <div><label className="label-pro">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold"><option value="">Seçiniz</option>{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
+                        <div><label className="label-pro">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold"><option value="">Seçiniz</option>{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
                         <div className="md:col-span-1"><label className="label-pro text-emerald-500">Global Alış</label><input type="text" name="buyPrice" value={commonData.buyPrice || ''} onChange={handlePriceChange} className="input-pro w-full border-emerald-500/20"/></div>
                         <div className="md:col-span-1"><label className="label-pro text-cyan-500">Global Satış</label><input type="text" name="price" value={commonData.price || ''} onChange={handlePriceChange} className="input-pro w-full border-cyan-500/20"/></div>
-                        <div className="md:col-span-2 flex items-center gap-4 mt-6">
-                            <button onClick={() => setApplyPricesToAll(!applyPricesToAll)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${applyPricesToAll ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
-                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${applyPricesToAll ? 'bg-cyan-500 border-cyan-400' : 'border-white/20'}`}>
-                                    {applyPricesToAll && <Icon name="check" className="w-3 h-3 text-slate-900"/>}
+
+                        <div>
+                            <label className="label-pro">Grup</label>
+                            <select name="group" value={commonData.group || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">
+                                <option value="">Tüm Gruplar</option>
+                                {mainGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="label-pro">Ara Grup</label>
+                            <select name="midGroup" value={commonData.midGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold" disabled={!commonData.group}>
+                                <option value="">Tüm Ara Gruplar</option>
+                                {midGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="label-pro">Alt Grup</label>
+                            <select name="subGroup" value={commonData.subGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold" disabled={!commonData.midGroup}>
+                                <option value="">Tüm Alt Gruplar</option>
+                                {subGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-1 flex items-end">
+                            <button onClick={() => setApplyPricesToAll(!applyPricesToAll)} className={`flex items-center justify-center gap-3 w-full h-[46px] rounded-xl border transition-all ${applyPricesToAll ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${applyPricesToAll ? 'bg-cyan-500 border-cyan-400' : 'border-white/20'}`}>
+                                    {applyPricesToAll && <Icon name="check" className="w-2.5 h-2.5 text-slate-900"/>}
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest">Fiyatları Tüm Listeye Uygula</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest">Fiyatları Uygula</span>
                             </button>
+                        </div>
+
+                        <div className="md:col-span-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="label-pro m-0">Ürün Açıklaması</label>
+                                <button onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="flex items-center gap-2 text-[10px] font-bold text-pink-500 hover:text-pink-400 transition-colors">
+                                    <Icon name="ai" className={`w-4 h-4 ${isGeneratingDescription ? 'animate-spin' : ''}`}/>
+                                    {isGeneratingDescription ? 'AI OLUŞTURUYOR...' : 'AI İLE AÇIKLAMA OLUŞTUR'}
+                                </button>
+                            </div>
+                            <textarea name="description" value={commonData.description || ''} onChange={handleCommonDataChange} className="input-pro w-full h-24 resize-none text-xs" placeholder="Ürün özelliklerini buraya yazabilirsiniz..."></textarea>
                         </div>
                     </div>
 
@@ -239,7 +282,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                                             <td className="px-4 py-2"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input-pro" placeholder="Beden"/></td>
                                             <td className="px-4 py-2"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-40"/></td>
                                             <td className="px-4 py-2"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input-pro font-mono text-slate-500 w-40"/></td>
-                                            <td className="px-4 py-2 text-center text-white font-bold">{v.stock}</td>
+                                             <td className="px-4 py-2"><input type="number" value={v.stock} onChange={e=>handleVariationChange(index, 'stock', parseInt(e.target.value) || 0)} className="table-input-pro text-center w-20"/></td>
+
                                             {!applyPricesToAll && (
                                                 <>
                                                     <td className="px-4 py-2"><input value={v.buyPrice} onChange={e=>handleVariationChange(index, 'buyPrice', e.target.value)} className="table-input-pro text-right text-emerald-500"/></td>
