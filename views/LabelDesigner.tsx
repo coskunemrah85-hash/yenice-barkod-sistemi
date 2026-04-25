@@ -425,16 +425,18 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
         let mouseX = (e.clientX - rect.left) / zoom;
         let mouseY = (e.clientY - rect.top) / zoom;
         
+        // Hassasiyet Ayarı: Alt tuşu basılıyken 0.01mm, normalde 0.1mm
+        const precision = e.altKey ? 100 : 10;
+
         if (isDragging && dragState) {
             let newX = mouseX - dragOffset.x;
             let newY = mouseY - dragOffset.y;
             
-            // Her zaman 0.1mm hassasiyet
-            newX = Math.round(newX * 10) / 10;
-            newY = Math.round(newY * 10) / 10;
+            newX = Math.round(newX * precision) / precision;
+            newY = Math.round(newY * precision) / precision;
             
-            if (snapToGrid) {
-                newX = Math.round(newX / 0.5) * 0.5; // Izgara aktifse 0.5mm'e kilitlen
+            if (snapToGrid && !e.altKey) {
+                newX = Math.round(newX / 0.5) * 0.5;
                 newY = Math.round(newY / 0.5) * 0.5;
             }
 
@@ -445,9 +447,8 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
         } else if (isResizing && resizeHandle && dragState) {
             let { x, y, width, height } = dragState;
             
-            // Her zaman 0.1mm hassasiyet
-            mouseX = Math.round(mouseX * 10) / 10;
-            mouseY = Math.round(mouseY * 10) / 10;
+            mouseX = Math.round(mouseX * precision) / precision;
+            mouseY = Math.round(mouseY * precision) / precision;
 
             switch (resizeHandle) {
                 case 'br':
@@ -456,43 +457,42 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
                     break;
                 case 'tr':
                     width = Math.max(0.1, mouseX - x);
-                    const oldY = y;
-                    y = Math.min(oldY + height - 0.1, mouseY);
-                    height = height + (oldY - y);
+                    const oldY_tr = y;
+                    y = Math.min(oldY_tr + height - 0.1, mouseY);
+                    height = height + (oldY_tr - y);
                     break;
                 case 'bl':
-                    const oldX = x;
-                    x = Math.min(oldX + width - 0.1, mouseX);
-                    width = width + (oldX - x);
+                    const oldX_bl = x;
+                    x = Math.min(oldX_bl + width - 0.1, mouseX);
+                    width = width + (oldX_bl - x);
                     height = Math.max(0.1, mouseY - y);
                     break;
                 case 'tl':
-                    const ox = x; const oy = y;
-                    x = Math.min(ox + width - 0.1, mouseX);
-                    y = Math.min(oy + height - 0.1, mouseY);
-                    width = width + (ox - x);
-                    height = height + (oy - y);
+                    const ox_tl = x; const oy_tl = y;
+                    x = Math.min(ox_tl + width - 0.1, mouseX);
+                    y = Math.min(oy_tl + height - 0.1, mouseY);
+                    width = width + (ox_tl - x);
+                    height = height + (oy_tl - y);
                     break;
                 case 'r': width = Math.max(0.1, mouseX - x); break;
                 case 'b': height = Math.max(0.1, mouseY - y); break;
                 case 'l':
-                    const prevX = x;
-                    x = Math.min(prevX + width - 0.1, mouseX);
-                    width = width + (prevX - x);
+                    const prevX_l = x;
+                    x = Math.min(prevX_l + width - 0.1, mouseX);
+                    width = width + (prevX_l - x);
                     break;
                 case 't':
-                    const prevY = y;
-                    y = Math.min(prevY + height - 0.1, mouseY);
-                    height = height + (prevY - y);
+                    const prevY_t = y;
+                    y = Math.min(prevY_t + height - 0.1, mouseY);
+                    height = height + (prevY_t - y);
                     break;
             }
 
-            // Sonuçları tekrar 0.1mm'e yuvarla
             setDragState({ 
-                x: Math.round(x * 10) / 10, 
-                y: Math.round(y * 10) / 10, 
-                width: Math.round(width * 10) / 10, 
-                height: Math.round(height * 10) / 10 
+                x: Math.round(x * precision) / precision, 
+                y: Math.round(y * precision) / precision, 
+                width: Math.round(width * precision) / precision, 
+                height: Math.round(height * precision) / precision 
             });
         } else if (isRotating && selectedElementId) {
             const el = activeTemplate.elements.find(e => e.id === selectedElementId);
@@ -504,7 +504,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
                 const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
                 let finalAngle = (angle + 90) % 360;
                 
-                if (snapToGrid) {
+                if (snapToGrid && !e.altKey) {
                     finalAngle = Math.round(finalAngle / 15) * 15;
                 }
                 
@@ -515,11 +515,11 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
 
     const onMouseUp = useCallback(() => {
         if ((isDragging || isResizing) && selectedElementId && dragState) {
-            // Bırakırken son bir kez 0.1mm hassasiyetine zorla (Yapışma hissi)
-            const finalX = Math.round(dragState.x * 10) / 10;
-            const finalY = Math.round(dragState.y * 10) / 10;
-            const finalW = Math.round(dragState.width * 10) / 10;
-            const finalH = Math.round(dragState.height * 10) / 10;
+            // Hassasiyeti korumak için 0.01mm (100) kullanıyoruz
+            const finalX = Math.round(dragState.x * 100) / 100;
+            const finalY = Math.round(dragState.y * 100) / 100;
+            const finalW = Math.round(dragState.width * 100) / 100;
+            const finalH = Math.round(dragState.height * 100) / 100;
 
             updateElement(selectedElementId, { 
                 x: finalX, 
@@ -1212,8 +1212,21 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
                                                                 {renderElementContent(el, previewProduct)}
                                                                 {colIndex === 0 && selectedElementId === el.id && !el.locked && (
                                                                     <>
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-sm cursor-nwse-resize z-[1000]" />
-                                                                        <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-8 -translate-x-1/2 w-6 h-6 bg-white border-2 border-indigo-600 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-lg"><Icon name="list-bullet" className="w-3 h-3 text-indigo-600" /></div>
+                                                                        {/* 4 Köşe Resize Handle */}
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tl')} className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nwse-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tr')} className="absolute -right-1.5 -top-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nesw-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'bl')} className="absolute -left-1.5 -bottom-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nesw-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nwse-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        
+                                                                        {/* Kenar Resize Handles */}
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 't')} className="absolute left-1/2 -top-1.5 -translate-x-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ns-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'b')} className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ns-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'l')} className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ew-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'r')} className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ew-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
+
+                                                                        <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-10 -translate-x-1/2 w-8 h-8 bg-indigo-600 text-white rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-xl z-[1001] hover:scale-110 transition-all border-2 border-white">
+                                                                            <Icon name="refresh" className="w-4 h-4" />
+                                                                        </div>
                                                                     </>
                                                                 )}
                                                             </div>
