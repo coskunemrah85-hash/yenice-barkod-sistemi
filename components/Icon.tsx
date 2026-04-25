@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface IconProps {
-  name: 'barcode' | 'new-sale' | 'products' | 'reports' | 'settings' | 'back' | 'check' | 'trash' | 'plus' | 'minus' | 'ai' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'pdf' | 'tools' | 'edit' | 'dashboard' | 'arrows-vertical' | 'view-columns' | 'printer' | 'upload' | 'download' | 'tag' | 'filter' | 'list-bullet' | 'x-circle' | 'restore' | 'users' | 'logout' | 'database' | 'whatsapp' | 'eye' | 'eye-slash' | 'exclamation-triangle' | 'refresh' | 'chart' | 'customer' | 'help' | 'search' | 'sale' | 'star' | 'calculator-menu' | 'check-circle' | 'exclamation-circle' | 'cog-6-tooth' | 'queue-list' | 'archive-box' | 'chevron-right' | 'chevron-down';
+  name: 'barcode' | 'new-sale' | 'products' | 'reports' | 'settings' | 'back' | 'check' | 'trash' | 'plus' | 'minus' | 'ai' | 'supplier' | 'purchase' | 'sales-management' | 'finance' | 'excel' | 'pdf' | 'tools' | 'edit' | 'dashboard' | 'arrows-vertical' | 'view-columns' | 'printer' | 'upload' | 'download' | 'tag' | 'filter' | 'list-bullet' | 'x-circle' | 'restore' | 'users' | 'logout' | 'database' | 'whatsapp' | 'eye' | 'eye-slash' | 'exclamation-triangle' | 'refresh' | 'chart' | 'customer' | 'help' | 'search' | 'sale' | 'star' | 'calculator-menu' | 'check-circle' | 'exclamation-circle' | 'cog-6-tooth' | 'queue-list' | 'archive-box' | 'chevron-right' | 'chevron-down' | 'cursor-arrow-rays';
   className?: string;
 }
 
@@ -61,6 +61,7 @@ const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {
     'archive-box': <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />,
     'chevron-right': <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />,
     'chevron-down': <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />,
+    'cursor-arrow-rays': <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M18.757 17.243l-1.591-1.591m-9.914 0l-1.591 1.591M5.25 10.5H3.75m4.084-5.834L9.425 6.257" />,
   };
 
   return (
