@@ -8,8 +8,8 @@ const fs = require('fs');
 // Sarı güvenlik uyarılarını kapatır, konsolu temizler
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
-// 1. KRİTİK: Erişim hatalarını önler
-app.setPath('userData', path.join(app.getPath('appData'), 'yenice-ic-giyim-barkod-dev'));
+// 1. KRİTİK: Erişim hatalarını önler ve versiyonlar arası veri sürekliliğini sağlar
+app.setPath('userData', path.join(app.getPath('appData'), 'yenice-ic-giyim-barkod'));
 
 // 2. KRİTİK: Çökmeleri engellemek için donanım hızlandırmayı kapat
 app.disableHardwareAcceleration();
@@ -114,11 +114,12 @@ function createWindow() {
       });
     });
 
-    let port = 14532;
+    const port = 14532;
     server.on('error', (e) => {
       if (e.code === 'EADDRINUSE') {
-        port++;
-        server.listen(port, '127.0.0.1');
+        // Port kullanımda ise uyarı ver veya alternatif bir mantık kur
+        // Ancak origin değişmemesi için portun sabit kalması kritik.
+        console.error(`Port ${port} kullanımda! Veri tutarlılığı için port değişmemeli.`);
       }
     });
     server.listen(port, '127.0.0.1', () => {

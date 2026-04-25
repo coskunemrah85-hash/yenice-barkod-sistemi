@@ -1315,7 +1315,7 @@ const App: React.FC = () => {
         isChecking={isCheckingUpdates}
         isUpdating={false}
         onUpdate={handleDirectUpdate}
-        currentVersion="1.2.2"
+        currentVersion={currentAppVersion}
       />
 
       <div 

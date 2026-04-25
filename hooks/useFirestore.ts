@@ -81,6 +81,12 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
   }, [collectionName]);
 
   const setValue = useCallback(async (value: T[] | ((val: T[]) => T[])) => {
+    // Guard: Prevent operations if not initialized to avoid accidental deletions/overwrites during startup
+    if (!isInitialized.current) {
+      console.warn(`[useFirestore] ${collectionName} yet not initialized. Write operation ignored.`);
+      return;
+    }
+
     const newValue = value instanceof Function ? value(data) : value;
     const oldData = data;
     setData(newValue); // Optimistic update
