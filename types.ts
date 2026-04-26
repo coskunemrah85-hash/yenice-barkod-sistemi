@@ -271,7 +271,46 @@ export interface AITaskPriceUpdate {
     error?: string;
 }
 
+export interface LabelElement {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fontSize: number;
+    fontWeight: string;
+    fontStyle?: 'normal' | 'italic';
+    textDecoration?: 'none' | 'underline';
+    fontFamily: string;
+    textAlign: 'left' | 'center' | 'right';
+    color?: string;
+    content?: string;
+    rotation: number;
+    opacity: number;
+    zIndex: number;
+    locked?: boolean;
+    visible?: boolean;
+    isVertical?: boolean;
+    shapeType?: 'rect' | 'line' | 'circle';
+    binding?: keyof Product;
+    barcodeType?: 'EAN13' | 'CODE128' | 'QR';
+    showHumanReadable?: boolean;
+    src?: string;
+}
+
+export interface LabelTemplate {
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    columns: number;
+    gap: number;
+    elements: LabelElement[];
+}
+
 export interface AppBackup {
+// ... existing
   users: User[];
   companyInfo: CompanyInfo;
   products: Product[];

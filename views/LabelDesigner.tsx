@@ -1,47 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Icon from '../components/Icon';
-import { Product, Definitions } from '../types';
+import { Product, Definitions, CompanyInfo, LabelElement, LabelTemplate } from '../types';
 import JsBarcode from 'jsbarcode';
 
 type ElementType = 'text' | 'barcode' | 'price' | 'brand' | 'size' | 'qr' | 'shape' | 'stokKodu' | 'image' | 'line' | 'rect' | 'circle';
-
-interface LabelElement {
-    id: string;
-    type: ElementType;
-    x: number; // mm
-    y: number; // mm
-    width: number; // mm
-    height: number; // mm
-    fontSize: number;
-    fontWeight: string;
-    fontStyle?: 'normal' | 'italic';
-    textDecoration?: 'none' | 'underline';
-    fontFamily: string;
-    textAlign: 'left' | 'center' | 'right';
-    verticalAlign?: 'top' | 'middle' | 'bottom';
-    content?: string;
-    visible: boolean;
-    locked?: boolean;
-    rotation: number;
-    opacity: number;
-    zIndex: number;
-    isVertical?: boolean;
-    src?: string;
-    shapeType?: 'rect' | 'line' | 'circle';
-    binding?: keyof Product;
-    barcodeType?: 'EAN13' | 'CODE128' | 'QR';
-    showHumanReadable?: boolean;
-}
-
-interface LabelTemplate {
-    id: string;
-    name: string;
-    width: number; // mm
-    height: number; // mm
-    columns: number;
-    gap: number; // mm
-    elements: LabelElement[];
-}
 
 interface LabelDesignerProps {
     products: Product[];
