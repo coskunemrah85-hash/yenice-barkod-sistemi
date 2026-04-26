@@ -1320,6 +1320,14 @@ const GroupRow = React.memo(({
                                                         <button onClick={() => handleEditProductGroup(groupKey)} className="w-6 h-6 rounded bg-white/5 text-slate-400 flex items-center justify-center hover:bg-cyan-600 hover:text-white transition-all">
                                                             <Icon name="edit" className="w-3.5 h-3.5"/>
                                                         </button>
+                                                    ) : col.id === 'profit' ? (
+                                                        <span className="text-emerald-500 font-bold">{(mainProduct.price - (mainProduct.buyPrice || 0)).toFixed(2)} ₺</span>
+                                                    ) : col.id === 'profitMargin' ? (
+                                                        <span className="text-emerald-500 font-bold">
+                                                            {mainProduct.buyPrice > 0 
+                                                                ? (((mainProduct.price - mainProduct.buyPrice) / mainProduct.buyPrice) * 100).toFixed(1) 
+                                                                : '0'}%
+                                                        </span>
                                                     ) : (mainProduct as any)[col.id] || '-'}
                                                 </td>
                                             ))}
@@ -1337,6 +1345,14 @@ const GroupRow = React.memo(({
                                                         ) : col.id === 'stock' ? (
                                                             <span className="cursor-pointer hover:text-white" onDoubleClick={() => handleEditStart(p.barcode, 'stock', p.stock)}>
                                                                 {editingCell?.barcode === p.barcode && editingCell?.field === 'stock' ? <input autoFocus className="w-10 bg-slate-800 text-white outline-none px-1" value={editValue} onChange={handleEditChange} onBlur={handleEditCommit} /> : p.stock}
+                                                            </span>
+                                                        ) : col.id === 'profit' ? (
+                                                            <span className="text-emerald-600/70">{(p.price - (p.buyPrice || 0)).toFixed(2)} ₺</span>
+                                                        ) : col.id === 'profitMargin' ? (
+                                                            <span className="text-emerald-600/70">
+                                                                {p.buyPrice > 0 
+                                                                    ? (((p.price - p.buyPrice) / p.buyPrice) * 100).toFixed(1) 
+                                                                    : '0'}%
                                                             </span>
                                                         ) : (p as any)[col.id] || '-'}
                                                     </td>
