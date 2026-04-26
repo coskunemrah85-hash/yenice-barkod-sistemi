@@ -803,6 +803,15 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         });
     };
     
+    const handleEditStart = (barcode: string, field: 'stock' | 'buyPrice' | 'price', value: number, isGroup: boolean = false) => {
+        setEditingCell({ barcode, field, isGroup });
+        setEditValue(value.toString().replace('.', ','));
+    };
+
+    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setEditValue(e.target.value);
+    };
+
     const handleEditCommit = () => {
         if (!editingCell) return;
         const { barcode, field } = editingCell;
