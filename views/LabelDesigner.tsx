@@ -122,8 +122,16 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const [leftPanel, setLeftPanel] = useState<'tools' | 'objects'>('tools');
     const [propTab, setPropTab] = useState<'general' | 'style' | 'data' | 'symbology'>('general');
 
-    const activeTemplate = useMemo(() => templates.find(t => t.id === selectedTemplateId) || templates[0], [templates, selectedTemplateId]);
-    const selectedElement = useMemo(() => activeTemplate.elements.find(e => e.id === selectedElementId) || null, [activeTemplate, selectedElementId]);
+    const activeTemplate = useMemo(() => {
+        const found = templates.find(t => t.id === selectedTemplateId) || templates[0];
+        if (found) return found;
+        return DEFAULT_TEMPLATES[0]; // Boşsa varsayılanı kullan
+    }, [templates, selectedTemplateId]);
+
+    const selectedElement = useMemo(() => {
+        if (!activeTemplate || !activeTemplate.elements) return null;
+        return activeTemplate.elements.find(e => e.id === selectedElementId) || null;
+    }, [activeTemplate, selectedElementId]);
 
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
