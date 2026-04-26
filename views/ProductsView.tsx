@@ -814,9 +814,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
     const handleEditCommit = () => {
         if (!editingCell) return;
-        const { barcode, field } = editingCell;
-        const originalProduct = products.find(p => p.barcode === barcode);
-        if (!originalProduct) return;
+        const { barcode, field, isGroup } = editingCell;
+        
+        // If it's a group, find ANY product in that group to use as a reference
+        const originalProduct = isGroup 
+            ? products.find(p => getGroupKey(p) === barcode)
+            : products.find(p => p.barcode === barcode);
+            
+        if (!originalProduct) {
+            setEditingCell(null);
+            return;
+        }
 
         const newValue = parseFloat(editValue.replace(',', '.'));
 
@@ -826,13 +834,14 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             return;
         }
 
-        if (originalProduct[field] !== newValue) {
-            if (field === 'stock') {
+        const currentVal = Number(originalProduct[field] || 0);
+
+        if (currentVal !== newValue) {
+            if (field === 'stock' && !isGroup) {
                 onUpdateProductStock(barcode, Math.round(newValue));
-            } else if (editingCell.isGroup) {
+            } else if (isGroup) {
                 // If editing from the Group Row, sync across the entire group
-                const groupKey = getGroupKey(originalProduct);
-                // Important: We need to filter ALL products, not just filtered ones
+                const groupKey = barcode; // For groups, 'barcode' stores the groupKey
                 const variations = products.filter(p => getGroupKey(p) === groupKey);
                 
                 if (onBulkUpdateProducts) {
