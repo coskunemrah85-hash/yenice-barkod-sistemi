@@ -995,37 +995,37 @@ const ProductRow = React.memo(({
 }) => {
     return (
         <tr key={product.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-900/40 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 transition-colors">
-            <td className="p-2 text-center border-r dark:border-slate-700">
+            <td className="p-1 text-center border-r dark:border-slate-700">
                 <input 
                     type="checkbox" 
                     checked={selectedBarcodes.has(product.barcode)}
                     onChange={() => toggleSelection(product.barcode)}
-                    className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
                 />
             </td>
             <td className="border-r dark:border-slate-700"></td>
             {visibleColumns.map(col => (
-                <td key={col.id} className={`px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
+                <td key={col.id} className={`px-2 py-1 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
                     {(() => {
-                        if (col.id === 'name') return <div className="flex flex-col"><span className="font-semibold text-slate-700 dark:text-slate-300">{product.renk} / {product.beden}</span><span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{product.barcode}</span></div>;
+                        if (col.id === 'name') return <div className="flex flex-col"><span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">{product.renk} / {product.beden}</span><span className="text-slate-400 dark:text-slate-500 font-mono text-[9px]">{product.barcode}</span></div>;
                         if (col.id === 'stock') return <div className="w-full flex justify-end">{renderEditableCell(product, 'stock')}</div>;
                         if (col.id === 'buyPrice') return <div className="w-full flex justify-end">{renderEditableCell(product, 'buyPrice')}</div>;
                         if (col.id === 'price') return <div className="w-full flex justify-end">{renderEditableCell(product, 'price')}</div>;
-                        if (col.id === 'profit') return <div className="text-right w-full font-medium text-emerald-500">{(product.price - product.buyPrice).toFixed(2)} ₺</div>;
+                        if (col.id === 'profit') return <div className="text-right w-full font-medium text-emerald-500 text-[11px]">{(product.price - product.buyPrice).toFixed(2)} ₺</div>;
                         if (col.id === 'profitMargin') {
                             const margin = product.buyPrice > 0 ? ((product.price - product.buyPrice) / product.buyPrice) * 100 : 0;
-                            return <div className="text-right w-full font-medium text-slate-400">{margin.toFixed(1)}%</div>;
+                            return <div className="text-right w-full font-medium text-slate-400 text-[10px]">{margin.toFixed(1)}%</div>;
                         }
                         if (col.id === 'actions') return (
-                            <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                                <button onClick={() => handleEditProductGroup(getGroupKey(product))} className="p-1.5 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-4 h-4"/></button>
+                            <div className="flex items-center justify-center gap-0.5" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => handleEditProductGroup(getGroupKey(product))} className="p-1 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-3.5 h-3.5"/></button>
                                 {product.isDeleted ? 
-                                    <button onClick={() => onRestoreProduct(product.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" title="Geri Yükle"><Icon name="restore" className="w-4 h-4"/></button> : 
-                                    <button onClick={() => onDeleteProduct(product.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600" title="Arşivle"><Icon name="trash" className="w-4 h-4"/></button>
+                                    <button onClick={() => onRestoreProduct(product.barcode)} className="p-1 rounded-full text-slate-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" title="Geri Yükle"><Icon name="restore" className="w-3.5 h-3.5"/></button> : 
+                                    <button onClick={() => onDeleteProduct(product.barcode)} className="p-1 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600" title="Arşivle"><Icon name="trash" className="w-3.5 h-3.5"/></button>
                                 }
                             </div>
                         );
-                        return (product as any)[col.id] || '--';
+                        return <span className="text-[11px]">{(product as any)[col.id] || '--'}</span>;
                     })()}
                 </td>
             ))}
@@ -1064,58 +1064,58 @@ const GroupRow = React.memo(({
 
     return (
         <tr className={`border-b dark:border-slate-700 font-semibold transition-colors ${isExpanded ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : 'bg-white dark:bg-slate-800'} hover:bg-rose-100/60 dark:hover:bg-rose-900/20`}>
-            <td className="p-2 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
+            <td className="p-1.5 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
                 <div className="flex items-center justify-center">
                     <input 
                         type="checkbox" 
                         checked={group.every(p => selectedBarcodes.has(p.barcode))}
                         onChange={() => {}}
-                        className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
                     />
                 </div>
             </td>
             <td 
-                className="p-2 text-center border-r dark:border-slate-700 cursor-pointer hover:bg-rose-200/50 dark:hover:bg-rose-800/30 transition-colors"
+                className="p-1.5 text-center border-r dark:border-slate-700 cursor-pointer hover:bg-rose-200/50 dark:hover:bg-rose-800/30 transition-colors"
                 onClick={(e) => toggleGroup(groupKey, e)}
             >
                 <div className="flex items-center justify-center w-full">
-                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-4 h-4 text-rose-600 dark:text-rose-400`} />
+                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400`} />
                 </div>
             </td>
             {visibleColumns.map(col => (
-                <td key={col.id} className={`px-2 py-2 border-r dark:border-slate-700 last:border-r-0 truncate`} style={{ textAlign: col.align || 'left'}}>
+                <td key={col.id} className={`px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 truncate`} style={{ textAlign: col.align || 'left'}}>
                     {(() => {
                         if (col.id === 'name') return (
                             <div className="flex flex-col">
-                                <span className="text-slate-900 dark:text-slate-100 font-bold truncate" title={baseName}>{baseName}</span>
-                                <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
-                                    <Icon name="list-bullet" className="w-3 h-3" />
+                                <span className="text-slate-900 dark:text-slate-100 font-bold truncate text-[12px]" title={baseName}>{baseName}</span>
+                                <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
+                                    <Icon name="list-bullet" className="w-2.5 h-2.5" />
                                     {group.length} Varyasyon
                                 </span>
                             </div>
                         );
                         if (col.id === 'stock') return (
                             <div className="flex flex-col items-end">
-                                <span className={`text-sm font-bold ${totalStock <= 5 ? 'text-red-600' : 'text-slate-700 dark:text-slate-300'}`}>{totalStock}</span>
-                                <span className="text-[9px] text-slate-400 font-normal">Toplam</span>
+                                <span className={`text-[12px] font-bold ${totalStock <= 5 ? 'text-red-600' : 'text-slate-700 dark:text-slate-300'}`}>{totalStock}</span>
+                                <span className="text-[8px] text-slate-400 font-normal">Toplam</span>
                             </div>
                         );
                         if (col.id === 'actions') return (
                             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                                 <button onClick={() => handleEditProductGroup(groupKey)} className="p-2 rounded-full text-slate-500 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Ürün Grubunu Düzenle">
-                                    <Icon name="edit" className="w-5 h-5"/>
+                                 <button onClick={() => handleEditProductGroup(groupKey)} className="p-1.5 rounded-full text-slate-500 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Ürün Grubunu Düzenle">
+                                    <Icon name="edit" className="w-4 h-4"/>
                                 </button>
                             </div>
                         );
                         if (['buyPrice', 'price'].includes(col.id)) {
-                            return <div className="w-full flex justify-end">{renderEditableCell(mainProduct, col.id as any, true)}</div>;
+                            return <div className="w-full flex justify-end text-[12px]">{renderEditableCell(mainProduct, col.id as any, true)}</div>;
                         }
                         if (col.id === 'profit') {
                             const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
                             const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
-                            return <div className="text-right w-full font-bold text-emerald-600">{(avgPrice - avgBuy).toFixed(2)} ₺</div>;
+                            return <div className="text-right w-full font-bold text-emerald-600 text-[12px]">{(avgPrice - avgBuy).toFixed(2)} ₺</div>;
                         }
-                        return (mainProduct as any)[col.id] || '--';
+                        return <span className="text-[12px]">{(mainProduct as any)[col.id] || '--'}</span>;
                     })()}
                 </td>
             ))}
@@ -1123,33 +1123,56 @@ const GroupRow = React.memo(({
     );
 });
 
+    const groupEntries = productGroups; // productGroups is already Array<Product[]> from line 255
+
     return (
-        <div className="w-full h-full flex flex-col gap-4 relative">
-            <div className="view-header">
-                <h1 className="view-title">Ürünler ve Stok Yönetimi</h1>
-                <div className="view-actions flex-grow justify-between">
-                    <div className="flex items-center gap-2 flex-grow max-w-xl">
-                        <div className="relative flex-grow group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Icon name="search" className="h-5 w-5 text-slate-400 group-focus-within:text-cyan-500 transition-colors" />
-                            </div>
+        <div className="flex flex-col h-full bg-slate-950 text-white overflow-hidden">
+            {/* FAB for Mobile Actions */}
+            <div className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3 pointer-events-none lg:hidden">
+                <div className={`flex flex-col items-end gap-3 transition-all duration-300 transform ${isFabOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 translate-y-10'}`}>
+                    <button onClick={() => { setIsAddModalOpen(true); setIsFabOpen(false); }} className="pointer-events-auto w-12 h-12 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-lg flex items-center justify-center transition-all active:scale-90">
+                        <Icon name="plus" className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => { setIsAiModalOpen(true); setIsFabOpen(false); }} className="pointer-events-auto w-12 h-12 bg-pink-600 hover:bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center transition-all active:scale-90">
+                        <Icon name="ai" className="w-6 h-6" />
+                    </button>
+                </div>
+                <button onClick={() => setIsFabOpen(!isFabOpen)} className="pointer-events-auto w-14 h-14 bg-white/10 backdrop-blur-xl border border-white/20 text-white rounded-full shadow-2xl flex items-center justify-center transition-all active:scale-95 group">
+                    <Icon name={isFabOpen ? 'x-circle' : 'plus'} className={`w-8 h-8 transition-transform duration-300 ${isFabOpen ? 'rotate-90' : ''}`} />
+                </button>
+            </div>
+
+            {/* Header / Search Area */}
+            <header className="flex-shrink-0 bg-slate-900/50 backdrop-blur-xl border-b border-white/5 p-3 z-20">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                         <div className="w-9 h-9 bg-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400">
+                             <Icon name="list-bullet" className="w-5 h-5"/>
+                         </div>
+                         <div>
+                            <h1 className="text-lg font-black uppercase tracking-tight italic leading-none">Stok Yönetimi</h1>
+                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none mt-1">ENVANTER & FİYAT KONTROLÜ</p>
+                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-grow max-w-2xl">
+                        <div className="relative flex-grow">
+                            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"/>
                             <input 
-                                type="text"
+                                type="text" 
+                                placeholder="Ürün, Barkod veya Stok Kodu Ara..." 
+                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-[11px] font-bold text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder="Ürün ara ve Enter'a bas..."
-                                className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all shadow-sm"
                             />
-                            {searchQuery && (
-                                <button 
-                                    onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); }}
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                                >
-                                    <Icon name="x-circle" className="h-5 w-5" />
-                                </button>
-                            )}
                         </div>
+                        <button 
+                            onClick={handleSearch}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all active:scale-95 flex-shrink-0"
+                        >
+                            ARA
+                        </button>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1157,168 +1180,166 @@ const GroupRow = React.memo(({
                         <div className="relative" ref={excelMenuRef}>
                             <button 
                                 onClick={() => setIsExcelMenuOpen(!isExcelMenuOpen)} 
-                                className="btn-secondary flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                                className="h-9 px-3 flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                             >
-                                <Icon name="excel" className="w-5 h-5"/>
-                                <span>Excel İşlemleri</span>
-                                <Icon name="chevron-down" className={`w-4 h-4 transition-transform ${isExcelMenuOpen ? 'rotate-180' : ''}`} />
+                                <Icon name="excel" className="w-4 h-4"/>
+                                <span className="hidden sm:inline">Excel</span>
+                                <Icon name="chevron-down" className={`w-3 h-3 transition-transform ${isExcelMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
                             {isExcelMenuOpen && (
-                                <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden">
-                                    <button onClick={handleDownloadTemplate} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
-                                        <Icon name="download" className="w-5 h-5 text-slate-400" />
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon İndir</span>
+                                <div className="absolute top-full mt-2 right-0 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+                                    <button onClick={handleDownloadTemplate} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors">
+                                        <Icon name="download" className="w-4 h-4 text-slate-400" />
+                                        <span className="font-bold text-[10px] uppercase tracking-wider text-slate-200">Şablon İndir</span>
                                     </button>
-                                    <button onClick={handleExcelUploadClick} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 transition-colors">
-                                        <Icon name="upload" className="w-5 h-5 text-slate-400" />
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">Şablon Yükle</span>
+                                    <button onClick={handleExcelUploadClick} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 border-t border-white/5 transition-colors">
+                                        <Icon name="upload" className="w-4 h-4 text-slate-400" />
+                                        <span className="font-bold text-[10px] uppercase tracking-wider text-slate-200">Şablon Yükle</span>
                                     </button>
-                                    <button onClick={handleExportStock} className="w-full text-left px-4 py-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 transition-colors">
-                                        <Icon name="excel" className="w-5 h-5 text-emerald-600" />
-                                        <span className="font-medium text-emerald-700 dark:text-emerald-400">Listeyi Dışa Aktar</span>
+                                    <button onClick={handleExportStock} className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 flex items-center gap-3 border-t border-white/5 transition-colors">
+                                        <Icon name="excel" className="w-4 h-4 text-emerald-500" />
+                                        <span className="font-bold text-[10px] uppercase tracking-wider text-emerald-400">Dışa Aktar</span>
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Sütun Yönetimi */}
-                        <div className="relative" ref={columnManagerRef}>
-                            <button onClick={() => setIsColumnManagerOpen(prev => !prev)} className="btn-secondary">
-                                <Icon name="view-columns" className="w-5 h-5"/> 
-                                <span className="hidden lg:inline ml-2">Sütunlar</span>
-                            </button>
-                            {isColumnManagerOpen && (
-                                <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-xl z-30 p-4">
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300 px-2 pb-2 border-b border-slate-200 dark:border-slate-700 mb-2">Gösterilecek Sütunlar</p>
-                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                    {allColumns.filter(c => c.id !== 'actions').map(col => (
-                                        <label key={col.id} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">
-                                            <input type="checkbox" checked={!hiddenColumns.has(col.id)} onChange={() => toggleColumn(col.id)} className="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
-                                            <span className="text-slate-700 dark:text-slate-300 select-none">{col.label}</span>
-                                        </label>
-                                    ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <button onClick={() => setIsFiltersOpen(!isFiltersOpen)} className={`btn-secondary ${Object.keys(filters).length > 0 ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : ''}`}>
-                            <Icon name="filter" className="w-5 h-5"/>
+                        <button onClick={() => setIsColumnManagerOpen(!isColumnManagerOpen)} className="h-9 w-9 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white transition-all">
+                            <Icon name="view-columns" className="w-5 h-5"/>
                         </button>
 
-                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
-
-                        <button onClick={() => setIsAddModalOpen(true)} className="btn-primary flex items-center gap-2">
-                            <Icon name="plus" className="w-5 h-5"/> 
-                            <span className="hidden sm:inline">Ürün Ekle</span>
+                        <button onClick={() => setIsFiltersOpen(!isFiltersOpen)} className={`h-9 px-4 flex items-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${Object.keys(filters).length > 0 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-slate-400 border border-white/10'}`}>
+                            <Icon name="filter" className="w-4 h-4"/> FİLTRE {Object.keys(filters).length > 0 && `(${Object.keys(filters).length})`}
                         </button>
-                        
-                        {props.companyInfo.aiEnabled && (
-                            <button onClick={() => setIsAiModalOpen(true)} className="btn-secondary text-pink-600 border-pink-200 hover:bg-pink-50 dark:hover:bg-pink-900/10">
-                                <Icon name="ai" className="w-5 h-5"/>
-                            </button>
-                        )}
+
+                        <button onClick={() => setIsAddModalOpen(true)} className="h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
+                            <Icon name="plus" className="w-4 h-4"/> EKLE
+                        </button>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            <div className="flex-grow bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col">
-                <div className="p-4 text-sm text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                  Toplam {productGroups.length} ürün grubu ({filteredProducts.length} varyasyon) bulundu.
-                </div>
-                <div className="flex-grow overflow-auto">
-                    <table className="w-full text-sm table-fixed">
-                        <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900 text-[11px] text-slate-600 dark:text-slate-400 uppercase z-10 select-none">
-                            <tr>
-                                <th className="p-2 w-10 border-r border-slate-200 dark:border-slate-700">
-                                    <div className="flex items-center justify-center">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedBarcodes.has(p.barcode))}
-                                            onChange={() => {
-                                                if (filteredProducts.length > 0 && filteredProducts.every(p => selectedBarcodes.has(p.barcode))) setSelectedBarcodes(new Set());
-                                                else setSelectedBarcodes(new Set(filteredProducts.map(p => p.barcode)));
-                                            }}
-                                            className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                                        />
-                                    </div>
+            {/* Products Table Area */}
+            <main className="flex-grow overflow-hidden flex flex-col relative bg-slate-950/50">
+                <div className="flex-grow overflow-auto custom-scrollbar relative">
+                    <table className="w-full text-left border-collapse table-fixed min-w-[1200px]">
+                        <thead className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md">
+                            <tr className="border-b border-white/5">
+                                <th className="p-2 w-10 text-center">
+                                    <button 
+                                        onClick={() => {
+                                            if (selectedBarcodes.size === filteredProducts.length) setSelectedBarcodes(new Set());
+                                            else setSelectedBarcodes(new Set(filteredProducts.map(p => p.barcode)));
+                                        }} 
+                                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${selectedBarcodes.size === filteredProducts.length ? 'bg-cyan-500 border-cyan-400' : 'border-white/20 hover:border-white/40'}`}
+                                    >
+                                        {selectedBarcodes.size === filteredProducts.length && <Icon name="check" className="w-2 h-2 text-slate-900"/>}
+                                    </button>
                                 </th>
-                                <th className="p-2 text-left w-10 border-r border-slate-200 dark:border-slate-700"></th>
-                                {visibleColumns.map(col => (
-                                    <th key={col.id} scope="col" className={`px-2 py-1.5 font-bold relative group border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-move ${draggedColumn.current === col.id ? 'opacity-30' : ''} ${dragOverColumn === col.id && draggedColumn.current !== col.id ? 'drag-over-indicator-products' : ''}`} style={{ width: `${columnWidths[col.id]}px` }} draggable onDragStart={(e) => handleDragStart(e, col.id)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)} onDragEnd={handleDragEnd} onDragEnter={(e) => handleDragEnter(e, col.id)}>
-                                        <div className="flex items-center justify-between"><span style={{textAlign: col.align || 'left', width: '100%'}}>{col.label}</span><Icon name="arrows-vertical" className="w-3 h-3 ml-1 text-slate-400 shrink-0" /></div>
-                                        <div 
-                                            onMouseDown={(e) => handleMouseDown(e, col.id)} 
-                                            className="absolute top-0 right-[-6px] h-full w-3 cursor-col-resize z-20 transition-all duration-200 hover:bg-cyan-500/20 group-hover:bg-slate-300/20 flex items-center justify-center"
-                                        >
-                                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 rounded-full group-hover:bg-cyan-500 transition-colors" />
-                                        </div>
+                                <th className="p-2 w-8"></th>
+                                {visibleCols.map(col => (
+                                    <th 
+                                        key={col.id} 
+                                        className={`p-2 text-[8px] font-black text-slate-500 uppercase tracking-widest relative group select-none ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                                        style={{ width: columnWidths[col.id] || 100 }}
+                                    >
+                                        {col.label}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="text-xs">
+                        <tbody className="divide-y divide-white/5">
                             {productGroups.length === 0 ? (
-                                <tr><td colSpan={visibleColumns.length + 2} className="text-center p-16 text-slate-500 font-medium">Böyle bir ürün bulunamadı.</td></tr>
-                            ) : productGroups.slice(0, displayLimit).map((group, index) => {
-                                const groupKey = getGroupKey(group[0]);
+                                <tr><td colSpan={visibleCols.length + 2} className="text-center py-20 text-slate-500 font-bold uppercase tracking-widest text-[10px]">Ürün bulunamadı</td></tr>
+                            ) : productGroups.slice(0, displayLimit).map((group) => {
+                                const mainProduct = group[0];
+                                const groupKey = getGroupKey(mainProduct);
                                 const isExpanded = expandedGroups.has(groupKey);
+                                const totalStock = group.reduce((s, p) => s + (p.stock || 0), 0);
 
                                 return (
                                     <React.Fragment key={groupKey}>
-                                        <GroupRow 
-                                            group={group}
-                                            visibleColumns={visibleColumns}
-                                            columnWidths={columnWidths}
-                                            selectedBarcodes={selectedBarcodes}
-                                            isExpanded={isExpanded}
-                                            toggleGroup={toggleGroup}
-                                            toggleGroupSelection={toggleGroupSelection}
-                                            renderEditableCell={renderEditableCell}
-                                            handleEditProductGroup={handleEditProductGroup}
-                                            getGroupKey={getGroupKey}
-                                        />
+                                        <tr className={`group transition-colors hover:bg-white/[0.03] ${isExpanded ? 'bg-cyan-500/[0.05]' : ''}`}>
+                                            <td className="p-1.5 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={group.every(p => selectedBarcodes.has(p.barcode))}
+                                                    onChange={() => toggleGroupSelection(groupKey, group)}
+                                                    className="w-3 h-3 rounded border-white/10 bg-white/5 text-cyan-600 focus:ring-cyan-500/50"
+                                                />
+                                            </td>
+                                            <td className="p-1.5 text-center cursor-pointer" onClick={() => toggleGroup(groupKey)}>
+                                                <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-3 h-3 transition-transform ${isExpanded ? 'text-rose-500' : 'text-slate-600'}`} />
+                                            </td>
+                                            {visibleCols.map(col => (
+                                                <td key={col.id} className={`p-1.5 text-[10px] font-bold truncate ${col.align === 'right' ? 'text-right' : ''}`}>
+                                                    {col.id === 'name' ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-white truncate">{mainProduct.name}</span>
+                                                            <span className="text-[7px] text-cyan-500 uppercase tracking-tighter">{group.length} Varyasyon</span>
+                                                        </div>
+                                                    ) : col.id === 'stock' ? (
+                                                        <span className={totalStock <= 0 ? 'text-rose-500' : totalStock <= 5 ? 'text-amber-500' : 'text-slate-300'}>{totalStock}</span>
+                                                    ) : col.id === 'price' ? (
+                                                        <span className="text-cyan-400" onDoubleClick={() => handleEditStart(groupKey, 'price', mainProduct.price, true)}>
+                                                            {editingCell?.barcode === groupKey && editingCell?.field === 'price' ? (
+                                                                <input autoFocus className="bg-cyan-500/20 w-16 px-1 border-none outline-none text-white" value={editValue} onChange={handleEditChange} onBlur={handleEditCommit} onKeyDown={e => e.key === 'Enter' && handleEditCommit()} />
+                                                            ) : mainProduct.price.toFixed(2) + ' ₺'}
+                                                        </span>
+                                                    ) : col.id === 'buyPrice' ? (
+                                                        <span className="text-emerald-500" onDoubleClick={() => handleEditStart(groupKey, 'buyPrice', mainProduct.buyPrice, true)}>
+                                                            {editingCell?.barcode === groupKey && editingCell?.field === 'buyPrice' ? (
+                                                                <input autoFocus className="bg-emerald-500/20 w-16 px-1 border-none outline-none text-white" value={editValue} onChange={handleEditChange} onBlur={handleEditCommit} onKeyDown={e => e.key === 'Enter' && handleEditCommit()} />
+                                                            ) : (mainProduct.buyPrice || 0).toFixed(2) + ' ₺'}
+                                                        </span>
+                                                    ) : col.id === 'actions' ? (
+                                                        <button onClick={() => handleEditProductGroup(groupKey)} className="w-6 h-6 rounded bg-white/5 text-slate-400 flex items-center justify-center hover:bg-cyan-600 hover:text-white transition-all">
+                                                            <Icon name="edit" className="w-3.5 h-3.5"/>
+                                                        </button>
+                                                    ) : (mainProduct as any)[col.id] || '-'}
+                                                </td>
+                                            ))}
+                                        </tr>
                                         {isExpanded && group.map(p => (
-                                            <ProductRow 
-                                                key={p.barcode}
-                                                product={p}
-                                                visibleColumns={visibleColumns}
-                                                columnWidths={columnWidths}
-                                                selectedBarcodes={selectedBarcodes}
-                                                toggleSelection={toggleSelection}
-                                                renderEditableCell={renderEditableCell}
-                                                handleEditProductGroup={handleEditProductGroup}
-                                                onDeleteProduct={onDeleteProduct}
-                                                onRestoreProduct={onRestoreProduct}
-                                                getGroupKey={getGroupKey}
-                                            />
+                                            <tr key={p.barcode} className="bg-white/[0.01] border-l-2 border-cyan-500/30">
+                                                <td className="p-1"></td>
+                                                <td className="p-1"></td>
+                                                {visibleCols.map(col => (
+                                                    <td key={col.id} className={`p-1.5 text-[9px] font-medium text-slate-500 ${col.align === 'right' ? 'text-right' : ''}`}>
+                                                        {col.id === 'name' ? (
+                                                            <span className="text-slate-400">{p.renk} / {p.beden}</span>
+                                                        ) : col.id === 'barcode' ? (
+                                                            <span className="font-mono text-[8px] text-slate-600">{p.barcode}</span>
+                                                        ) : col.id === 'stock' ? (
+                                                            <span className="cursor-pointer hover:text-white" onDoubleClick={() => handleEditStart(p.barcode, 'stock', p.stock)}>
+                                                                {editingCell?.barcode === p.barcode && editingCell?.field === 'stock' ? <input autoFocus className="w-10 bg-slate-800 text-white outline-none px-1" value={editValue} onChange={handleEditChange} onBlur={handleEditCommit} /> : p.stock}
+                                                            </span>
+                                                        ) : (p as any)[col.id] || '-'}
+                                                    </td>
+                                                ))}
+                                            </tr>
                                         ))}
                                     </React.Fragment>
                                 );
                             })}
                         </tbody>
                     </table>
+                    
                     {displayLimit < productGroups.length && (
-                        <div className="p-4 flex justify-center border-t dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10">
+                        <div className="p-8 flex flex-col items-center justify-center gap-2 border-t border-white/5 bg-slate-900/20">
+                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Görüntülenen: {displayLimit} / {productGroups.length} Grup</p>
                             <button 
-                                onClick={() => setDisplayLimit(prev => prev + 100)}
-                                className="px-8 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-full font-bold shadow-xl shadow-cyan-200 dark:shadow-none transition-all flex items-center gap-2 transform hover:scale-105 active:scale-95"
+                                onClick={() => setDisplayLimit(prev => prev + 250)}
+                                className="px-10 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-cyan-500 font-black text-[9px] uppercase tracking-widest transition-all active:scale-95 shadow-2xl"
                             >
-                                <Icon name="refresh" className="w-5 h-5" />
-                                Daha Fazla Ürün Yükle ({productGroups.length - displayLimit} varyasyon grubu kaldı)
+                                DAHA FAZLA YÜKLE (+250)
                             </button>
                         </div>
                     )}
                 </div>
-            </div>
+            </main>
 
-            <style>{`
-              .btn-primary { display: inline-flex; align-items: center; gap: 0.5rem; background-color: #0ea5e9; color: white; font-weight: 600; padding: 0.6rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
-              .btn-primary:hover { background-color: #0284c7; }
-              .btn-secondary { display: inline-flex; align-items: center; gap: 0.5rem; background-color: white; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; padding: 0.6rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
-              .btn-secondary:hover { background-color: #f1f5f9; }
-            `}</style>
-
+            {/* Modals & Popups */}
             <AddProductModal 
                 isOpen={isAddModalOpen} 
                 onClose={() => setIsAddModalOpen(false)} 
@@ -1362,18 +1383,14 @@ const GroupRow = React.memo(({
                 type="file"
                 ref={excelInputRef}
                 onChange={handleExcelFileSelected}
-                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                accept=".xlsx,.xls,.csv"
                 style={{ display: 'none' }}
             />
 
             {notification && (
-                <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-4 rounded-2xl shadow-2xl z-50 flex items-center gap-3 animate-bounce-in border-2 ${
-                    notification.type === 'success' 
-                        ? 'bg-emerald-500 border-emerald-400 text-white' 
-                        : 'bg-rose-500 border-rose-400 text-white'
-                }`}>
-                    <Icon name={notification.type === 'success' ? 'check-circle' : 'exclamation-circle'} className="w-6 h-6" />
-                    <span className="font-bold tracking-wide">{notification.message}</span>
+                <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl shadow-2xl z-[100] flex items-center gap-2 border border-white/10 backdrop-blur-xl animate-fade-in-up ${notification.type === 'success' ? 'bg-emerald-500/90' : 'bg-rose-500/90'}`}>
+                    <Icon name={notification.type === 'success' ? 'check-circle' : 'exclamation-circle'} className="w-4 h-4 text-white" />
+                    <span className="text-[10px] font-black uppercase text-white tracking-wide">{notification.message}</span>
                 </div>
             )}
         </div>

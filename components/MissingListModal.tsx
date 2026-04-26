@@ -37,7 +37,15 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
   const [selectedPastList, setSelectedPastList] = useState<MissingListRecord | null>(null);
 
   const missingProductsBySupplier = useMemo(() => {
-    const missing = products.filter(p => p.stock <= 10 && !p.isDeleted);
+    // Optimization: Filter first, then group
+    const missing = [];
+    for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        if (p.stock <= 10 && !p.isDeleted) {
+            missing.push(p);
+        }
+    }
+    
     const supplierMap = new Map<string, { supplier: Supplier | null, products: Product[] }>();
 
     missing.forEach(p => {
@@ -52,23 +60,143 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
     return Array.from(supplierMap.values());
   }, [products, suppliers]);
 
+  const [displayLimit, setDisplayLimit] = useState(20);
+
   const filteredSupplierGroups = useMemo(() => {
-    if (selectedSupplierId === 'all') {
-      return missingProductsBySupplier;
+    let groups = missingProductsBySupplier;
+    if (selectedSupplierId !== 'all') {
+        if (selectedSupplierId === 'unknown') {
+            groups = missingProductsBySupplier.filter(group => group.supplier === null);
+        } else {
+            groups = missingProductsBySupplier.filter(group => group.supplier?.id === selectedSupplierId);
+        }
     }
-    if (selectedSupplierId === 'unknown') {
-        return missingProductsBySupplier.filter(group => group.supplier === null);
-    }
-    return missingProductsBySupplier.filter(group => group.supplier?.id === selectedSupplierId);
+    return groups;
   }, [missingProductsBySupplier, selectedSupplierId]);
 
   const filteredPastLists = useMemo(() => {
-    return missingLists.filter(list => {
-      if (dateFilter && !list.date.startsWith(dateFilter)) return false;
-      if (selectedSupplierId !== 'all' && list.supplierId !== selectedSupplierId) return false;
-      return true;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [missingLists, dateFilter, selectedSupplierId]);
+    let lists = missingLists || [];
+    if (selectedSupplierId !== 'all') {
+        lists = lists.filter(l => l.supplierId === selectedSupplierId);
+    }
+    if (dateFilter) {
+        lists = lists.filter(l => new Date(l.date).toISOString().split('T')[0] === dateFilter);
+    }
+    return [...lists].sort((a, b) => b.date - a.date);
+  }, [missingLists, selectedSupplierId, dateFilter]);
+
+  // Memoized Supplier Group Component to prevent whole-list re-renders
+  const SupplierGroup = React.memo(({ group, isExpanded, toggleSupplier, orderQuantities, handleQuantityChange, handleQuantityIncrement, aiReasons, onSave, onExcel, onPdf, onWhatsApp, onEmail }: any) => {
+    const { supplier, products: missingItems } = group;
+    const supplierId = supplier?.id || 'unknown';
+    const supplierName = supplier?.name || 'Tedarikçisi Belirtilmemiş';
+    
+    const orderedItems = useMemo(() => missingItems.filter((p: any) => (orderQuantities[p.barcode] || 0) > 0), [missingItems, orderQuantities]);
+    const totalQuantity = useMemo(() => orderedItems.reduce((sum: number, item: any) => sum + (orderQuantities[item.barcode] || 0), 0), [orderedItems, orderQuantities]);
+    const totalCost = useMemo(() => orderedItems.reduce((sum: number, item: any) => sum + (item.buyPrice * (orderQuantities[item.barcode] || 0)), 0), [orderedItems, orderQuantities]);
+
+    return (
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm mb-4">
+            <button onClick={() => toggleSupplier(supplierId)} className="w-full flex justify-between items-center p-3 text-left hover:bg-slate-50 transition">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-xs">
+                        {supplierName.charAt(0)}
+                    </div>
+                    <div>
+                        <div className="font-bold text-slate-800 text-sm">{supplierName}</div>
+                        <div className="text-[10px] text-slate-500">{missingItems.length} kritik stoklu ürün</div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    {totalQuantity > 0 && (
+                        <span className="bg-cyan-100 text-cyan-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {totalQuantity} Adet Hazır
+                        </span>
+                    )}
+                    <Icon name="arrows-vertical" className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </div>
+            </button>
+            {isExpanded && (
+                <div className="p-3 border-t border-slate-100 bg-slate-50/20">
+                    <div className="overflow-x-auto bg-white rounded-lg border border-slate-200">
+                        <table className="w-full text-xs">
+                            <thead className="bg-slate-50 text-slate-500 text-[9px] uppercase font-black">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">Ürün Bilgisi</th>
+                                    <th className="px-3 py-2 text-left">Kod / Barkod</th>
+                                    <th className="px-3 py-2 text-right">Kalan</th>
+                                    <th className="px-3 py-2 text-center w-40">Sipariş</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {missingItems.map((item: any) => (
+                                    <tr key={item.barcode} className="hover:bg-slate-50/50">
+                                        <td className="px-3 py-2">
+                                            <div className="font-bold text-slate-700">{item.name}</div>
+                                            <div className="text-[10px] text-slate-500">{item.marka} {item.model} - {item.renk} / {item.beden}</div>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="text-slate-600 font-medium">{item.stokKodu}</div>
+                                            <div className="text-[9px] font-mono text-slate-400">{item.barcode}</div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                            <span className={`font-bold ${item.stock <= 5 ? 'text-red-600' : 'text-amber-600'}`}>
+                                                {item.stock}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <input 
+                                                        type="text" 
+                                                        value={orderQuantities[item.barcode] || ''}
+                                                        onChange={(e) => handleQuantityChange(item.barcode, e.target.value)}
+                                                        className="w-12 text-center font-bold border border-slate-200 rounded-md py-1 focus:ring-1 focus:ring-cyan-500 outline-none"
+                                                        placeholder="0"
+                                                    />
+                                                    <button onClick={() => handleQuantityIncrement(item.barcode, 6)} className="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-bold">+6</button>
+                                                    <button onClick={() => handleQuantityIncrement(item.barcode, 12)} className="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-bold">+12</button>
+                                                </div>
+                                                {aiReasons[item.barcode] && (
+                                                    <span className="text-[8px] text-purple-600 font-bold bg-purple-50 px-1 py-0.5 rounded italic">
+                                                        {aiReasons[item.barcode]}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="flex gap-4 text-xs">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase font-bold">Çeşit</span>
+                                <span className="font-bold">{orderedItems.length} Kalem</span>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase font-bold">Toplam Adet</span>
+                                <span className="font-bold">{totalQuantity} Adet</span>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-slate-400 uppercase font-bold">Tutar</span>
+                                <span className="font-bold text-cyan-600">{totalCost.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                            <button onClick={() => onSave(supplier, missingItems)} className="btn-micro bg-cyan-600 text-white"><Icon name="database" className="w-3 h-3" /> Kaydet</button>
+                            <button onClick={() => onExcel(supplierName, missingItems)} className="btn-micro bg-emerald-600 text-white"><Icon name="excel" className="w-3 h-3" /> Excel</button>
+                            <button onClick={() => onPdf(supplierName, missingItems)} className="btn-micro bg-rose-600 text-white"><Icon name="pdf" className="w-3 h-3" /> PDF</button>
+                            <button onClick={() => onWhatsApp(supplier, missingItems)} disabled={!supplier?.whatsapp} className="btn-micro bg-green-600 text-white disabled:bg-slate-300"><Icon name="whatsapp" className="w-3 h-3" /> WhatsApp</button>
+                            <button onClick={() => onEmail(supplier, missingItems)} className="btn-micro bg-sky-600 text-white"><Icon name="logout" className="w-3 h-3" /> E-Posta</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+  });
 
   if (!isOpen) return null;
 
@@ -90,11 +218,8 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
   const toggleSupplier = (supplierId: string) => {
     setExpandedSuppliers(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(supplierId)) {
-        newSet.delete(supplierId);
-      } else {
-        newSet.add(supplierId);
-      }
+      if (newSet.has(supplierId)) newSet.delete(supplierId);
+      else newSet.add(supplierId);
       return newSet;
     });
   };
@@ -415,7 +540,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
     }
 
     const supplierName = supplier?.name || 'Tedarikçi';
-    const totalQuantity = listToProcess.reduce((sum, item) => sum + item.orderQuantity, 0);
+    const totalQuantity = listToProcess.reduce((sum, item: any) => sum + item.orderQuantity, 0);
     const totalCost = 'totalCost' in (items as any) ? (items as any).totalCost : listToProcess.reduce((sum, item: any) => sum + ((item.buyPrice || 0) * item.orderQuantity), 0);
 
     const subject = `${supplierName} - Sipariş Listesi (${new Date().toLocaleDateString('tr-TR')})`;
@@ -444,7 +569,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
           return;
       }
 
-      const totalQuantity = listToProcess.reduce((sum, item) => sum + item.orderQuantity, 0);
+      const totalQuantity = listToProcess.reduce((sum, item: any) => sum + item.orderQuantity, 0);
 
       const message = `Merhaba ${supplier.name},\n\nAşağıdaki ürünler için sipariş vermek istiyoruz:\n\n` +
         `${listToProcess.map((p: any) => `- ${p.name} [${p.marka || ''} ${p.model || ''}] (${p.renk || ''} / ${p.beden || ''}) - Kod: ${p.stokKodu || ''}: ${p.orderQuantity} adet`).join('\n')}\n\n` +
@@ -673,7 +798,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
                                                                 <Icon name="excel" className="w-4 h-4" /> Excel
                                                             </button>
                                                             <button onClick={() => generatePdf(supplierName, missingItems)} className="btn-action bg-rose-600 text-white hover:bg-rose-700">
-                                                                <Icon name="document" className="w-4 h-4" /> PDF
+                                                                <Icon name="pdf" className="w-4 h-4" /> PDF
                                                             </button>
                                                             <button onClick={() => sendToWhatsApp(supplier, missingItems)} disabled={!supplier?.whatsapp} className="btn-action bg-green-600 text-white hover:bg-green-700 disabled:bg-slate-300">
                                                                 <Icon name="whatsapp" className="w-4 h-4" /> WhatsApp

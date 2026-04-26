@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Product, Brand, Model, Color, Size, Group } from '../types';
+import { Product, Brand, Model, Color, Size, Group, Supplier } from '../types';
 import Icon from './Icon';
 import { generateProductDescription } from '../services/geminiService';
 
@@ -183,141 +183,141 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
     }, [commonData.midGroup, midGroups, definitions.groups]);
 
     return (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={onClose}>
-            <div className="bg-[#0f172a] border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4" onClick={onClose}>
+            <div className="bg-[#0f172a] border border-white/10 rounded-[1.5rem] shadow-2xl w-full max-w-6xl max-h-[96vh] h-auto flex flex-col overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
                 
                 {/* Header */}
-                <header className="p-8 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-xl">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-cyan-400">
-                            <Icon name="edit" className="w-6 h-6"/>
+                <header className="flex-shrink-0 p-2 px-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-xl">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center text-cyan-400">
+                            <Icon name="edit" className="w-4 h-4"/>
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-white uppercase tracking-tight italic">Ürün Grubu Düzenle</h2>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">DÜZENLENEN GRUP: <span className="text-cyan-500">{commonData.anaStokKodu || commonData.model || 'GENEL'}</span></p>
+                        <div className="min-w-0">
+                            <h2 className="text-sm font-black text-white uppercase tracking-tight italic truncate">Ürün Grubu Düzenle</h2>
+                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate">GRUP: <span className="text-cyan-500">{commonData.anaStokKodu || commonData.model || 'GENEL'}</span></p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <button onClick={handleMinimize} title="Küçült" className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-cyan-400 hover:bg-white/10 transition-all">
-                             <Icon name="minus" className="w-6 h-6" />
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={handleMinimize} title="Küçült" className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:text-cyan-400 hover:bg-white/10 transition-all">
+                             <Icon name="minus" className="w-4 h-4" />
                         </button>
-                        <button onClick={onClose} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all">
-                            <Icon name="x-circle" className="w-7 h-7"/>
+                        <button onClick={onClose} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all">
+                            <Icon name="x-circle" className="w-5 h-5"/>
                         </button>
                     </div>
                 </header>
 
-                <main className="flex-grow p-8 overflow-y-auto space-y-10 custom-scrollbar">
-                    {error && <p className="text-[10px] font-black text-rose-500 bg-rose-500/10 p-4 rounded-xl uppercase tracking-widest">{error}</p>}
+                <main className="flex-grow p-4 overflow-y-auto space-y-4 custom-scrollbar min-h-0">
+                    {error && <p className="text-[9px] font-black text-rose-500 bg-rose-500/10 p-2 rounded-md uppercase tracking-widest">{error}</p>}
                     
                     {/* Common Info */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white/[0.02] p-8 rounded-[2rem] border border-white/5">
-                        <div className="md:col-span-2">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-white/[0.01] p-4 rounded-[1rem] border border-white/5">
+                        <div className="col-span-2">
                             <label className="label-pro">Temel Ürün Adı</label>
-                            <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="Örn: Pamuklu Boxer"/>
+                            <input type="text" name="name" value={commonData.name || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="Adı"/>
                         </div>
-                        <div>
-                            <label className="label-pro">Ana Stok Kodu (Model Kodu)</label>
-                            <input type="text" name="anaStokKodu" value={commonData.anaStokKodu || ''} onChange={handleCommonDataChange} className="input-pro w-full text-cyan-400 font-mono" placeholder="Örn: MDL-101"/>
+                        <div className="col-span-1">
+                            <label className="label-pro">Ana Stok Kodu</label>
+                            <input type="text" name="anaStokKodu" value={commonData.anaStokKodu || ''} onChange={handleCommonDataChange} className="input-pro w-full text-cyan-400 font-mono" placeholder="MDL-101"/>
                         </div>
-                        <div>
+                        <div className="col-span-1">
                             <label className="label-pro">Raf / Konum</label>
-                            <input type="text" name="shelfLocation" value={commonData.shelfLocation || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="Örn: A-12"/>
+                            <input type="text" name="shelfLocation" value={commonData.shelfLocation || ''} onChange={handleCommonDataChange} className="input-pro w-full" placeholder="A-12"/>
                         </div>
 
-                        <div><label className="label-pro">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold"><option value="">Seçiniz</option>{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
-                        <div><label className="label-pro">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold"><option value="">Seçiniz</option>{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                        <div className="md:col-span-1"><label className="label-pro text-emerald-500">Global Alış</label><input type="text" name="buyPrice" value={commonData.buyPrice || ''} onChange={handlePriceChange} className="input-pro w-full border-emerald-500/20"/></div>
-                        <div className="md:col-span-1"><label className="label-pro text-cyan-500">Global Satış</label><input type="text" name="price" value={commonData.price || ''} onChange={handlePriceChange} className="input-pro w-full border-cyan-500/20"/></div>
+                        <div><label className="label-pro">Marka</label><select name="marka" value={commonData.marka || ''} onChange={handleCommonDataChange} className="input-pro w-full text-[10px] font-bold"><option value="">Seçiniz</option>{definitions.brands.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></div>
+                        <div><label className="label-pro">Model</label><select name="model" value={commonData.model || ''} onChange={handleCommonDataChange} className="input-pro w-full text-[10px] font-bold"><option value="">Seçiniz</option>{filteredModels.map(m=><option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                        <div><label className="label-pro text-emerald-500">Global Alış</label><input type="text" name="buyPrice" value={commonData.buyPrice || ''} onChange={handlePriceChange} className="input-pro w-full border-emerald-500/10"/></div>
+                        <div><label className="label-pro text-cyan-500">Global Satış</label><input type="text" name="price" value={commonData.price || ''} onChange={handlePriceChange} className="input-pro w-full border-cyan-500/10"/></div>
 
                         <div>
                             <label className="label-pro">Grup</label>
-                            <select name="group" value={commonData.group || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold">
-                                <option value="">Tüm Gruplar</option>
+                            <select name="group" value={commonData.group || ''} onChange={handleCommonDataChange} className="input-pro w-full text-[10px] font-bold">
+                                <option value="">Grup</option>
                                 {mainGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="label-pro">Ara Grup</label>
-                            <select name="midGroup" value={commonData.midGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold" disabled={!commonData.group}>
-                                <option value="">Tüm Ara Gruplar</option>
+                            <select name="midGroup" value={commonData.midGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-[10px] font-bold" disabled={!commonData.group}>
+                                <option value="">Ara Grup</option>
                                 {midGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="label-pro">Alt Grup</label>
-                            <select name="subGroup" value={commonData.subGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-xs font-bold" disabled={!commonData.midGroup}>
-                                <option value="">Tüm Alt Gruplar</option>
+                            <select name="subGroup" value={commonData.subGroup || ''} onChange={handleCommonDataChange} className="input-pro w-full text-[10px] font-bold" disabled={!commonData.midGroup}>
+                                <option value="">Alt Grup</option>
                                 {subGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                             </select>
                         </div>
 
-                        <div className="md:col-span-1 flex items-end">
-                            <button onClick={() => setApplyPricesToAll(!applyPricesToAll)} className={`flex items-center justify-center gap-3 w-full h-[46px] rounded-xl border transition-all ${applyPricesToAll ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
-                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${applyPricesToAll ? 'bg-cyan-500 border-cyan-400' : 'border-white/20'}`}>
-                                    {applyPricesToAll && <Icon name="check" className="w-2.5 h-2.5 text-slate-900"/>}
+                        <div className="flex items-end">
+                            <button onClick={() => setApplyPricesToAll(!applyPricesToAll)} className={`flex items-center justify-center gap-1.5 w-full h-[32px] rounded-lg border transition-all flex-shrink-0 ${applyPricesToAll ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                                <div className={`w-3 h-3 rounded border flex items-center justify-center transition-all flex-shrink-0 ${applyPricesToAll ? 'bg-cyan-500 border-cyan-400' : 'border-white/20'}`}>
+                                    {applyPricesToAll && <Icon name="check" className="w-2 h-2 text-slate-900"/>}
                                 </div>
-                                <span className="text-[9px] font-black uppercase tracking-widest">Fiyatları Uygula</span>
+                                <span className="text-[7.5px] font-black uppercase tracking-widest truncate">Fiyatları Uygula</span>
                             </button>
                         </div>
 
-                        <div className="md:col-span-4">
-                            <div className="flex items-center justify-between mb-2">
+                        <div className="col-span-2 lg:col-span-4">
+                            <div className="flex items-center justify-between mb-0.5">
                                 <label className="label-pro m-0">Ürün Açıklaması</label>
-                                <button onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="flex items-center gap-2 text-[10px] font-bold text-pink-500 hover:text-pink-400 transition-colors">
-                                    <Icon name="ai" className={`w-4 h-4 ${isGeneratingDescription ? 'animate-spin' : ''}`}/>
-                                    {isGeneratingDescription ? 'AI OLUŞTURUYOR...' : 'AI İLE AÇIKLAMA OLUŞTUR'}
+                                <button onClick={handleGenerateDescription} disabled={isGeneratingDescription} className="flex items-center gap-1 text-[8px] font-bold text-pink-500 hover:text-pink-400 transition-colors">
+                                    <Icon name="ai" className={`w-3 h-3 ${isGeneratingDescription ? 'animate-spin' : ''}`}/>
+                                    {isGeneratingDescription ? '...' : 'AI OLUŞTUR'}
                                 </button>
                             </div>
-                            <textarea name="description" value={commonData.description || ''} onChange={handleCommonDataChange} className="input-pro w-full h-24 resize-none text-xs" placeholder="Ürün özelliklerini buraya yazabilirsiniz..."></textarea>
+                            <textarea name="description" value={commonData.description || ''} onChange={handleCommonDataChange} className="input-pro w-full h-12 resize-none text-[10px]" placeholder="Açıklama..."></textarea>
                         </div>
                     </div>
 
                     {/* Table View */}
-                    <section className="space-y-6">
-                        <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                                <div className="w-1.5 h-6 bg-purple-500 rounded-full"></div>
-                                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Varyasyon Listesi ({variations.length})</h3>
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                             <div className="flex items-center gap-2">
+                                <div className="w-0.5 h-4 bg-purple-500 rounded-full"></div>
+                                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">Varyasyonlar ({variations.length})</h3>
                              </div>
-                             <button onClick={addVariation} className="h-11 px-6 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-purple-900/20 flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95">
-                                <Icon name="plus" className="w-4 h-4"/> YENİ VARYASYON EKLE
+                             <button onClick={addVariation} className="h-7 px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-md font-black text-[8px] uppercase tracking-widest flex items-center gap-1.5 transition-all flex-shrink-0">
+                                <Icon name="plus" className="w-3 h-3"/> EKLE
                              </button>
                         </div>
 
-                        <div className="bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden">
-                            <table className="w-full text-xs text-left border-collapse">
-                                <thead className="bg-[#1e293b] text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-white/5">
+                        <div className="bg-white/[0.01] border border-white/5 rounded-[0.75rem] overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-xs text-left border-collapse min-w-[600px]">
+                                <thead className="bg-[#1e293b] text-[8.5px] font-black text-slate-400 uppercase tracking-widest border-b border-white/5 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-6 py-4">Sıra</th>
-                                        <th className="px-6 py-4">Renk</th>
-                                        <th className="px-6 py-4">Beden</th>
-                                        <th className="px-6 py-4">Barkod</th>
-                                        <th className="px-6 py-4">Stok Kodu</th>
-                                        <th className="px-6 py-4 text-center">Stok</th>
-                                        {!applyPricesToAll && <><th className="px-6 py-4 text-right">Alış</th><th className="px-6 py-4 text-right">Satış</th></>}
-                                        <th className="px-6 py-4 text-center">İşlem</th>
+                                        <th className="px-3 py-2">No</th>
+                                        <th className="px-3 py-2">Renk</th>
+                                        <th className="px-3 py-2">Beden</th>
+                                        <th className="px-3 py-2">Barkod</th>
+                                        <th className="px-3 py-2">Stok Kodu</th>
+                                        <th className="px-3 py-2 text-center">Stok</th>
+                                        {!applyPricesToAll && <><th className="px-3 py-2 text-right">Alış</th><th className="px-3 py-2 text-right">Satış</th></>}
+                                        <th className="px-3 py-2 text-center">Sil</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {variations.map((v, index) => (
-                                        <tr key={index} className="hover:bg-white/[0.03] transition-colors group">
-                                            <td className="px-6 py-3 font-mono text-slate-600 text-[10px]">#{index + 1}</td>
-                                            <td className="px-4 py-2"><input value={v.renk} onChange={e=>handleVariationChange(index, 'renk', e.target.value)} className="table-input-pro" placeholder="Renk"/></td>
-                                            <td className="px-4 py-2"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input-pro" placeholder="Beden"/></td>
-                                            <td className="px-4 py-2"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-40"/></td>
-                                            <td className="px-4 py-2"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input-pro font-mono text-slate-500 w-40"/></td>
-                                             <td className="px-4 py-2"><input type="number" value={v.stock} onChange={e=>handleVariationChange(index, 'stock', parseInt(e.target.value) || 0)} className="table-input-pro text-center w-20"/></td>
+                                        <tr key={index} className="hover:bg-white/[0.02] transition-colors group">
+                                            <td className="px-3 py-1 font-mono text-slate-600 text-[8px]">#{index + 1}</td>
+                                            <td className="px-1 py-0.5"><input value={v.renk} onChange={e=>handleVariationChange(index, 'renk', e.target.value)} className="table-input-pro" placeholder="Renk"/></td>
+                                            <td className="px-1 py-0.5"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input-pro" placeholder="Beden"/></td>
+                                            <td className="px-1 py-0.5"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-32 text-[9px]"/></td>
+                                            <td className="px-1 py-0.5"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input-pro font-mono text-slate-500 w-32 text-[9px]"/></td>
+                                             <td className="px-1 py-0.5"><input type="number" value={v.stock} onChange={e=>handleVariationChange(index, 'stock', parseInt(e.target.value) || 0)} className="table-input-pro text-center w-12 text-[10px]"/></td>
 
                                             {!applyPricesToAll && (
                                                 <>
-                                                    <td className="px-4 py-2"><input value={v.buyPrice} onChange={e=>handleVariationChange(index, 'buyPrice', e.target.value)} className="table-input-pro text-right text-emerald-500"/></td>
-                                                    <td className="px-4 py-2"><input value={v.price} onChange={e=>handleVariationChange(index, 'price', e.target.value)} className="table-input-pro text-right text-cyan-500"/></td>
+                                                    <td className="px-1 py-0.5"><input value={v.buyPrice} onChange={e=>handleVariationChange(index, 'buyPrice', e.target.value)} className="table-input-pro text-right text-emerald-500 text-[10px]"/></td>
+                                                    <td className="px-1 py-0.5"><input value={v.price} onChange={e=>handleVariationChange(index, 'price', e.target.value)} className="table-input-pro text-right text-cyan-500 text-[10px]"/></td>
                                                 </>
                                             )}
-                                            <td className="px-6 py-2 text-center">
-                                                <button onClick={() => removeVariation(index)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white">
-                                                    <Icon name="trash" className="w-4 h-4"/>
+                                            <td className="px-3 py-0.5 text-center">
+                                                <button onClick={() => removeVariation(index)} className="w-6 h-6 flex items-center justify-center rounded-md bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white">
+                                                    <Icon name="trash" className="w-3 h-3"/>
                                                 </button>
                                             </td>
                                         </tr>
@@ -328,26 +328,26 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                     </section>
                 </main>
 
-                <footer className="p-8 border-t border-white/5 bg-slate-900/50 backdrop-blur-xl flex justify-end gap-6">
-                    <button onClick={onClose} className="px-10 h-14 bg-white/5 hover:bg-white/10 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">Vazgeç</button>
-                    <button onClick={handleSave} className="px-12 h-14 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-cyan-900/40 transform hover:scale-105 active:scale-95 transition-all">Değişiklikleri Uygula</button>
+                <footer className="flex-shrink-0 p-2 px-6 border-t border-white/5 bg-slate-900/50 backdrop-blur-xl flex justify-end gap-2 flex-wrap">
+                    <button onClick={onClose} className="px-4 h-8 bg-white/5 hover:bg-white/10 text-slate-400 rounded-lg font-black uppercase text-[8.5px] tracking-widest transition-all flex-shrink-0">Vazgeç</button>
+                    <button onClick={handleSave} className="px-6 h-8 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-black uppercase text-[8.5px] tracking-widest shadow-lg shadow-cyan-900/20 transition-all flex-shrink-0">Değişiklikleri Uygula</button>
                 </footer>
             </div>
             
             <style>{`
-                .label-pro { display: block; font-size: 9px; font-black text-slate-500 uppercase tracking-widest mb-2 px-1; }
-                .input-pro { background-color: rgba(255, 255, 255, 0.03); border: 2px solid rgba(255, 255, 255, 0.05); border-radius: 1.25rem; padding: 0.8rem 1.25rem; color: white; font-size: 0.85rem; font-weight: 700; transition: all 0.3s; outline: none; }
-                .input-pro:focus { border-color: rgba(6, 182, 212, 0.5); background-color: rgba(255, 255, 255, 0.06); }
+                .label-pro { display: block; font-size: 7px; font-black text-slate-500 uppercase tracking-widest mb-0.5 px-0.5; }
+                .input-pro { background-color: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.04); border-radius: 0.4rem; padding: 0.3rem 0.5rem; color: white; font-size: 9.5px; font-weight: 700; transition: all 0.2s; outline: none; }
+                .input-pro:focus { border-color: rgba(6, 182, 212, 0.3); background-color: rgba(255, 255, 255, 0.03); }
                 
-                .table-input-pro { background: transparent; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 0.75rem; padding: 0.5rem 0.75rem; color: white; font-size: 11px; font-weight: 700; width: 100%; outline: none; transition: all 0.2s; }
-                .table-input-pro:focus { background: rgba(255, 255, 255, 0.05); border-color: rgba(147, 51, 234, 0.4); }
+                .table-input-pro { background: transparent; border: 1px solid rgba(255, 255, 255, 0.02); border-radius: 0.3rem; padding: 0.15rem 0.35rem; color: white; font-size: 9px; font-weight: 700; width: 100%; outline: none; transition: all 0.2s; }
+                .table-input-pro:focus { background: rgba(255, 255, 255, 0.02); border-color: rgba(147, 51, 234, 0.25); }
 
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
                 
-                @keyframes fade-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-                .animate-fade-in { animation: fade-in 0.3s ease-out; }
+                @keyframes fade-in { from { opacity: 0; transform: scale(0.995); } to { opacity: 1; transform: scale(1); } }
+                .animate-fade-in { animation: fade-in 0.15s ease-out; }
             `}</style>
         </div>
     );
