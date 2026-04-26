@@ -82,7 +82,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
     if (dateFilter) {
         lists = lists.filter(l => new Date(l.date).toISOString().split('T')[0] === dateFilter);
     }
-    return [...lists].sort((a, b) => b.date - a.date);
+    return [...lists].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [missingLists, selectedSupplierId, dateFilter]);
 
   // Memoized Supplier Group Component to prevent whole-list re-renders
