@@ -546,128 +546,115 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
         if (isExcel && !XLSX) {
             showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
-            if (excelInputRef.current) excelInputRef.current.value = '';
             return;
         }
 
         const reader = new FileReader();
 
         reader.onload = (event) => {
-            showNotificationMessage('success', 'Dosya okunuyor, ürünler işleniyor... Lütfen bekleyin.');
+            showNotificationMessage('success', 'Dosya okunuyor, veriler analiz ediliyor... Lütfen bekleyin.');
 
             setTimeout(() => {
                 try {
                     const data = event.target?.result;
                     if (!data) throw new Error("Dosya boş veya okunamıyor.");
 
-                    let text: string;
+                    let jsonData: any[] = [];
                     if (isExcel) {
                         const workbook = XLSX.read(data, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        text = XLSX.utils.sheet_to_csv(worksheet, { FS: ';' });
+                        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                     } else {
-                        text = data as string;
+                        // Handle CSV separately but still using XLSX for consistency if possible
+                        const workbook = XLSX.read(data, { type: 'string' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                     }
 
-                    const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
-                    if (lines.length < 2) throw new Error("Dosya boş veya sadece başlık içeriyor.");
+                    if (jsonData.length === 0) throw new Error("Dosyada işlenecek veri bulunamadı.");
 
-                    const firstLine = lines[0];
-                    const separator = firstLine.includes(';') ? ';' : ',';
-                    const headers = firstLine.split(separator).map(h => normalizeHeader(h.replace(/"/g, '').replace(/\uFEFF/g, '')));
-                    
-                    const CHUNK_SIZE = 500;
-                    let currentIndex = 1; // Start from index 1 to skip header row
                     const allNewProducts: Product[] = [];
                     let totalSkipped = 0;
-                    let mainProductTemplate: Partial<Product> | null = null; // Persists across chunks
+                    let skipReasons: string[] = [];
 
-                    const processChunk = () => {
-                        const chunk = lines.slice(currentIndex, currentIndex + CHUNK_SIZE);
-                        if (chunk.length === 0) {
-                            if (allNewProducts.length > 0) onAddMultipleProducts(allNewProducts);
-                            
-                            let message = `${allNewProducts.length} ürün başarıyla eklendi.`;
-                            if (totalSkipped > 0) message += ` ${totalSkipped} satır, zorunlu alanlar (barkod, ürün adı) eksik olduğu için atlandı.`;
-                            
-                            if (allNewProducts.length === 0 && totalSkipped > 0) showError("Dosyadaki hiçbir satır işlenemedi. Lütfen zorunlu alanları kontrol edin.");
-                            else if (allNewProducts.length === 0 && totalSkipped === 0) showError("Dosyadan eklenecek geçerli ürün bulunamadı. Lütfen dosya formatını ve içeriğini kontrol edin.");
-                            else showSuccess(message);
-                            
+                    // Create a normalized map of headers from the first row
+                    const originalHeaders = Object.keys(jsonData[0]);
+                    const headerMap: { [key: string]: string } = {};
+                    
+                    originalHeaders.forEach(h => {
+                        const normalized = normalizeHeader(h);
+                        const fieldKey = CSV_PRODUCT_HEADER_MAP[normalized];
+                        if (fieldKey) headerMap[h] = fieldKey as string;
+                    });
+
+                    jsonData.forEach((row, idx) => {
+                        const product: Partial<Product> = {};
+                        
+                        // Map row data using our header map
+                        Object.keys(row).forEach(key => {
+                            const fieldKey = headerMap[key];
+                            if (fieldKey) {
+                                let value = row[key];
+                                
+                                // Clean numeric fields
+                                if (['buyPrice', 'price', 'stock'].includes(fieldKey)) {
+                                    const cleanedValue = String(value)
+                                        .replace(/[^\d,.-]/g, '')
+                                        .replace(',', '.');
+                                    const parsed = parseFloat(cleanedValue);
+                                    value = isNaN(parsed) ? 0 : parsed;
+                                }
+                                
+                                (product as any)[fieldKey] = value;
+                            }
+                        });
+
+                        // Validation
+                        if (!product.name) {
+                            totalSkipped++;
+                            if (totalSkipped < 5) skipReasons.push(`Satır ${idx + 2}: Ürün adı eksik.`);
                             return;
                         }
 
-                        chunk.forEach(line => {
-                            if (!line.trim()) return;
-                            const data = line.split(separator).map(d => d.trim().replace(/"/g, ''));
-                            const product: Partial<Product> = {};
-                            
-                            headers.forEach((header, index) => {
-                                const fieldKey = CSV_PRODUCT_HEADER_MAP[header];
-                                if (fieldKey) {
-                                    let value: string | number | undefined = data[index];
-                                    if (['buyPrice', 'price', 'stock'].includes(String(fieldKey))) {
-                                        const cleanedValue = String(value)
-                                            .replace(/[^\d,.-]/g, '')
-                                            .replace(/\./g, (match, offset, full) => offset < full.lastIndexOf(',') ? '' : match)
-                                            .replace(',', '.');
-                                        value = cleanedValue ? parseFloat(cleanedValue) : undefined;
-                                        if (isNaN(value as number)) value = undefined;
-                                    }
-                                    if (value !== undefined && String(value).trim() !== '') {
-                                        (product as Record<string, any>)[fieldKey as string] = value;
-                                    }
-                                }
-                            });
+                        // Ensure barcode exists
+                        let barcode = String(product.barcode || '').trim();
+                        if (!barcode) {
+                            barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
+                        }
 
-                            if (product.anaStokKodu && product.name && !product.barcode && !product.renk && !product.beden) {
-                                mainProductTemplate = { ...product };
-                                return;
-                            }
-
-                            let finalProduct: Partial<Product> = { ...product };
-
-                            if (mainProductTemplate) {
-                                finalProduct = { ...mainProductTemplate, ...product };
-                                if (!finalProduct.anaStokKodu) {
-                                    finalProduct.anaStokKodu = mainProductTemplate.anaStokKodu;
-                                }
-                            }
-
-                            if (!finalProduct.barcode || !finalProduct.name) {
-                                totalSkipped++;
-                                return; 
-                            }
-
-                            allNewProducts.push({
-                                barcode: String(finalProduct.barcode),
-                                name: String(finalProduct.name),
-                                buyPrice: finalProduct.buyPrice ?? 0,
-                                price: finalProduct.price ?? 0,
-                                stock: finalProduct.stock ?? 0,
-                                stokKodu: finalProduct.stokKodu ?? '',
-                                marka: finalProduct.marka ?? '',
-                                model: finalProduct.model ?? '',
-                                renk: finalProduct.renk ?? '',
-                                beden: finalProduct.beden ?? '',
-                                anaStokKodu: finalProduct.anaStokKodu ?? '',
-                                group: finalProduct.group ?? '',
-                                midGroup: finalProduct.midGroup ?? '',
-                                subGroup: finalProduct.subGroup ?? '',
-                                shelfLocation: finalProduct.shelfLocation ?? '',
-                                isActivated: true,
-                            });
+                        allNewProducts.push({
+                            barcode: barcode,
+                            name: String(product.name),
+                            buyPrice: Number(product.buyPrice) || 0,
+                            price: Number(product.price) || 0,
+                            stock: Number(product.stock) || 0,
+                            stokKodu: String(product.stokKodu || ''),
+                            marka: String(product.marka || ''),
+                            model: String(product.model || ''),
+                            renk: String(product.renk || ''),
+                            beden: String(product.beden || ''),
+                            anaStokKodu: String(product.anaStokKodu || ''),
+                            group: String(product.group || ''),
+                            midGroup: String(product.midGroup || ''),
+                            subGroup: String(product.subGroup || ''),
+                            shelfLocation: String(product.shelfLocation || ''),
+                            isActivated: true,
                         });
+                    });
 
-                        currentIndex += CHUNK_SIZE;
-                        setTimeout(processChunk, 0);
-                    };
-
-                    processChunk();
+                    if (allNewProducts.length > 0) {
+                        onAddMultipleProducts(allNewProducts);
+                        let msg = `${allNewProducts.length} ürün başarıyla eklendi.`;
+                        if (totalSkipped > 0) msg += ` (${totalSkipped} satır atlandı)`;
+                        showSuccess(msg);
+                    } else {
+                        showError("Dosyadan yüklenebilecek geçerli ürün bulunamadı. Lütfen başlıkları kontrol edin.");
+                    }
 
                 } catch (err: any) {
-                    showError(`Dosya işlenirken bir hata oluştu: ${err.message}`);
+                    showError(`Dosya işlenirken hata: ${err.message}`);
                     console.error(err);
                 }
             }, 50);
