@@ -38,8 +38,8 @@ autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 
 function createWindow() {
-  // İkon yolunu belirliyoruz (build/icon.png dosyasını kullandık)
-  const iconPath = path.join(__dirname, 'build', 'icon.png');
+  // İkon yolunu belirliyoruz (build/icon.ico dosyasını kullandık)
+  const iconPath = path.join(__dirname, 'build', 'icon.ico');
 
   win = new BrowserWindow({
     width: 1366,
@@ -179,7 +179,7 @@ autoUpdater.on('update-downloaded', () => {
   const notification = new Notification({
     title: 'Güncelleme Hazır',
     body: 'Yeni sürüm başarıyla indirildi. Değişiklikleri uygulamak için lütfen uygulamayı yeniden başlatın.',
-    icon: path.join(__dirname, 'assets', 'icon.png') // İkon varsa yolu kontrol edin
+    icon: path.join(__dirname, 'build', 'icon.ico') // İkon yolu güncellendi
   });
   
   notification.on('click', () => {
