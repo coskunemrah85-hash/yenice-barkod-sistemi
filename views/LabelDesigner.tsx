@@ -105,7 +105,7 @@ const Barcode = ({ value, format = 'CODE128', width = 1, height = 30, displayVal
     return <svg ref={svgRef} className="w-full h-full" />;
 };
 
-const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) => {
+const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, templates, setTemplates, companyInfo, onUpdateCompanyInfo }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterBrand, setFilterBrand] = useState('');
     const [filterModel, setFilterModel] = useState('');
