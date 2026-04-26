@@ -73,13 +73,12 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
         if (localData && Array.isArray(localData) && localData.length > 0) {
           console.log(`[useFirestore] ${collectionName} yerel yedekten yüklendi.`);
           setData(localData);
-          isInitialized.current = true;
         }
       }
+      isInitialized.current = true; // Attempt completed, allow writes now
     };
     loadLocal();
 
-    // 2. Firestore'dan senkronize et
     const q = query(collection(db, collectionName));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: T[] = [];
@@ -87,14 +86,12 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
         items.push({ ...doc.data(), id: doc.id } as T);
       });
       
-      if (items.length > 0 || isInitialized.current) {
-          setData(items);
-          isInitialized.current = true;
-          
-          // Firestore'dan gelen veriyi yerel yedeğe de yaz
-          const ipc = (window as any).require?.('electron')?.ipcRenderer;
-          if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
-      }
+      setData(items);
+      isInitialized.current = true;
+      
+      // Firestore'dan gelen veriyi yerel yedeğe de yaz
+      const ipc = (window as any).require?.('electron')?.ipcRenderer;
+      if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, collectionName);
     });

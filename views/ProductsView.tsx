@@ -564,7 +564,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+        console.log("[Excel] Dosya Seçildi:", file.name, "Boyut:", file.size);
+
+        const fileNameLower = file.name.toLowerCase();
+        const isExcel = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls');
+        const isCsv = fileNameLower.endsWith('.csv');
+        
+        if (!isExcel && !isCsv) {
+            showError("Lütfen geçerli bir Excel (.xlsx, .xls) veya CSV dosyası seçin.");
+            return;
+        }
+
         const reader = new FileReader();
 
         reader.onload = (event) => {
@@ -573,28 +583,43 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             setTimeout(() => {
                 try {
                     const data = event.target?.result;
-                    if (!data) throw new Error("Dosya boş veya okunamıyor.");
+                    if (!data) throw new Error("Dosya içeriği okunamadı.");
 
+                    const workbook = XLSX.read(data, { type: isExcel ? 'array' : 'string' });
                     let rawData: any[][] = [];
-                    if (isExcel) {
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-                    } else {
-                        const workbook = XLSX.read(data, { type: 'string' });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                    let foundSheetName = "";
+
+                    // Try all sheets until we find one with data
+                    for (const sheetName of workbook.SheetNames) {
+                        const worksheet = workbook.Sheets[sheetName];
+                        const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
+                        
+                        if (sheetData.length > 0) {
+                            rawData = sheetData;
+                            foundSheetName = sheetName;
+                            // Check if this sheet has any valid headers
+                            let hasHeaders = false;
+                            for (let i = 0; i < Math.min(sheetData.length, 10); i++) {
+                                if (sheetData[i].some(cell => {
+                                    const norm = normalizeHeader(String(cell));
+                                    return CSV_PRODUCT_HEADER_MAP[norm];
+                                })) {
+                                    hasHeaders = true;
+                                    break;
+                                }
+                            }
+                            if (hasHeaders) break;
+                        }
                     }
 
-                    if (rawData.length === 0) throw new Error("Dosya boş.");
+                    if (rawData.length === 0) throw new Error("Dosyada işlenebilir veri bulunamadı.");
+                    console.log(`[Excel] Kullanılan Sayfa: "${foundSheetName}", Satır Sayısı: ${rawData.length}`);
 
-                    // 1. Find Header Row (Scan first 10 rows for mandatory keywords)
+                    // 1. Find Header Row
                     let headerRowIndex = -1;
                     let foundHeaders: { [key: string]: number } = {};
 
-                    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+                    for (let i = 0; i < Math.min(rawData.length, 20); i++) { // Increase scan to 20 rows
                         const row = rawData[i];
                         const tempMap: { [key: string]: number } = {};
                         let matchCount = 0;
@@ -604,43 +629,76 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                             const fieldKey = CSV_PRODUCT_HEADER_MAP[normalized];
                             if (fieldKey) {
                                 tempMap[fieldKey as string] = cellIdx;
-                                if (['name', 'barcode', 'stokKodu'].includes(fieldKey as string)) matchCount++;
+                                if (['name', 'barcode', 'stokKodu', 'price', 'stock'].includes(fieldKey as string)) matchCount++;
                             }
                         });
 
-                        if (matchCount >= 1) { // At least one main column found
+                        if (matchCount >= 1) { 
                             headerRowIndex = i;
                             foundHeaders = tempMap;
+                            console.log(`[Excel] Başlık satırı bulundu (Satır ${i+1}):`, tempMap);
                             break;
                         }
                     }
 
                     if (headerRowIndex === -1 || !foundHeaders['name']) {
-                        throw new Error("Ürün Adı veya Barkod sütunu bulunamadı. Lütfen Excel başlıklarını kontrol edin.");
+                        throw new Error("Başlıklar anlaşılamadı. 'Ürün Adı' veya 'Stok Adı' gibi temel sütunları bulamadım.");
                     }
-
-                    console.log("[Excel] Header Found at row:", headerRowIndex + 1, foundHeaders);
 
                     const allNewProducts: Product[] = [];
                     let totalSkipped = 0;
+                    let lastValidParent: Partial<Product> | null = null;
 
                     // 2. Process Data Rows
                     for (let i = headerRowIndex + 1; i < rawData.length; i++) {
                         const row = rawData[i];
-                        if (!row || row.length === 0) continue;
+                        if (!row || row.length === 0 || row.every(c => !c)) continue;
 
                         const getValue = (field: string) => {
                             const idx = foundHeaders[field];
                             return idx !== undefined ? String(row[idx] || "").trim() : "";
                         };
 
-                        const pName = getValue('name');
-                        if (!pName) {
+                        const currentName = getValue('name');
+                        const currentAnaKod = getValue('anaStokKodu');
+                        const currentBrand = getValue('marka');
+                        const currentModel = getValue('model');
+                        const currentGroup = getValue('group');
+
+                        // If this row has a name and anaStokKodu, it's a potential parent
+                        if (currentName && currentAnaKod) {
+                            lastValidParent = {
+                                name: currentName,
+                                marka: currentBrand,
+                                model: currentModel,
+                                group: currentGroup,
+                                midGroup: getValue('midGroup'),
+                                subGroup: getValue('subGroup'),
+                                anaStokKodu: currentAnaKod,
+                                shelfLocation: getValue('shelfLocation')
+                            };
+                        }
+
+                        let finalName = currentName;
+                        let finalBrand = currentBrand;
+                        let finalModel = currentModel;
+                        let finalGroup = currentGroup;
+                        let finalAnaKod = currentAnaKod;
+
+                        // Inheritance logic: If missing name/brand but we have a parent, inherit
+                        if (!finalName && lastValidParent) {
+                            finalName = lastValidParent.name;
+                            if (!finalBrand) finalBrand = lastValidParent.marka;
+                            if (!finalModel) finalModel = lastValidParent.model;
+                            if (!finalGroup) finalGroup = lastValidParent.group;
+                            if (!finalAnaKod) finalAnaKod = lastValidParent.anaStokKodu;
+                        }
+
+                        if (!finalName) {
                             totalSkipped++;
                             continue;
                         }
 
-                        // Parse Numbers
                         const parseNum = (field: string) => {
                             const val = getValue(field);
                             if (!val) return 0;
@@ -651,39 +709,41 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
                         let barcode = getValue('barcode');
                         if (!barcode) {
-                            barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
+                            barcode = getValue('stokKodu') || '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
                         }
 
                         allNewProducts.push({
                             barcode: barcode,
-                            name: pName,
+                            name: finalName || "",
                             buyPrice: parseNum('buyPrice'),
                             price: parseNum('price'),
                             stock: Math.round(parseNum('stock')),
                             stokKodu: getValue('stokKodu'),
-                            marka: getValue('marka'),
-                            model: getValue('model'),
+                            marka: finalBrand || "",
+                            model: finalModel || "",
                             renk: getValue('renk'),
                             beden: getValue('beden'),
-                            anaStokKodu: getValue('anaStokKodu'),
-                            group: getValue('group'),
-                            midGroup: getValue('midGroup'),
-                            subGroup: getValue('subGroup'),
-                            shelfLocation: getValue('shelfLocation'),
+                            anaStokKodu: finalAnaKod || "",
+                            group: finalGroup || "",
+                            midGroup: getValue('midGroup') || (lastValidParent?.midGroup || ""),
+                            subGroup: getValue('subGroup') || (lastValidParent?.subGroup || ""),
+                            shelfLocation: getValue('shelfLocation') || (lastValidParent?.shelfLocation || ""),
                             isActivated: true,
                         });
                     }
 
+                    console.log(`[Excel] İşleme bitti. Başarılı: ${allNewProducts.length}, Atlanan: ${totalSkipped}`);
+
                     if (allNewProducts.length > 0) {
                         onAddMultipleProducts(allNewProducts);
-                        showSuccess(`${allNewProducts.length} ürün başarıyla eklendi! ${totalSkipped > 0 ? `(${totalSkipped} boş satır atlandı)` : ""}`);
+                        showSuccess(`${allNewProducts.length} ürün başarıyla işlendi!`);
                     } else {
-                        showError("Yüklenecek geçerli ürün bulunamadı.");
+                        showError("Yüklenecek geçerli ürün verisi bulunamadı.");
                     }
 
                 } catch (err: any) {
-                    showError(`Yükleme Başarısız: ${err.message}`);
-                    console.error("[Excel Import Error]", err);
+                    showError(`Hata: ${err.message}`);
+                    console.error("[Excel Hatası]", err);
                 }
             }, 50);
         };
@@ -757,6 +817,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             } else if (editingCell.isGroup) {
                 // If editing from the Group Row, sync across the entire group
                 const groupKey = getGroupKey(originalProduct);
+                // Important: We need to filter ALL products, not just filtered ones
                 const variations = products.filter(p => getGroupKey(p) === groupKey);
                 
                 if (onBulkUpdateProducts) {
@@ -766,7 +827,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     }));
                     onBulkUpdateProducts(updates);
                 } else {
-                    // Fallback to individual updates if bulk is not provided
+                    // Fallback to individual updates
                     if (field === 'buyPrice') {
                         variations.forEach(v => onUpdateProductBuyPrice(v.barcode, newValue));
                     } else if (field === 'price') {
@@ -908,9 +969,162 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         if (draggedColumn.current && draggedColumn.current !== columnId) setDragOverColumn(columnId);
     };
 
+// Memoized Individual Row Component for high performance
+const ProductRow = React.memo(({ 
+    product, 
+    visibleColumns, 
+    columnWidths, 
+    selectedBarcodes, 
+    toggleSelection, 
+    renderEditableCell, 
+    handleEditProductGroup, 
+    onDeleteProduct, 
+    onRestoreProduct, 
+    getGroupKey 
+}: { 
+    product: Product; 
+    visibleColumns: any[]; 
+    columnWidths: Record<string, number>; 
+    selectedBarcodes: Set<string>; 
+    toggleSelection: (barcode: string) => void; 
+    renderEditableCell: (p: Product, f: any) => React.ReactNode; 
+    handleEditProductGroup: (key: string) => void; 
+    onDeleteProduct: (b: string) => void; 
+    onRestoreProduct: (b: string) => void; 
+    getGroupKey: (p: Product) => string; 
+}) => {
+    return (
+        <tr key={product.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-900/40 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 transition-colors">
+            <td className="p-2 text-center border-r dark:border-slate-700">
+                <input 
+                    type="checkbox" 
+                    checked={selectedBarcodes.has(product.barcode)}
+                    onChange={() => toggleSelection(product.barcode)}
+                    className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                />
+            </td>
+            <td className="border-r dark:border-slate-700"></td>
+            {visibleColumns.map(col => (
+                <td key={col.id} className={`px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
+                    {(() => {
+                        if (col.id === 'name') return <div className="flex flex-col"><span className="font-semibold text-slate-700 dark:text-slate-300">{product.renk} / {product.beden}</span><span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{product.barcode}</span></div>;
+                        if (col.id === 'stock') return <div className="w-full flex justify-end">{renderEditableCell(product, 'stock')}</div>;
+                        if (col.id === 'buyPrice') return <div className="w-full flex justify-end">{renderEditableCell(product, 'buyPrice')}</div>;
+                        if (col.id === 'price') return <div className="w-full flex justify-end">{renderEditableCell(product, 'price')}</div>;
+                        if (col.id === 'profit') return <div className="text-right w-full font-medium text-emerald-500">{(product.price - product.buyPrice).toFixed(2)} ₺</div>;
+                        if (col.id === 'profitMargin') {
+                            const margin = product.buyPrice > 0 ? ((product.price - product.buyPrice) / product.buyPrice) * 100 : 0;
+                            return <div className="text-right w-full font-medium text-slate-400">{margin.toFixed(1)}%</div>;
+                        }
+                        if (col.id === 'actions') return (
+                            <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => handleEditProductGroup(getGroupKey(product))} className="p-1.5 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-4 h-4"/></button>
+                                {product.isDeleted ? 
+                                    <button onClick={() => onRestoreProduct(product.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" title="Geri Yükle"><Icon name="restore" className="w-4 h-4"/></button> : 
+                                    <button onClick={() => onDeleteProduct(product.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600" title="Arşivle"><Icon name="trash" className="w-4 h-4"/></button>
+                                }
+                            </div>
+                        );
+                        return (product as any)[col.id] || '--';
+                    })()}
+                </td>
+            ))}
+        </tr>
+    );
+});
+
+// Memoized Group Row Component
+const GroupRow = React.memo(({ 
+    group, 
+    visibleColumns, 
+    columnWidths, 
+    selectedBarcodes, 
+    isExpanded, 
+    toggleGroup, 
+    toggleGroupSelection, 
+    renderEditableCell, 
+    handleEditProductGroup, 
+    getGroupKey 
+}: { 
+    group: Product[]; 
+    visibleColumns: any[]; 
+    columnWidths: Record<string, number>; 
+    selectedBarcodes: Set<string>; 
+    isExpanded: boolean; 
+    toggleGroup: (key: string, e: any) => void; 
+    toggleGroupSelection: (key: string, items: Product[]) => void; 
+    renderEditableCell: (p: Product, f: any, isG: boolean) => React.ReactNode; 
+    handleEditProductGroup: (key: string) => void; 
+    getGroupKey: (p: Product) => string; 
+}) => {
+    const mainProduct = group[0];
+    const groupKey = getGroupKey(mainProduct);
+    const totalStock = group.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const baseName = mainProduct.name.replace(/\s*\(.*\)$/, '').trim();
+
+    return (
+        <tr className={`border-b dark:border-slate-700 font-semibold transition-colors ${isExpanded ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : 'bg-white dark:bg-slate-800'} hover:bg-rose-100/60 dark:hover:bg-rose-900/20`}>
+            <td className="p-2 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
+                <div className="flex items-center justify-center">
+                    <input 
+                        type="checkbox" 
+                        checked={group.every(p => selectedBarcodes.has(p.barcode))}
+                        onChange={() => {}}
+                        className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                </div>
+            </td>
+            <td 
+                className="p-2 text-center border-r dark:border-slate-700 cursor-pointer hover:bg-rose-200/50 dark:hover:bg-rose-800/30 transition-colors"
+                onClick={(e) => toggleGroup(groupKey, e)}
+            >
+                <div className="flex items-center justify-center w-full">
+                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-4 h-4 text-rose-600 dark:text-rose-400`} />
+                </div>
+            </td>
+            {visibleColumns.map(col => (
+                <td key={col.id} className={`px-2 py-2 border-r dark:border-slate-700 last:border-r-0 truncate`} style={{ textAlign: col.align || 'left'}}>
+                    {(() => {
+                        if (col.id === 'name') return (
+                            <div className="flex flex-col">
+                                <span className="text-slate-900 dark:text-slate-100 font-bold truncate" title={baseName}>{baseName}</span>
+                                <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
+                                    <Icon name="list-bullet" className="w-3 h-3" />
+                                    {group.length} Varyasyon
+                                </span>
+                            </div>
+                        );
+                        if (col.id === 'stock') return (
+                            <div className="flex flex-col items-end">
+                                <span className={`text-sm font-bold ${totalStock <= 5 ? 'text-red-600' : 'text-slate-700 dark:text-slate-300'}`}>{totalStock}</span>
+                                <span className="text-[9px] text-slate-400 font-normal">Toplam</span>
+                            </div>
+                        );
+                        if (col.id === 'actions') return (
+                            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                                 <button onClick={() => handleEditProductGroup(groupKey)} className="p-2 rounded-full text-slate-500 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Ürün Grubunu Düzenle">
+                                    <Icon name="edit" className="w-5 h-5"/>
+                                </button>
+                            </div>
+                        );
+                        if (['buyPrice', 'price'].includes(col.id)) {
+                            return <div className="w-full flex justify-end">{renderEditableCell(mainProduct, col.id as any, true)}</div>;
+                        }
+                        if (col.id === 'profit') {
+                            const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
+                            const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
+                            return <div className="text-right w-full font-bold text-emerald-600">{(avgPrice - avgBuy).toFixed(2)} ₺</div>;
+                        }
+                        return (mainProduct as any)[col.id] || '--';
+                    })()}
+                </td>
+            ))}
+        </tr>
+    );
+});
+
     return (
         <div className="w-full h-full flex flex-col gap-4 relative">
-
             <div className="view-header">
                 <h1 className="view-title">Ürünler ve Stok Yönetimi</h1>
                 <div className="view-actions flex-grow justify-between">
@@ -1047,134 +1261,37 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                             {productGroups.length === 0 ? (
                                 <tr><td colSpan={visibleColumns.length + 2} className="text-center p-16 text-slate-500 font-medium">Böyle bir ürün bulunamadı.</td></tr>
                             ) : productGroups.slice(0, displayLimit).map((group, index) => {
-                                const mainProduct = group[0];
-                                const groupKey = getGroupKey(mainProduct);
-
-                                const totalStock = group.reduce((sum, p) => sum + p.stock, 0);
+                                const groupKey = getGroupKey(group[0]);
                                 const isExpanded = expandedGroups.has(groupKey);
-                                const baseName = mainProduct.name.replace(/\s*\(.*\)$/, '').trim();
 
                                 return (
                                     <React.Fragment key={groupKey}>
-                                        <tr 
-                                            className={`border-b dark:border-slate-700 font-semibold transition-colors ${isExpanded ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : (index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-emerald-100/50 dark:bg-emerald-900/20')} hover:bg-rose-100/60 dark:hover:bg-rose-900/20`}
-                                        >
-                                            <td className="p-2 text-center border-r dark:border-slate-700" onClick={(e) => { e.stopPropagation(); toggleGroupSelection(groupKey, group); }}>
-                                                <div className="flex items-center justify-center">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={group.every(p => selectedBarcodes.has(p.barcode))}
-                                                        onChange={() => {}} // Done in parent div click
-                                                        className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                                                    />
-                                                </div>
-                                            </td>
-                                            <td 
-                                                className="p-2 text-center border-r dark:border-slate-700 cursor-pointer hover:bg-rose-200/50 dark:hover:bg-rose-800/30 transition-colors"
-                                                onClick={(e) => toggleGroup(groupKey, e)}
-                                                title={isExpanded ? 'Kapat' : 'Genişlet'}
-                                            >
-                                                <div className="flex items-center justify-center w-full">
-                                                    <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className={`w-4 h-4 text-rose-600 dark:text-rose-400 transition-transform`} />
-                                                </div>
-                                            </td>
-                                            {visibleColumns.map(col => (
-                                                <td key={col.id} className={`px-2 py-2 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
-                                                    {(() => {
-                                                        if (col.id === 'name') return (
-                                                            <div className="flex flex-col">
-                                                                <span className="text-slate-900 dark:text-slate-100 font-bold truncate" title={baseName}>{baseName}</span>
-                                                                <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
-                                                                    <Icon name="list-bullet" className="w-3 h-3" />
-                                                                    {group.length} Varyasyon
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                        if (col.id === 'stock') return (
-                                                            <div className="flex flex-col items-end">
-                                                                <span className={`text-sm font-bold ${totalStock <= 5 ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>{totalStock}</span>
-                                                                <span className="text-[9px] text-slate-400 font-normal">Toplam</span>
-                                                            </div>
-                                                        );
-                                                        if (col.id === 'anaStokKodu') return (
-                                                            <div className="flex flex-col">
-                                                                <span className="text-cyan-700 dark:text-cyan-400 font-mono text-[11px] truncate" title={groupKey}>{groupKey}</span>
-                                                                <span className="text-[9px] text-slate-400 font-normal">Grup Kodu</span>
-                                                            </div>
-                                                        );
-                                                        if (col.id === 'actions') return (
-                                                            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                                                                 <button onClick={() => handleEditProductGroup(groupKey)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600 dark:hover:text-cyan-400" title="Ürün Grubunu Düzenle">
-                                                                    <Icon name="edit" className="w-5 h-5"/>
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                        
-                                                        const values = new Set(group.map(p => (p as any)[col.id]));
-                                                        if (values.size === 1 && !['buyPrice', 'price', 'renk', 'beden', 'barcode', 'stokKodu', 'description'].includes(col.id)) {
-                                                            return (mainProduct as any)[col.id] || '--';
-                                                        }
-                                                        
-                                                        if (['buyPrice', 'price'].includes(col.id)) {
-                                                            return <div className="w-full flex justify-end">{renderEditableCell(mainProduct, col.id as any, true)}</div>;
-                                                        }
-
-                                                        if (col.id === 'profit') {
-                                                            const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
-                                                            const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
-                                                            return <div className="text-right w-full font-bold text-emerald-600 dark:text-emerald-400">{(avgPrice - avgBuy).toFixed(2)} ₺</div>;
-                                                        }
-                                                        
-                                                        if (col.id === 'profitMargin') {
-                                                            const avgBuy = group.reduce((sum, p) => sum + p.buyPrice, 0) / group.length;
-                                                            const avgPrice = group.reduce((sum, p) => sum + p.price, 0) / group.length;
-                                                            const margin = avgBuy > 0 ? ((avgPrice - avgBuy) / avgBuy) * 100 : 0;
-                                                            return <div className="text-right w-full font-bold text-slate-500">{margin.toFixed(1)}%</div>;
-                                                        }
-                                                        
-                                                        return '--';
-                                                    })()}
-                                                </td>
-                                            ))}
-                                        </tr>
+                                        <GroupRow 
+                                            group={group}
+                                            visibleColumns={visibleColumns}
+                                            columnWidths={columnWidths}
+                                            selectedBarcodes={selectedBarcodes}
+                                            isExpanded={isExpanded}
+                                            toggleGroup={toggleGroup}
+                                            toggleGroupSelection={toggleGroupSelection}
+                                            renderEditableCell={renderEditableCell}
+                                            handleEditProductGroup={handleEditProductGroup}
+                                            getGroupKey={getGroupKey}
+                                        />
                                         {isExpanded && group.map(p => (
-                                            <tr key={p.barcode} className="border-b dark:border-slate-700 last:border-b-0 bg-white dark:bg-slate-900/40 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 transition-colors">
-                                                <td className="p-2 text-center border-r dark:border-slate-700">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={selectedBarcodes.has(p.barcode)}
-                                                        onChange={() => toggleSelection(p.barcode)}
-                                                        className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                                                    />
-                                                </td>
-                                                <td className="border-r dark:border-slate-700"></td>
-                                                {visibleColumns.map(col => (
-                                                    <td key={col.id} className={`px-2 py-1.5 border-r dark:border-slate-700 last:border-r-0 ${['buyPrice', 'price', 'stock', 'profit', 'profitMargin'].includes(col.id) ? '' : 'truncate'}`} style={{ textAlign: col.align || 'left'}}>
-                                                        {(() => {
-                                                            if (col.id === 'name') return <div className="flex flex-col"><span className="font-semibold text-slate-700 dark:text-slate-300">{p.renk} / {p.beden}</span><span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">{p.barcode}</span></div>;
-                                                            if (col.id === 'stock') return <div className="w-full flex justify-end">{renderEditableCell(p, 'stock')}</div>;
-                                                            if (col.id === 'buyPrice') return <div className="w-full flex justify-end">{renderEditableCell(p, 'buyPrice')}</div>;
-                                                            if (col.id === 'price') return <div className="w-full flex justify-end">{renderEditableCell(p, 'price')}</div>;
-                                                            if (col.id === 'profit') return <div className="text-right w-full font-medium text-emerald-500">{(p.price - p.buyPrice).toFixed(2)} ₺</div>;
-                                                            if (col.id === 'profitMargin') {
-                                                                const margin = p.buyPrice > 0 ? ((p.price - p.buyPrice) / p.buyPrice) * 100 : 0;
-                                                                return <div className="text-right w-full font-medium text-slate-400">{margin.toFixed(1)}%</div>;
-                                                            }
-                                                            if (col.id === 'actions') return <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}><button onClick={() => handleEditProductGroup(getGroupKey(p))} className="p-1.5 rounded-full text-slate-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:text-cyan-600" title="Düzenle"><Icon name="edit" className="w-4 h-4"/></button>
-{p.isDeleted ? <button onClick={() => onRestoreProduct(p.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" title="Geri Yükle"><Icon name="restore" className="w-4 h-4"/></button> : <button onClick={() => onDeleteProduct(p.barcode)} className="p-1.5 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600" title="Arşivle"><Icon name="trash" className="w-4 h-4"/></button>}</div>;
-                                                            if (col.id === 'renk') return p.renk;
-                                                            if (col.id === 'beden') return p.beden;
-                                                            if (col.id === 'stokKodu') return p.stokKodu;
-                                                            if (col.id === 'barcode') return p.barcode;
-                                                            
-                                                            const groupValue = (mainProduct as any)[col.id];
-                                                            const val = (p as any)[col.id];
-                                                            if (val === groupValue) return <span className="opacity-30">{val}</span>;
-                                                            return val || '--';
-                                                        })()}
-                                                    </td>
-                                                ))}
-                                            </tr>
+                                            <ProductRow 
+                                                key={p.barcode}
+                                                product={p}
+                                                visibleColumns={visibleColumns}
+                                                columnWidths={columnWidths}
+                                                selectedBarcodes={selectedBarcodes}
+                                                toggleSelection={toggleSelection}
+                                                renderEditableCell={renderEditableCell}
+                                                handleEditProductGroup={handleEditProductGroup}
+                                                onDeleteProduct={onDeleteProduct}
+                                                onRestoreProduct={onRestoreProduct}
+                                                getGroupKey={getGroupKey}
+                                            />
                                         ))}
                                     </React.Fragment>
                                 );
