@@ -20,6 +20,7 @@ export interface Model {
 export interface Color {
   id: string;
   name: string;
+  code?: string;
 }
 
 export interface Size {
@@ -54,9 +55,31 @@ export interface CompanyInfo {
   aiEnabled?: boolean;
   geminiApiKey?: string;
   darkMode?: boolean;
+  autoPrintReceipt?: boolean;
+  soundEnabled?: boolean;
+  lowStockThreshold?: number;
+  accentColor?: 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan';
+  quickAddMode?: boolean;
   labelEngine?: 'bartender' | 'argox' | 'native';
   labelTemplatePath?: string;
   labelAppPath?: string;
+  // E-Ticaret Settings
+  trendyolApiKey?: string;
+  trendyolApiSecret?: string;
+  trendyolSellerId?: string;
+  hepsiburadaMerchantId?: string;
+  hepsiburadaApiKey?: string;
+  n11AppKey?: string;
+  n11AppSecret?: string;
+  autoStockSync?: boolean;
+  autoPriceSync?: boolean;
+  autoOrderSync?: boolean;
+  // Custom API & Webhook Settings
+  customWebsiteUrl?: string;
+  customWebsiteApiKey?: string;
+  customWebhookUrl?: string;
+  googleAIStudioAppKey?: string;
+  externalApiEnabled?: boolean;
 }
 
 export interface Customer {
@@ -215,6 +238,8 @@ export enum View {
   SERIAL_LABEL = 'SERIAL_LABEL',
   BULK_PRICE_UPDATE = 'BULK_PRICE_UPDATE',
   STOCK_ORDER = 'STOCK_ORDER',
+  CARI_MANAGEMENT = 'CARI_MANAGEMENT',
+  E_DONUSUM = 'E_DONUSUM',
 }
 
 export type TabIcon = 'dashboard' | 'new-sale' | 'products' | 'reports' | 'back' | 'settings' | 'purchase' | 'finance' | 'tag' | 'list-bullet' | 'users' | 'logout' | 'database' | 'sales-management' | 'refresh' | 'chart' | 'customer' | 'ai' | 'excel' | 'pdf' | 'whatsapp' | 'barcode' | 'calculator-menu' | 'supplier';
@@ -310,7 +335,6 @@ export interface LabelTemplate {
 }
 
 export interface AppBackup {
-// ... existing
   users: User[];
   companyInfo: CompanyInfo;
   products: Product[];
@@ -326,4 +350,6 @@ export interface AppBackup {
   customers: Customer[];
   purchaseHistory: PurchaseRecord[];
   paymentHistory: PaymentRecord[];
+  labelTemplates: LabelTemplate[];
+  missingLists: MissingListRecord[];
 }

@@ -24,7 +24,6 @@ const StorageManagementView: React.FC<StorageManagementViewProps> = ({ onExportD
         onImportData(file);
       }
     }
-    // Reset file input value to allow re-uploading the same file
     if(event.target) {
         event.target.value = '';
     }
@@ -39,89 +38,100 @@ const StorageManagementView: React.FC<StorageManagementViewProps> = ({ onExportD
     }
   };
 
-
   return (
-    <div className="w-full h-full flex flex-col items-center overflow-y-auto py-8">
-      <div className="w-full max-w-4xl p-10 bg-white rounded-xl shadow-lg border border-slate-200/80 space-y-8">
-        {/* Export Section */}
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-3">
-            <Icon name="download" className="w-7 h-7 text-cyan-600" />
-            Verileri Dışa Aktar (Yedekleme)
-          </h2>
-          <p className="text-slate-500 mb-4">
-            Tüm uygulama verilerinizi (ürünler, satışlar, ayarlar vb.) tek bir JSON dosyası olarak bilgisayarınıza indirin. Bu dosyayı güvenli bir yerde saklayarak verilerinizi yedekleyebilirsiniz.
-          </p>
-          <button
-            onClick={onExportData}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-md hover:shadow-cyan-500/40 flex items-center gap-2"
-          >
-            <Icon name="download" className="w-5 h-5" />
-            Verileri İndir
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-slate-200"></div>
-
-        {/* Import Section */}
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-3">
-            <Icon name="upload" className="w-7 h-7 text-green-600" />
-            Yedekten Geri Yükle
-          </h2>
-           <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-r-lg mb-4">
-            <p className="font-bold">Önemli Uyarı!</p>
-            <p>Bu işlem, mevcut tüm verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir. Bu işlem geri alınamaz.</p>
+    <div className="w-full h-full bg-gradient-to-br from-[#4c1d95] via-[#1e40af] to-[#0f172a] p-8 overflow-y-auto custom-scrollbar">
+      
+      <div className="max-w-5xl mx-auto space-y-8">
+          {/* 🛡️ HEADER */}
+          <div className="flex items-center justify-between mb-12">
+              <div>
+                  <h1 className="text-3xl font-black text-white tracking-tight uppercase underline decoration-indigo-500 decoration-4 underline-offset-8">VERİ <span className="text-indigo-400">YÖNETİMİ</span></h1>
+                  <p className="text-[10px] text-white/50 font-bold uppercase tracking-[0.3em] mt-3">Sistem Yedekleme ve Güvenlik Merkezi</p>
+              </div>
+              <div className="w-16 h-16 bg-white/10 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
+                  <Icon name="database" className="w-8 h-8 text-indigo-400" />
+              </div>
           </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json"
-            className="hidden"
-          />
-          <button
-            onClick={handleImportClick}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-md hover:shadow-green-500/40 flex items-center gap-2"
-          >
-            <Icon name="upload" className="w-5 h-5" />
-            Yedek Dosyası Seç ve Yükle
-          </button>
-        </div>
 
-        {/* Divider */}
-        <div className="border-t border-slate-200"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* 📤 EXPORT CARD */}
+              <div className="bg-white/10 backdrop-blur-3xl border border-white/10 p-10 rounded-[3.5rem] shadow-2xl group transition-all hover:bg-white/15">
+                  <div className="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+                      <Icon name="download" className="w-8 h-8 text-indigo-400" />
+                  </div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight mb-4">Verileri Yedekle</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed mb-10">
+                      Tüm ürünlerinizi, satış geçmişinizi ve ayarlarınızı güvenli bir JSON dosyası olarak bilgisayarınıza indirin.
+                  </p>
+                  <button
+                    onClick={onExportData}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white h-16 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-4 shadow-xl shadow-indigo-600/20 transition-all active:scale-95"
+                  >
+                    <Icon name="download" className="w-5 h-5" />
+                    Sistemi Yedekle
+                  </button>
+              </div>
 
-        {/* Reset Section */}
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-3">
-            <Icon name="exclamation-triangle" className="w-7 h-7 text-rose-600" />
-            Tehlikeli Alan
-          </h2>
-          <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-800 p-4 rounded-r-lg mb-4">
-            <p className="font-bold">UYARI: GERİ ALINAMAZ İŞLEM</p>
-            <p>Bu işlem, yönetici hesabı dışındaki tüm ürünleri, satışları, tanımları ve diğer verileri kalıcı olarak silecektir. Uygulamayı ilk kurduğunuzdaki haline döndürür. Sadece gerçek verilerinizi girmeye başlamadan önce deneme verilerini temizlemek için kullanın.</p>
+              {/* 📥 IMPORT CARD */}
+              <div className="bg-white/10 backdrop-blur-3xl border border-white/10 p-10 rounded-[3.5rem] shadow-2xl group transition-all hover:bg-white/15">
+                  <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+                      <Icon name="upload" className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight mb-4">Yedekten Yükle</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed mb-10">
+                      Daha önce aldığınız bir yedeği sisteme geri yükleyerek verilerinizi anında kurtarın.
+                  </p>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+                  <button
+                    onClick={handleImportClick}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-16 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-4 shadow-xl shadow-emerald-600/20 transition-all active:scale-95"
+                  >
+                    <Icon name="upload" className="w-5 h-5" />
+                    Dosya Seç & Yükle
+                  </button>
+              </div>
           </div>
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              value={resetConfirmation}
-              onChange={(e) => setResetConfirmation(e.target.value)}
-              placeholder='Onaylamak için "SİL" yazın'
-              className="h-12 border-2 border-slate-300 rounded-lg px-4 focus:outline-none focus:ring-2 focus:ring-rose-500"
-            />
-            <button
-              onClick={handleReset}
-              disabled={resetConfirmation !== 'SİL'}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-md hover:shadow-rose-500/40 disabled:bg-slate-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center gap-2"
-            >
-              <Icon name="trash" className="w-5 h-5" />
-              Tüm Verileri Sıfırla
-            </button>
+
+          {/* ⚠️ DANGER ZONE */}
+          <div className="mt-12 bg-rose-500/5 border-2 border-rose-500/20 p-10 rounded-[4rem] relative overflow-hidden group shadow-2xl shadow-rose-500/5">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 blur-[100px] -mr-32 -mt-32"></div>
+              
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+                  <div className="flex-1">
+                      <h3 className="text-2xl font-black text-rose-400 uppercase tracking-tight mb-4 flex items-center gap-4">
+                          <Icon name="exclamation-circle" className="w-8 h-8" /> Tehlikeli Bölge
+                      </h3>
+                      <p className="text-sm text-rose-200/60 font-bold uppercase tracking-widest leading-relaxed max-w-2xl">
+                          UYARI: Bu işlem tüm verileri kalıcı olarak siler ve uygulamayı fabrika ayarlarına döndürür. Bu işlem geri alınamaz!
+                      </p>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0">
+                      <input
+                          type="text"
+                          value={resetConfirmation}
+                          onChange={(e) => setResetConfirmation(e.target.value)}
+                          placeholder='Onay için "SİL" yazın'
+                          className="w-full sm:w-56 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl p-4 text-rose-100 placeholder:text-rose-500/40 focus:outline-none focus:border-rose-500 font-black text-center uppercase tracking-widest"
+                      />
+                      <button
+                        onClick={handleReset}
+                        disabled={resetConfirmation !== 'SİL'}
+                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-500 text-white px-8 h-16 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-rose-500/20 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-4"
+                      >
+                        <Icon name="trash" className="w-5 h-5" />
+                        Sistemi Sıfırla
+                      </button>
+                  </div>
+              </div>
           </div>
-        </div>
       </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; }
+      `}</style>
     </div>
   );
 };

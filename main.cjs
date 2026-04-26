@@ -1,9 +1,10 @@
-const { app, BrowserWindow, shell, ipcMain, nativeTheme, dialog } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, nativeTheme, dialog, Notification } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 
 // Sarı güvenlik uyarılarını kapatır, konsolu temizler
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
@@ -123,7 +124,7 @@ function createWindow() {
         console.error(`Port ${port} kullanımda! Veri tutarlılığı için port değişmemeli.`);
       }
     });
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, '0.0.0.0', () => {
       win.loadURL(`http://localhost:${port}`);
     });
   } else {
@@ -144,7 +145,7 @@ app.whenReady().then(() => {
   
   if (app.isPackaged) {
     setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
+      autoUpdater.checkForUpdates();
     }, 5000);
   }
 });
@@ -173,6 +174,19 @@ autoUpdater.on('download-progress', (progressObj) => {
 
 autoUpdater.on('update-downloaded', () => {
   if (win) win.webContents.send('update_downloaded');
+  
+  // Türkçe Masaüstü Bildirimi
+  const notification = new Notification({
+    title: 'Güncelleme Hazır',
+    body: 'Yeni sürüm başarıyla indirildi. Değişiklikleri uygulamak için lütfen uygulamayı yeniden başlatın.',
+    icon: path.join(__dirname, 'assets', 'icon.png') // İkon varsa yolu kontrol edin
+  });
+  
+  notification.on('click', () => {
+    autoUpdater.quitAndInstall();
+  });
+  
+  notification.show();
 });
 
 ipcMain.on('restart_app', () => {
@@ -183,10 +197,8 @@ ipcMain.on('check_for_updates', async () => {
   if (win) {
     console.log('🔍 Manuel güncelleme kontrolü başlatıldı...');
     try {
-      const result = await autoUpdater.checkForUpdatesAndNotify();
-      if (result && !result.updateInfo) {
-        console.log('✅ Sistem güncel, yeni sürüm yok.');
-      }
+      // checkForUpdatesAndNotify yerine checkForUpdates kullanarak İngilizce bildirimi engelliyoruz
+      await autoUpdater.checkForUpdates();
     } catch (error) {
       console.error('❌ Güncelleme kontrolü hatası:', error);
       if (win) win.webContents.send('updater_error', 'Güncelleme kontrolü başarısız. Daha sonra tekrar deneyin.');
@@ -283,6 +295,61 @@ ipcMain.on('save-excel', async (event, { buffer, filename }) => {
   }
 });
 
+// --- Local Data Persistence Handlers ---
+ipcMain.handle('save-data', async (event, { collection, data }) => {
+  try {
+    const dataDir = path.join(app.getPath('userData'), 'local_db');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    
+    const filePath = path.join(dataDir, `${collection}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    return { success: true };
+  } catch (error) {
+    console.error('Save error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-data', async (event, { collection }) => {
+  try {
+    const filePath = path.join(app.getPath('userData'), 'local_db', `${collection}.json`);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(content);
+    }
+    return null;
+  } catch (error) {
+    console.error('Load error:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('get-ip', async () => {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips.length > 0 ? ips : ['localhost'];
+});
+
+ipcMain.handle('get-hostname', async () => {
+  return os.hostname().toLowerCase() + '.local';
+});
+
+// Pencere kapatıldığında uygulamayı tamamen kapat (macOS hariç)
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });

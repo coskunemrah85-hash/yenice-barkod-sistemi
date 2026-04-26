@@ -24,7 +24,7 @@ interface NavbarProps {
 const NavButton: React.FC<{ onClick: () => void; icon: TabIcon; label: string; colorClasses: string; }> = ({ onClick, icon, label, colorClasses }) => (
         <button
         onClick={onClick}
-        className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${colorClasses}`}
+        className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-semibold transition-colors duration-100 ${colorClasses}`}
     >
         <Icon name={icon} className="w-5 h-5" />
         <span>{label}</span>
@@ -49,7 +49,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, aiTasks, onReviewAiTask, on
               <div
                 key={tab.id}
                 onClick={() => onTabClick(tab.id)}
-                className={`flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-t-md text-xs font-semibold transition-colors relative border-x border-t cursor-pointer ${
+                className={`flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-t-md text-xs font-semibold transition-colors duration-100 relative border-x border-t cursor-pointer ${
                   isActive
                     ? `bg-slate-100 dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-white -mb-[1px] border-b border-b-slate-100 dark:border-b-slate-800` // Overlap effect
                     : `bg-slate-200/60 dark:bg-slate-800/40 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700`

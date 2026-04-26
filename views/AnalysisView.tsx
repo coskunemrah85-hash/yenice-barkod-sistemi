@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { SaleRecord, Product, PurchaseRecord, PaymentRecord, ReturnRecord, Supplier } from '../types';
 import StatCard from '../components/StatCard';
@@ -77,134 +76,158 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({
     }, [filteredSales]);
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-            {/* --- Premium Sticky Header --- */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b dark:border-slate-700 p-6 z-10">
-                <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter uppercase italic flex items-center gap-3">
-                            <div className="p-2 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30">
-                                <Icon name="chart" className="w-6 h-6 text-white" />
-                            </div>
-                            Finansal Yönetici Paneli
-                        </h1>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">İşletme Verimliliği ve Stratejik Analiz</p>
+        <div className="w-full h-full bg-[#020617] text-slate-300 font-sans overflow-hidden flex flex-col transform-gpu">
+            
+            {/* 🌌 PREMIUM GLASS HEADER */}
+            <header className="p-8 border-b border-white/5 bg-white/[0.02] backdrop-blur-3xl flex items-center justify-between shrink-0 z-20">
+                <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                        <Icon name="chart" className="w-6 h-6 text-white" />
                     </div>
-
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border dark:border-slate-700">
-                        <button 
-                            onClick={() => setActiveView('overview')}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'overview' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Genel Bakış
-                        </button>
-                        <button 
-                            onClick={() => setActiveView('suppliers')}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'suppliers' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Tedarikçi Analizi
-                        </button>
-                        <button 
-                            onClick={() => setActiveView('simulator')}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'simulator' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Simülatör
-                        </button>
+                    <div>
+                        <h1 className="text-2xl font-black text-white tracking-tighter uppercase underline decoration-indigo-500 decoration-4 underline-offset-4">FİNANSAL <span className="text-indigo-400">ANALİZ</span></h1>
+                        <p className="text-[9px] font-black text-indigo-400/50 uppercase tracking-[0.3em]">Gerçek Zamanlı Veri & Stratejik Öngörü</p>
                     </div>
                 </div>
-            </div>
 
-            <div className="flex-grow overflow-y-auto p-6 lg:p-10 custom-scrollbar">
-                <div className="max-w-7xl mx-auto space-y-10">
-                    
-                    {/* --- Filter & Dates Section --- */}
-                    {activeView !== 'simulator' && (
-                        <div className="flex flex-col lg:flex-row justify-between items-center gap-6 animate-fade-in">
-                            <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700 shadow-sm">
-                                {(['today', 'week', 'month'] as Preset[]).map(p => (
-                                    <button 
-                                        key={p} 
-                                        onClick={() => handlePresetChange(p)} 
-                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === p ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                                    >
-                                        {p === 'today' ? 'Bugün' : p === 'week' ? 'Bu Hafta' : 'Bu Ay'}
-                                    </button>
-                                ))}
+                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10">
+                    {[
+                        { id: 'overview', label: 'Genel Bakış', icon: 'reports' },
+                        { id: 'suppliers', label: 'Tedarikçi Analizi', icon: 'users' },
+                        { id: 'simulator', label: 'Profit Simulator', icon: 'ai' }
+                    ].map(tab => (
+                        <button 
+                            key={tab.id}
+                            onClick={() => setActiveView(tab.id as any)}
+                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${activeView === tab.id ? 'bg-indigo-600 text-white shadow-xl' : 'text-white/40 hover:text-white'}`}
+                        >
+                            <Icon name={tab.icon as any} className="w-4 h-4" />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-10">
+                
+                {/* --- Filter & Dates Section --- */}
+                {activeView !== 'simulator' && (
+                    <div className="flex flex-col xl:flex-row justify-between items-center gap-8">
+                        <div className="flex items-center gap-2 p-1 bg-white/5 rounded-2xl border border-white/10 shadow-2xl">
+                            {(['today', 'week', 'month'] as Preset[]).map(p => (
                                 <button 
-                                    onClick={() => setPreset('custom')}
-                                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === 'custom' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                    key={p} 
+                                    onClick={() => handlePresetChange(p)} 
+                                    className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === p ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-white/30 hover:bg-white/5 hover:text-white'}`}
                                 >
-                                    Özel
+                                    {p === 'today' ? 'Bugün' : p === 'week' ? 'Bu Hafta' : 'Bu Ay'}
                                 </button>
-                            </div>
-
-                            <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-2xl border dark:border-slate-700 shadow-sm">
-                                <input type="datetime-local" value={startDate} onChange={e => {setStartDate(e.target.value); setPreset('custom');}} className="bg-transparent border-none text-[11px] font-bold text-slate-600 dark:text-slate-300 focus:ring-0 outline-none"/>
-                                <div className="w-4 h-[2px] bg-slate-300 dark:bg-slate-600 rounded-full"></div>
-                                <input type="datetime-local" value={endDate} onChange={e => {setEndDate(e.target.value); setPreset('custom');}} className="bg-transparent border-none text-[11px] font-bold text-slate-600 dark:text-slate-300 focus:ring-0 outline-none"/>
-                            </div>
+                            ))}
+                            <button 
+                                onClick={() => setPreset('custom')}
+                                className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === 'custom' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-white/30 hover:bg-white/5 hover:text-white'}`}
+                            >
+                                Özel
+                            </button>
                         </div>
-                    )}
 
-                    {/* --- KPI Grid --- */}
+                        <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 shadow-2xl">
+                            <input type="datetime-local" value={startDate} onChange={e => {setStartDate(e.target.value); setPreset('custom');}} className="bg-transparent border-none text-xs font-black text-white/70 focus:ring-0 outline-none p-2"/>
+                            <div className="w-4 h-[2px] bg-white/10 rounded-full"></div>
+                            <input type="datetime-local" value={endDate} onChange={e => {setEndDate(e.target.value); setPreset('custom');}} className="bg-transparent border-none text-xs font-black text-white/70 focus:ring-0 outline-none p-2"/>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- KPI Grid --- */}
+                {activeView === 'overview' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
+                        <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all border-b-4 border-b-emerald-500/50">
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">TOPLAM CİRO</p>
+                            <h3 className="text-2xl font-black text-white">{kpis.totalRevenue.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</h3>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all border-b-4 border-b-cyan-500/50">
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">BRÜT KÂR</p>
+                            <h3 className="text-2xl font-black text-white">{kpis.totalProfit.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</h3>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all border-b-4 border-b-indigo-500/50">
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">KÂR MARJI</p>
+                            <h3 className="text-2xl font-black text-white">%{kpis.profitMargin.toFixed(2)}</h3>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all border-b-4 border-b-violet-500/50">
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">SATIŞ ADEDİ</p>
+                            <h3 className="text-2xl font-black text-white">{kpis.transactionCount.toLocaleString('tr-TR')}</h3>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all border-b-4 border-b-rose-500/50">
+                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">ORT. SEPET</p>
+                            <h3 className="text-2xl font-black text-white">{kpis.avgBasketValue.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</h3>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- Content Area --- */}
+                <div className="animate-fade-in-down">
                     {activeView === 'overview' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 animate-slide-up">
-                            <StatCard icon="finance" title="Toplam Ciro" value={kpis.totalRevenue.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" />
-                            <StatCard icon="reports" title="Brüt Kâr" value={kpis.totalProfit.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} color="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600" />
-                            <StatCard icon="tag" title="Kâr Marjı" value={`%${kpis.profitMargin.toFixed(2)}`} color="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600" />
-                            <StatCard icon="new-sale" title="Satış Adedi" value={kpis.transactionCount.toLocaleString('tr-TR')} color="bg-violet-100 dark:bg-violet-900/30 text-violet-600" />
-                            <StatCard icon="sales-management" title="Ort. Sepet" value={kpis.avgBasketValue.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} color="bg-rose-100 dark:bg-rose-900/30 text-rose-600" />
-                        </div>
-                    )}
-
-                    {/* --- Content Area --- */}
-                    <div className="animate-fade-in-down">
-                        {activeView === 'overview' && (
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-2xl overflow-hidden relative group">
-                                <div className="absolute top-0 right-0 p-8 opacity-[0.02] -mr-16 -mt-16 group-hover:opacity-[0.05] transition-opacity">
-                                    <Icon name="chart" className="w-64 h-64" />
-                                </div>
-                                <div className="relative z-10">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-l-4 border-indigo-600 pl-4">Satış Trend Analizi</h3>
-                                        <div className="flex gap-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-indigo-600 shadow-lg shadow-indigo-500/50"></div>
-                                                <span className="text-[10px] font-black text-slate-400 uppercase">Ciro</span>
-                                            </div>
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-12 rounded-[4rem] shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-8 opacity-[0.02] -mr-16 -mt-16 group-hover:opacity-[0.05] transition-opacity">
+                                <Icon name="chart" className="w-96 h-96" />
+                            </div>
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-center mb-12">
+                                    <h3 className="text-sm font-black text-white uppercase tracking-[0.3em] border-l-8 border-indigo-600 pl-6">Satış Trend Analizi (Görsel Grafik)</h3>
+                                    <div className="flex gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-4 h-4 rounded-full bg-indigo-600 shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+                                            <span className="text-[11px] font-black text-white/40 uppercase tracking-widest">CIRO AKIŞI</span>
                                         </div>
                                     </div>
+                                </div>
+                                <div className="min-h-[400px]">
                                     <PremiumSalesChart sales={filteredSales} />
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {activeView === 'suppliers' && (
-                            <SupplierProfitView sales={filteredSales} suppliers={suppliers} />
-                        )}
+                    {activeView === 'suppliers' && (
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-12 rounded-[4rem] shadow-2xl">
+                             <SupplierProfitView sales={filteredSales} suppliers={suppliers} />
+                        </div>
+                    )}
 
-                        {activeView === 'simulator' && (
+                    {activeView === 'simulator' && (
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-12 rounded-[4rem] shadow-2xl">
                             <ProfitSimulator />
-                        )}
-                    </div>
-
-                    {/* --- Dashboard Footer / Tips --- */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 bg-gradient-to-r from-indigo-600 to-violet-600 p-8 rounded-[2rem] text-white flex items-center justify-between shadow-xl shadow-indigo-500/20">
-                            <div>
-                                <h4 className="text-xl font-bold mb-2 tracking-tight">Akıllı Performans Özetini Gör</h4>
-                                <p className="text-indigo-100 text-xs italic">Verileriniz otomatik olarak analiz ediliyor.</p>
-                            </div>
-                            <button className="bg-white text-indigo-600 px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 transition-all">Detay indir</button>
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border dark:border-slate-700 shadow-xl flex flex-col justify-center">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 italic">Dashboard Tavsiyesi:</p>
-                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Kâr marjınızın %20 üzerine çıkması için tedarikçi maliyetlerini optimize edin.</p>
-                        </div>
-                    </div>
-
+                    )}
                 </div>
+
+                {/* --- Dashboard Footer / Tips --- */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    <div className="lg:col-span-2 bg-gradient-to-r from-indigo-600 to-violet-600 p-12 rounded-[3.5rem] text-white flex items-center justify-between shadow-2xl shadow-indigo-600/20 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[100px] -mr-32 -mt-32"></div>
+                        <div className="relative z-10">
+                            <h4 className="text-3xl font-black mb-4 tracking-tighter uppercase">Performans Raporu Hazır</h4>
+                            <p className="text-indigo-100 text-sm font-bold uppercase tracking-widest opacity-70 italic">Algoritmalarımız verilerinizi stratejik olarak analiz etti.</p>
+                        </div>
+                        <button className="bg-white text-indigo-600 h-16 px-12 rounded-2xl text-[12px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-black/20 relative z-10">DETAYLI PDF İNDİR</button>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 p-10 rounded-[3.5rem] shadow-2xl flex flex-col justify-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-2 h-full bg-rose-500/50"></div>
+                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3 italic">STRATEJİK TAVSİYE:</p>
+                        <p className="text-lg font-black text-white tracking-tight">Kâr marjınızı %20 üzerine çıkarmak için tedarikçi maliyetlerini optimize edin.</p>
+                    </div>
+                </div>
+
             </div>
+
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; }
+                @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in-down { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            `}</style>
         </div>
     );
 };

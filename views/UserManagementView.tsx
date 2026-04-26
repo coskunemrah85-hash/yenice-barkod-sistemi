@@ -24,111 +24,158 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({ users, onAddUse
   };
 
   return (
-    <div className="w-full h-full flex flex-col gap-4">
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200">Yeni Kullanıcı Ekle</h3>
-        {error && <p className="text-red-600 bg-red-100 p-2 rounded-lg mb-4 text-xs">{error}</p>}
-        <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">İsim Soyisim</label>
-            <input
-              type="text"
-              value={newUser.name}
-              onChange={e => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Ahmet Yılmaz"
-              className="input-style w-full"
-            />
+    <div className="w-full h-full bg-gradient-to-br from-[#4c1d95] via-[#1e40af] to-[#0f172a] p-8 overflow-y-auto custom-scrollbar">
+      
+      <div className="max-w-6xl mx-auto space-y-8">
+          {/* 👑 HEADER */}
+          <div className="flex items-center justify-between">
+              <div>
+                  <h1 className="text-3xl font-black text-white tracking-tight uppercase">Kullanıcı <span className="text-indigo-400">Yönetimi</span></h1>
+                  <p className="text-[10px] text-white/50 font-bold uppercase tracking-[0.3em]">Sistem Yetkilendirme ve Güvenlik Merkezi</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-[1.5rem] flex items-center gap-4 shadow-xl">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">{users.length} Kayıtlı Kullanıcı</span>
+              </div>
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">E-posta (Giriş için)</label>
-            <input
-              type="email"
-              value={newUser.email}
-              onChange={e => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="ahmet@gmail.com"
-              className="input-style w-full"
-            />
+
+          <div className="grid grid-cols-12 gap-8">
+              {/* ➕ YENİ KULLANICI FORMU */}
+              <div className="col-span-12 lg:col-span-4">
+                  <div className="bg-white/20 backdrop-blur-2xl border border-white/30 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-3xl rounded-full -mr-16 -mt-16"></div>
+                      
+                      <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6 flex items-center gap-3">
+                          <Icon name="plus" className="w-5 h-5 text-indigo-400" /> Yeni Personel
+                      </h3>
+
+                      {error && (
+                          <div className="bg-rose-500/20 border border-rose-500/50 p-4 rounded-2xl mb-6 flex items-center gap-3 animate-shake">
+                              <Icon name="exclamation-circle" className="w-5 h-5 text-rose-400" />
+                              <p className="text-[10px] font-bold text-rose-200 uppercase">{error}</p>
+                          </div>
+                      )}
+
+                      <form onSubmit={handleAddUser} className="space-y-4">
+                          <div>
+                              <label className="block text-[10px] font-black text-white/50 uppercase tracking-widest mb-2 ml-2">Ad Soyad</label>
+                              <input
+                                  type="text"
+                                  value={newUser.name}
+                                  onChange={e => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                                  placeholder="Örn: Ahmet Yılmaz"
+                                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium"
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-[10px] font-black text-white/50 uppercase tracking-widest mb-2 ml-2">E-Posta</label>
+                              <input
+                                  type="email"
+                                  value={newUser.email}
+                                  onChange={e => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                                  placeholder="ahmet@sirket.com"
+                                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium"
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-[10px] font-black text-white/50 uppercase tracking-widest mb-2 ml-2">Giriş Şifresi</label>
+                              <input
+                                  type="password"
+                                  value={newUser.password}
+                                  onChange={e => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                                  placeholder="••••••••"
+                                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium"
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-[10px] font-black text-white/50 uppercase tracking-widest mb-2 ml-2">Yetki Seviyesi</label>
+                              <select
+                                  value={newUser.role}
+                                  onChange={e => setNewUser(prev => ({ ...prev, role: e.target.value as 'admin' | 'user' }))}
+                                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium appearance-none"
+                              >
+                                  <option value="user" className="bg-slate-900">Standart Kullanıcı</option>
+                                  <option value="admin" className="bg-slate-900">Sistem Yöneticisi</option>
+                              </select>
+                          </div>
+                          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white h-14 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-600/20 transition-all active:scale-95 mt-4">
+                              Kullanıcıyı Kaydet
+                          </button>
+                      </form>
+                  </div>
+              </div>
+
+              {/* 📋 KULLANICI LİSTESİ */}
+              <div className="col-span-12 lg:col-span-8">
+                  <div className="bg-white/10 backdrop-blur-2xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
+                      <header className="p-8 border-b border-white/10 flex justify-between items-center">
+                          <h3 className="text-xs font-black text-white/50 uppercase tracking-widest flex items-center gap-3">
+                              <Icon name="users" className="w-5 h-5" /> Aktif Kullanıcı Listesi
+                          </h3>
+                      </header>
+                      
+                      <div className="overflow-x-auto">
+                          <table className="w-full">
+                              <thead>
+                                  <tr className="bg-white/5">
+                                      <th className="px-8 py-5 text-left text-[10px] font-black text-white/40 uppercase tracking-widest">Kullanıcı Bilgisi</th>
+                                      <th className="px-8 py-5 text-left text-[10px] font-black text-white/40 uppercase tracking-widest">Rol</th>
+                                      <th className="px-8 py-5 text-center text-[10px] font-black text-white/40 uppercase tracking-widest">İşlemler</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                  {users.map(user => (
+                                      <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                                          <td className="px-8 py-6">
+                                              <div className="flex items-center gap-4">
+                                                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
+                                                      {user.name.charAt(0).toUpperCase()}
+                                                  </div>
+                                                  <div>
+                                                      <h4 className="text-[14px] font-black text-white uppercase tracking-tight">{user.name}</h4>
+                                                      <p className="text-[10px] text-white/40 font-bold">{user.email}</p>
+                                                  </div>
+                                              </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                              <span className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full ${
+                                                  user.role === 'admin' 
+                                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                                  : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                                              }`}>
+                                                  {user.role === 'admin' ? 'Yönetici' : 'Personel'}
+                                              </span>
+                                          </td>
+                                          <td className="px-8 py-6 text-center">
+                                              <button
+                                                  onClick={() => onDeleteUser(user.id)}
+                                                  disabled={user.role === 'admin' && users.filter(u => u.role === 'admin').length === 1}
+                                                  className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed group-hover:scale-110 shadow-lg shadow-rose-500/0 hover:shadow-rose-500/20"
+                                              >
+                                                  <Icon name="trash" className="w-5 h-5" />
+                                              </button>
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              </div>
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">Şifre</label>
-            <input
-              type="password"
-              value={newUser.password}
-              onChange={e => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-              placeholder="••••••••"
-              className="input-style w-full"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">Rol</label>
-            <select
-              value={newUser.role}
-              onChange={e => setNewUser(prev => ({ ...prev, role: e.target.value as 'admin' | 'user' }))}
-              className="input-style w-full"
-            >
-              <option value="user">Kullanıcı</option>
-              <option value="admin">Yönetici</option>
-            </select>
-          </div>
-          <div className="md:col-span-4">
-            <button type="submit" className="btn-primary w-full">Kullanıcı Ekle</button>
-          </div>
-        </form>
       </div>
-      <div className="flex-grow bg-white border border-slate-200/80 rounded-lg shadow-sm overflow-hidden flex flex-col">
-          <header className="p-2 border-b">
-            <h2 className="text-lg font-bold text-slate-800">Mevcut Kullanıcılar</h2>
-          </header>
-          <div className="flex-grow overflow-y-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="text-[10px] text-slate-600 uppercase bg-slate-100 sticky top-0">
-                <tr>
-                  <th className="p-2 font-semibold">İsim</th>
-                  <th className="p-2 font-semibold">E-posta</th>
-                  <th className="p-2 font-semibold">Rol</th>
-                  <th className="p-2 font-semibold text-center">İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(user => (
-                  <tr key={user.id} className="border-b last:border-b-0 hover:bg-slate-50 transition">
-                    <td className="p-2 font-medium text-slate-800">{user.name}</td>
-                    <td className="p-2 text-slate-600">{user.email}</td>
-                    <td className="p-2">
-                      <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${user.role === 'admin' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-200 text-slate-700'}`}>
-                        {user.role === 'admin' ? 'Yönetici' : 'Kullanıcı'}
-                      </span>
-                    </td>
-                    <td className="p-2 text-center">
-                      <button
-                        onClick={() => onDeleteUser(user.id)}
-                        disabled={user.role === 'admin' && users.filter(u => u.role === 'admin').length === 1}
-                        className="p-2 rounded-full text-slate-500 hover:bg-red-100 hover:text-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                        title={user.role === 'admin' && users.filter(u => u.role === 'admin').length === 1 ? 'Son yönetici silinemez' : 'Kullanıcıyı Sil'}
-                      >
-                        <Icon name="trash" className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-      </div>
-       <style>{`
-            .input-style {
-                background-color: white; border: 1px solid #cbd5e1; border-radius: 0.5rem;
-                padding: 0.5rem 0.75rem; font-size: 1rem; transition: all 0.2s; height: 42px;
-            }
-            .input-style:focus {
-                outline: none; box-shadow: 0 0 0 2px #e0f2fe, 0 0 0 4px #0ea5e9; border-color: #0ea5e9;
-            }
-            .btn-primary {
-                background-color: #0ea5e9; color: white; font-weight: bold; border-radius: 0.5rem;
-                padding: 0 1.5rem; transition: background-color 0.2s; height: 42px;
-            }
-            .btn-primary:hover { background-color: #0284c7; }
-        `}</style>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+      `}</style>
     </div>
   );
 };

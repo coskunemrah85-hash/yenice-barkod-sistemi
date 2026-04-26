@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Product, SaleRecord, View, SaleItem, ReturnRecord, Brand, Model, Color, Size, Group, AITask, Supplier, PurchaseRecord, PaymentRecord, Tab, TabIcon, EndOfDayRecord, User, AppBackup, CompanyInfo, ReturnItem, PurchaseItem, Customer, MissingListRecord } from './types';
+import { Product, SaleRecord, View, SaleItem, ReturnRecord, Brand, Model, Color, Size, Group, AITask, Supplier, PurchaseRecord, PaymentRecord, Tab, TabIcon, EndOfDayRecord, User, AppBackup, CompanyInfo, ReturnItem, PurchaseItem, Customer, MissingListRecord, LabelTemplate } from './types';
 import DashboardView from './views/DashboardView';
 import SaleView from './views/SaleView';
 import ProductsView from './views/ProductsView';
@@ -16,6 +16,8 @@ import FinanceView from './views/FinanceView';
 import UserManagementView from './views/UserManagementView';
 import StorageManagementView from './views/StorageManagementView';
 import SettingsView from './views/SettingsView';
+import CariManagementView from './views/CariManagementView';
+import EDonusumView from './views/EDonusumView';
 import RemoteAccessView from './views/RemoteAccessView';
 import { useIndexedDB } from './hooks/useIndexedDB';
 import StockCountView from './views/StockCountView';
@@ -59,6 +61,8 @@ const App: React.FC = () => {
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const [minimizedTasks, setMinimizedTasks] = useState<any[]>([]);
+  const [localIps, setLocalIps] = useState<string[]>(['localhost']);
+  const [hostname, setHostname] = useState<string>('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -123,6 +127,18 @@ const App: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
+    if (ipcRenderer) {
+      ipcRenderer.invoke('get-ip').then((ips: string[]) => {
+        setLocalIps(ips);
+      });
+      ipcRenderer.invoke('get-hostname').then((h: string) => {
+        setHostname(h);
+      });
+    }
+  }, []);
+
   // --- Data Persistence Logic using Firestore ---
   const [users, setUsers] = useFirestore<User>('users', [initialAdmin]);
   const [products, setProducts] = useFirestore<Product>('products', []);
@@ -147,7 +163,8 @@ const App: React.FC = () => {
   const [customers, setCustomers] = useFirestore<Customer>('customers', []);
   const [purchaseHistory, setPurchaseHistory] = useFirestore<PurchaseRecord>('purchaseHistory', []);
   const [paymentHistory, setPaymentHistory] = useFirestore<PaymentRecord>('paymentHistory', []);
-   const [labelTemplates, setLabelTemplates] = useFirestore<LabelTemplate>('labelTemplates', []);
+  const [missingLists, setMissingLists] = useFirestore<MissingListRecord>('missingLists', []);
+  const [labelTemplates, setLabelTemplates] = useFirestore<LabelTemplate>('labelTemplates', []);
   const [restoreAddProductSignal, setRestoreAddProductSignal] = useState(0); 
 
   // Migration: Move localStorage data to Firestore if Firestore is empty
@@ -923,7 +940,8 @@ const App: React.FC = () => {
       customers,
       purchaseHistory,
       paymentHistory,
-      labelTemplates
+      labelTemplates,
+      missingLists
     };
 
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -969,6 +987,8 @@ const App: React.FC = () => {
         setCustomers(data.customers || []);
         setPurchaseHistory(data.purchaseHistory || []);
         setPaymentHistory(data.paymentHistory || []);
+        setLabelTemplates(data.labelTemplates || []);
+        setMissingLists(data.missingLists || []);
 
         // Reset runtime state
         setCurrentSale([]);
@@ -1155,6 +1175,25 @@ const App: React.FC = () => {
           suspendedSales={suspendedSales}
           onNavigate={navigateTo}
           suppliers={suppliers}
+          localIps={localIps}
+          hostname={hostname}
+        />;
+      case View.CARI_MANAGEMENT:
+        return <CariManagementView 
+          customers={customers}
+          suppliers={suppliers}
+          onAddCustomer={(c) => setCustomers([...customers, c])}
+          onAddSupplier={(s) => setSuppliers([...suppliers, s])}
+          onUpdateCustomer={(c) => setCustomers(customers.map(item => item.id === c.id ? c : item))}
+          onUpdateSupplier={(s) => setSuppliers(suppliers.map(item => item.id === s.id ? s : item))}
+          onDeleteCustomer={(id) => setCustomers(customers.filter(item => item.id !== id))}
+          onDeleteSupplier={(id) => setSuppliers(suppliers.filter(item => item.id !== id))}
+        />;
+      case View.E_DONUSUM:
+        return <EDonusumView 
+          salesHistory={salesHistory}
+          customers={customers}
+          suppliers={suppliers}
         />;
       case View.STOCK_COUNT:
         return <StockCountView 
@@ -1340,8 +1379,8 @@ const App: React.FC = () => {
         onCloseTab={handleCloseTab}
         onOpenManual={() => setIsManualOpen(true)}
       />
-      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden" onContextMenu={handleContextMenu}>
-        <div className="w-full h-full flex flex-col">
+      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden transform-gpu" style={{ transform: 'translateZ(0)' }} onContextMenu={handleContextMenu}>
+        <div className="w-full h-full flex flex-col will-change-transform">
           {renderView()}
         </div>
       </main>

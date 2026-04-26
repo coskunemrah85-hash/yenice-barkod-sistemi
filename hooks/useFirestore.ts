@@ -65,14 +65,36 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
   const isInitialized = useRef(false);
 
   useEffect(() => {
+    // 1. Önce yerel yedekten yükle (Çevrimdışı ve hızlı başlangıç için)
+    const loadLocal = async () => {
+      const ipc = (window as any).require?.('electron')?.ipcRenderer;
+      if (ipc) {
+        const localData = await ipc.invoke('get-data', { collection: collectionName });
+        if (localData && Array.isArray(localData) && localData.length > 0) {
+          console.log(`[useFirestore] ${collectionName} yerel yedekten yüklendi.`);
+          setData(localData);
+          isInitialized.current = true;
+        }
+      }
+    };
+    loadLocal();
+
+    // 2. Firestore'dan senkronize et
     const q = query(collection(db, collectionName));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: T[] = [];
       snapshot.forEach((doc) => {
         items.push({ ...doc.data(), id: doc.id } as T);
       });
-      setData(items);
-      isInitialized.current = true;
+      
+      if (items.length > 0 || isInitialized.current) {
+          setData(items);
+          isInitialized.current = true;
+          
+          // Firestore'dan gelen veriyi yerel yedeğe de yaz
+          const ipc = (window as any).require?.('electron')?.ipcRenderer;
+          if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
+      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, collectionName);
     });
@@ -92,6 +114,10 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
     setData(newValue); // Optimistic update
 
     try {
+      // Yerel Yedekleme (Anlık)
+      const ipc = (window as any).require?.('electron')?.ipcRenderer;
+      if (ipc) ipc.invoke('save-data', { collection: collectionName, data: newValue });
+
       const batch = writeBatch(db);
       let opsCount = 0;
       
@@ -113,7 +139,6 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
         const id = item.id || item.barcode;
         if (id) {
           const oldItem = oldItemsMap.get(id);
-          // Simple shallow comparison to check if update is needed
           if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
             const docRef = doc(db, collectionName, id);
             batch.set(docRef, item);
@@ -123,8 +148,6 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
       });
 
       if (opsCount > 0) {
-        // If there are more than 500 operations, we might need multiple batches, 
-        // but for now let's just commit if any.
         await batch.commit();
       }
     } catch (error) {
@@ -143,10 +166,26 @@ export function useFirestoreDoc<T>(
   const [data, setData] = useState<T>(initialValue);
 
   useEffect(() => {
+    const loadLocal = async () => {
+      const ipc = (window as any).require?.('electron')?.ipcRenderer;
+      if (ipc) {
+        const localData = await ipc.invoke('get-data', { collection: `${collectionName}_doc_${docId}` });
+        if (localData) {
+          console.log(`[useFirestoreDoc] ${collectionName}/${docId} yerel yedekten yüklendi.`);
+          setData(localData);
+        }
+      }
+    };
+    loadLocal();
+
     const docRef = doc(db, collectionName, docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setData(docSnap.data() as T);
+        const docData = docSnap.data() as T;
+        setData(docData);
+        
+        const ipc = (window as any).require?.('electron')?.ipcRenderer;
+        if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: docData });
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `${collectionName}/${docId}`);
@@ -160,6 +199,9 @@ export function useFirestoreDoc<T>(
     setData(newValue);
 
     try {
+      const ipc = (window as any).require?.('electron')?.ipcRenderer;
+      if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: newValue });
+
       const docRef = doc(db, collectionName, docId);
       await setDoc(docRef, newValue as any);
     } catch (error) {

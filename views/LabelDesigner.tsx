@@ -101,6 +101,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const canvasRef = useRef<HTMLDivElement>(null);
     const mouseCoordsRef = useRef<HTMLSpanElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const requestRef = useRef<number | null>(null);
     
     const [engine, setEngine] = useState<'bartender' | 'argox' | 'native'>(companyInfo.labelEngine || 'native');
     const [btwPath, setBtwPath] = useState(companyInfo.labelTemplatePath || '');
@@ -296,7 +297,6 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     };
 
     const handlePrintItem = (item: { product: Product, count: number, templateId?: string }) => {
-        // Tekli yazdırma işlemi
         console.log('Printing single item:', item);
         executePrint([item]);
     };
@@ -373,117 +373,113 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
         setIsResizing(false);
     };
 
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const rawX = (e.clientX - rect.left) / zoom;
-        const rawY = (e.clientY - rect.top) / zoom;
-        
-        const mmX = Math.round(rawX * 10) / 10;
-        const mmY = Math.round(rawY * 10) / 10;
-        
-        if (mouseCoordsRef.current) {
-            mouseCoordsRef.current.innerText = `X: ${mmX.toFixed(1)}mm Y: ${mmY.toFixed(1)}mm`;
-        }
-    }, [zoom]);
-
     const onMouseMove = useCallback((e: MouseEvent) => {
         if ((!isDragging && !isResizing && !isRotating) || !selectedElementId || !canvasRef.current) return;
         
-        const rect = canvasRef.current.getBoundingClientRect();
-        let mouseX = (e.clientX - rect.left) / zoom;
-        let mouseY = (e.clientY - rect.top) / zoom;
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
         
-        // Hassasiyet Ayarı: Alt tuşu basılıyken 0.01mm, normalde 0.1mm
-        const precision = e.altKey ? 100 : 10;
-
-        if (isDragging && dragState) {
-            let newX = mouseX - dragOffset.x;
-            let newY = mouseY - dragOffset.y;
+        requestRef.current = requestAnimationFrame(() => {
+            const rect = canvasRef.current!.getBoundingClientRect();
+            let mouseX = (e.clientX - rect.left) / zoom;
+            let mouseY = (e.clientY - rect.top) / zoom;
             
-            newX = Math.round(newX * precision) / precision;
-            newY = Math.round(newY * precision) / precision;
+            const mmX = Math.round(mouseX * 10) / 10;
+            const mmY = Math.round(mouseY * 10) / 10;
             
-            if (snapToGrid && !e.altKey) {
-                newX = Math.round(newX / 0.5) * 0.5;
-                newY = Math.round(newY / 0.5) * 0.5;
+            if (mouseCoordsRef.current) {
+                mouseCoordsRef.current.innerText = `X: ${mmX.toFixed(1)}mm Y: ${mmY.toFixed(1)}mm`;
             }
-
-            newX = Math.max(-10, Math.min(activeTemplate.width, newX));
-            newY = Math.max(-10, Math.min(activeTemplate.height, newY));
-
-            setDragState(prev => prev ? { ...prev, x: newX, y: newY } : null);
-        } else if (isResizing && resizeHandle && dragState) {
-            let { x, y, width, height } = dragState;
             
-            mouseX = Math.round(mouseX * precision) / precision;
-            mouseY = Math.round(mouseY * precision) / precision;
+            const precision = e.altKey ? 100 : 10;
 
-            switch (resizeHandle) {
-                case 'br':
-                    width = Math.max(0.1, mouseX - x);
-                    height = Math.max(0.1, mouseY - y);
-                    break;
-                case 'tr':
-                    width = Math.max(0.1, mouseX - x);
-                    const oldY_tr = y;
-                    y = Math.min(oldY_tr + height - 0.1, mouseY);
-                    height = height + (oldY_tr - y);
-                    break;
-                case 'bl':
-                    const oldX_bl = x;
-                    x = Math.min(oldX_bl + width - 0.1, mouseX);
-                    width = width + (oldX_bl - x);
-                    height = Math.max(0.1, mouseY - y);
-                    break;
-                case 'tl':
-                    const ox_tl = x; const oy_tl = y;
-                    x = Math.min(ox_tl + width - 0.1, mouseX);
-                    y = Math.min(oy_tl + height - 0.1, mouseY);
-                    width = width + (ox_tl - x);
-                    height = height + (oy_tl - y);
-                    break;
-                case 'r': width = Math.max(0.1, mouseX - x); break;
-                case 'b': height = Math.max(0.1, mouseY - y); break;
-                case 'l':
-                    const prevX_l = x;
-                    x = Math.min(prevX_l + width - 0.1, mouseX);
-                    width = width + (prevX_l - x);
-                    break;
-                case 't':
-                    const prevY_t = y;
-                    y = Math.min(prevY_t + height - 0.1, mouseY);
-                    height = height + (prevY_t - y);
-                    break;
-            }
-
-            setDragState({ 
-                x: Math.round(x * precision) / precision, 
-                y: Math.round(y * precision) / precision, 
-                width: Math.round(width * precision) / precision, 
-                height: Math.round(height * precision) / precision 
-            });
-        } else if (isRotating && selectedElementId) {
-            const el = activeTemplate.elements.find(e => e.id === selectedElementId);
-            if (el) {
-                const rect = canvasRef.current.getBoundingClientRect();
-                const centerX = (el.x + el.width / 2) * zoom + rect.left;
-                const centerY = (el.y + el.height / 2) * zoom + rect.top;
+            if (isDragging && dragState) {
+                let newX = mouseX - dragOffset.x;
+                let newY = mouseY - dragOffset.y;
                 
-                const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-                let finalAngle = (angle + 90) % 360;
+                newX = Math.round(newX * precision) / precision;
+                newY = Math.round(newY * precision) / precision;
                 
                 if (snapToGrid && !e.altKey) {
-                    finalAngle = Math.round(finalAngle / 15) * 15;
+                    newX = Math.round(newX / 0.5) * 0.5;
+                    newY = Math.round(newY / 0.5) * 0.5;
                 }
+
+                newX = Math.max(-10, Math.min(activeTemplate.width, newX));
+                newY = Math.max(-10, Math.min(activeTemplate.height, newY));
+
+                setDragState(prev => prev ? { ...prev, x: newX, y: newY } : null);
+            } else if (isResizing && resizeHandle && dragState) {
+                let { x, y, width, height } = dragState;
                 
-                updateElement(selectedElementId, { rotation: finalAngle });
+                mouseX = Math.round(mouseX * precision) / precision;
+                mouseY = Math.round(mouseY * precision) / precision;
+
+                switch (resizeHandle) {
+                    case 'br':
+                        width = Math.max(0.1, mouseX - x);
+                        height = Math.max(0.1, mouseY - y);
+                        break;
+                    case 'tr':
+                        width = Math.max(0.1, mouseX - x);
+                        const oldY_tr = y;
+                        y = Math.min(oldY_tr + height - 0.1, mouseY);
+                        height = height + (oldY_tr - y);
+                        break;
+                    case 'bl':
+                        const oldX_bl = x;
+                        x = Math.min(oldX_bl + width - 0.1, mouseX);
+                        width = width + (oldX_bl - x);
+                        height = Math.max(0.1, mouseY - y);
+                        break;
+                    case 'tl':
+                        const ox_tl = x; const oy_tl = y;
+                        x = Math.min(ox_tl + width - 0.1, mouseX);
+                        y = Math.min(oy_tl + height - 0.1, mouseY);
+                        width = width + (ox_tl - x);
+                        height = height + (oy_tl - y);
+                        break;
+                    case 'r': width = Math.max(0.1, mouseX - x); break;
+                    case 'b': height = Math.max(0.1, mouseY - y); break;
+                    case 'l':
+                        const prevX_l = x;
+                        x = Math.min(prevX_l + width - 0.1, mouseX);
+                        width = width + (prevX_l - x);
+                        break;
+                    case 't':
+                        const prevY_t = y;
+                        y = Math.min(prevY_t + height - 0.1, mouseY);
+                        height = height + (prevY_t - y);
+                        break;
+                }
+
+                setDragState({ 
+                    x: Math.round(x * precision) / precision, 
+                    y: Math.round(y * precision) / precision, 
+                    width: Math.round(width * precision) / precision, 
+                    height: Math.round(height * precision) / precision 
+                });
+            } else if (isRotating && selectedElementId) {
+                const el = activeTemplate.elements.find(e => e.id === selectedElementId);
+                if (el) {
+                    const rect = canvasRef.current!.getBoundingClientRect();
+                    const centerX = (el.x + el.width / 2) * zoom + rect.left;
+                    const centerY = (el.y + el.height / 2) * zoom + rect.top;
+                    
+                    const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+                    let finalAngle = (angle + 90) % 360;
+                    
+                    if (snapToGrid && !e.altKey) {
+                        finalAngle = Math.round(finalAngle / 15) * 15;
+                    }
+                    
+                    updateElement(selectedElementId, { rotation: finalAngle });
+                }
             }
-        }
+        });
     }, [isDragging, isResizing, isRotating, selectedElementId, dragOffset, zoom, snapToGrid, activeTemplate, resizeHandle, dragState, updateElement]);
 
     const onMouseUp = useCallback(() => {
         if ((isDragging || isResizing) && selectedElementId && dragState) {
-            // Hassasiyeti korumak için 0.01mm (100) kullanıyoruz
             const finalX = Math.round(dragState.x * 100) / 100;
             const finalY = Math.round(dragState.y * 100) / 100;
             const finalW = Math.round(dragState.width * 100) / 100;
@@ -1168,7 +1164,20 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         </div>
                                     ))}
                                 </div>
-                                <div ref={canvasRef} onMouseMove={handleMouseMove} className="flex-grow overflow-auto p-20 custom-scrollbar flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                                <div 
+                                    ref={canvasRef} 
+                                    onMouseMove={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const rawX = (e.clientX - rect.left) / zoom;
+                                        const rawY = (e.clientY - rect.top) / zoom;
+                                        const mmX = Math.round(rawX * 10) / 10;
+                                        const mmY = Math.round(rawY * 10) / 10;
+                                        if (mouseCoordsRef.current) {
+                                            mouseCoordsRef.current.innerText = `X: ${mmX.toFixed(1)}mm Y: ${mmY.toFixed(1)}mm`;
+                                        }
+                                    }} 
+                                    className="flex-grow overflow-auto p-20 custom-scrollbar flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"
+                                >
                                     <div className="flex" style={{ gap: `${activeTemplate.gap * zoom}px` }}>
                                         {Array.from({ length: activeTemplate.columns || 1 }).map((_, colIndex) => (
                                             <div key={colIndex} className={`relative bg-white shadow-2xl ring-1 ring-white/10 ${colIndex > 0 ? 'opacity-40 grayscale-[0.5]' : ''}`} style={{ width: `${activeTemplate.width * zoom}px`, height: `${activeTemplate.height * zoom}px`, backgroundImage: showGrid && colIndex === 0 ? `linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)` : 'none', backgroundSize: `${5 * zoom}px ${5 * zoom}px` }}>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Icon from '../components/Icon';
 import { View, TabIcon, CompanyInfo } from '../types';
@@ -45,78 +44,78 @@ const AiMenuView: React.FC<AiMenuViewProps> = ({ onNavigate, companyInfo, onUpda
       icon: 'products' as TabIcon,
       targetView: View.PRODUCTS,
       label: 'Ürünler',
-      color: 'bg-blue-100 text-blue-600'
+      color: 'bg-blue-500/20 text-blue-400'
     },
     {
       id: 'purchase-extraction',
-      title: 'Alış Faturası Ayıklama',
-      description: 'Tedarikçi faturalarını tarayarak otomatik alış kaydı oluşturur.',
+      title: 'Fatura Analizi',
+      description: 'Tedarikçi faturalarını tarayarak otomatik alış kaydı ve stok girişi oluşturur.',
       icon: 'purchase' as TabIcon,
       targetView: View.PURCHASE,
       label: 'Alış Yap',
-      color: 'bg-amber-100 text-amber-600'
+      color: 'bg-amber-500/20 text-amber-400'
     },
     {
       id: 'sales-analysis',
-      title: 'Satış Analizi ve Koçluk',
+      title: 'Satış Koçu',
       description: 'Satış verilerini analiz ederek stok ve fiyatlandırma önerileri sunar.',
       icon: 'chart' as TabIcon,
       targetView: View.ANALYSIS,
       label: 'Analiz',
-      color: 'bg-violet-100 text-violet-600'
+      color: 'bg-violet-500/20 text-violet-400'
     },
     {
       id: 'price-update',
       title: 'AI Fiyat Güncelleme',
-      description: 'Excel listelerindeki yeni alış fiyatlarını analiz eder ve stok kartlarını otomatik günceller.',
+      description: 'Excel listelerindeki yeni alış fiyatlarını analiz eder ve stokları otomatik günceller.',
       icon: 'excel' as TabIcon,
       targetView: View.AI_PRICE_UPDATE,
       label: 'Fiyat Güncelle',
-      color: 'bg-green-100 text-green-600'
+      color: 'bg-emerald-500/20 text-emerald-400'
     },
     {
       id: 'ai-settings',
-      title: 'AI Ayarları',
-      description: 'API anahtarı ve gelişmiş yapay zeka parametrelerini yapılandırın.',
+      title: 'Gelişmiş Ayarlar',
+      description: 'API anahtarı ve yapay zeka parametrelerini profesyonelce yapılandırın.',
       icon: 'settings' as TabIcon,
       targetView: View.AI_SETTINGS,
       label: 'AI Ayarları',
-      color: 'bg-slate-100 text-slate-600'
+      color: 'bg-slate-500/20 text-slate-400'
     }
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 rounded-xl">
-                <Icon name="ai" className="w-6 h-6" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">Yapay Zeka Menüsü</h1>
+    <div className="w-full h-full bg-[#020617] p-10 overflow-y-auto custom-scrollbar transform-gpu">
+      <div className="w-full space-y-12">
+        
+        {/* 🧠 HEADER */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-10 px-4 animate-fade-in-down">
+          <div className="flex items-center gap-8">
+            <div className="w-20 h-20 bg-cyan-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-cyan-600/30 animate-pulse">
+              <Icon name="ai" className="w-10 h-10 text-white" />
             </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">
-              Tüm yapay zeka operasyonlarını ve ayarlarını buradan yönetin.
-            </p>
+            <div>
+              <h1 className="text-5xl font-black text-white tracking-tighter uppercase underline decoration-cyan-500 decoration-8 underline-offset-8">YAPAY ZEKA <span className="text-cyan-400">MERKEZİ</span></h1>
+              <p className="text-xs text-white/50 font-bold uppercase tracking-[0.6em] mt-8 ml-1">İleri Düzey Veri İşleme & Otomasyon Üssü</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-10 bg-white/5 p-6 rounded-[2.5rem] border border-white/10 shadow-2xl backdrop-blur-xl">
             <div className="text-right">
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">AI Durumu</p>
-              <p className={`text-[10px] font-semibold ${companyInfo.aiEnabled ? 'text-green-500' : 'text-slate-400'}`}>
-                {companyInfo.aiEnabled ? 'Aktif (Çevrimiçi)' : 'Kapalı (Manuel Kullanım)'}
+              <p className="text-xs font-black text-white uppercase tracking-widest">SİSTEM DURUMU</p>
+              <p className={`text-[11px] font-black uppercase mt-1 ${companyInfo.aiEnabled ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {companyInfo.aiEnabled ? '• ÇEVRİMİÇİ (AKTİF)' : '• ÇEVRİMDIŞI (KAPALI)'}
               </p>
             </div>
             <button 
               onClick={handleToggleAi}
-              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
-                companyInfo.aiEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-600'
+              className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all duration-300 focus:outline-none border-4 ${
+                companyInfo.aiEnabled ? 'bg-emerald-600 border-emerald-900/50' : 'bg-slate-700 border-slate-900/50'
               }`}
             >
               <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                  companyInfo.aiEnabled ? 'translate-x-7' : 'translate-x-1'
+                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-xl transition-all duration-300 ${
+                  companyInfo.aiEnabled ? 'translate-x-11' : 'translate-x-1'
                 }`}
               />
             </button>
@@ -124,83 +123,78 @@ const AiMenuView: React.FC<AiMenuViewProps> = ({ onNavigate, companyInfo, onUpda
         </header>
 
         {!companyInfo.aiEnabled && (
-          <div className="mb-8 p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-4">
-            <div className="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-xl">
-              <Icon name="exclamation-triangle" className="w-6 h-6" />
+          <div className="p-10 bg-rose-500/10 border border-rose-500/20 rounded-[3.5rem] flex items-center gap-8 animate-fade-in mx-4">
+            <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-3xl flex items-center justify-center shrink-0">
+              <Icon name="exclamation-triangle" className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="font-bold text-amber-800 dark:text-amber-300">Yapay Zeka Devre Dışı</h3>
-              <p className="text-amber-700 dark:text-amber-400 text-sm">
-                Yapay zeka özellikleri şu an kapalı. Uygulamayı internet olmadan veya manuel olarak kullanmaya devam edebilirsiniz. Özellikleri kullanmak için yukarıdaki düğmeden aktif edin.
+              <h3 className="text-xl font-black text-rose-400 uppercase tracking-tight">Zeka Motoru Devre Dışı</h3>
+              <p className="text-sm text-rose-300/60 font-bold uppercase tracking-widest mt-2">
+                Yapay zeka özellikleri şu an kapalı. Otomatik faturayı okuma ve ürün ayıklama gibi fonksiyonları kullanmak için yukarıdaki anahtarı aktif edin.
               </p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10 px-4">
           {aiFeatures.map((feature) => (
             <div 
               key={feature.id}
-              className={`bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 hover:border-cyan-300 dark:hover:border-cyan-600 hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full ${
-                !companyInfo.aiEnabled && feature.id !== 'ai-settings' ? 'opacity-50 grayscale pointer-events-none' : ''
+              className={`bg-white/5 backdrop-blur-3xl border border-white/10 p-12 rounded-[4rem] shadow-2xl hover:border-cyan-500/50 hover:bg-white/[0.08] transition-all duration-300 cursor-pointer group flex flex-col h-full relative overflow-hidden will-change-transform transform-gpu ${
+                !companyInfo.aiEnabled && feature.id !== 'ai-settings' ? 'opacity-30 grayscale pointer-events-none' : ''
               }`}
               onClick={() => onNavigate(feature.targetView, feature.label, feature.icon)}
             >
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`p-4 rounded-2xl transition-colors ${feature.color} dark:bg-opacity-20`}>
-                  <Icon name={feature.icon} className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white">{feature.title}</h3>
+              <div className="absolute top-0 right-0 p-8 opacity-[0.03] -mr-12 -mt-12 group-hover:opacity-[0.08] transition-opacity">
+                 <Icon name={feature.icon} className="w-48 h-48" />
               </div>
-              <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-6 flex-grow">
+
+              <div className="flex items-center gap-6 mb-8 relative z-10">
+                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg ${feature.color} group-hover:scale-110 transition-transform`}>
+                  <Icon name={feature.icon} className="w-10 h-10" />
+                </div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">{feature.title}</h3>
+              </div>
+              <p className="text-white/40 font-bold leading-relaxed mb-10 flex-grow uppercase tracking-widest text-[11px] relative z-10">
                 {feature.description}
               </p>
-              <div className="flex items-center text-cyan-600 dark:text-cyan-400 font-bold group-hover:translate-x-2 transition-transform mt-auto">
-                İşleme Git <Icon name="back" className="w-5 h-5 ml-2 rotate-180" />
+              <div className="flex items-center text-cyan-400 font-black uppercase tracking-[0.3em] text-[10px] group-hover:translate-x-4 transition-transform mt-auto relative z-10">
+                MODÜLÜ BAŞLAT <Icon name="back" className="w-5 h-5 ml-4 rotate-180" />
               </div>
             </div>
           ))}
         </div>
 
-        <section className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-3 mb-8 pb-6 border-b border-slate-100 dark:border-slate-700">
-            <div className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-lg">
-              <Icon name="settings" className="w-6 h-6" />
+        <section className="bg-white/5 backdrop-blur-3xl border border-white/10 p-16 rounded-[5rem] shadow-2xl mx-4 relative overflow-hidden will-change-transform transform-gpu">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-500/5 blur-[150px] -mr-80 -mt-80"></div>
+          
+          <div className="flex items-center gap-6 mb-12 pb-10 border-b border-white/5 relative z-10">
+            <div className="w-14 h-14 bg-white/5 text-white/40 rounded-2xl flex items-center justify-center">
+              <Icon name="settings" className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Hızlı API Yapılandırması</h2>
+            <h2 className="text-3xl font-black text-white uppercase tracking-tight text-shadow">Gelişmiş API Yapılandırması</h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <div className="space-y-6">
-              <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-16 relative z-10">
+            <div className="space-y-8">
+              <div className="p-10 bg-white/[0.03] rounded-[3rem] border border-white/10 space-y-6">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-200">Gemini API Anahtarı</h4>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Yapay zeka motorunu besleyen anahtar.</p>
+                    <h4 className="text-xl font-black text-white uppercase tracking-tight">Gemini AI Anahtarı</h4>
+                    <p className="text-[11px] text-white/30 font-bold uppercase tracking-widest mt-2">Zeka motoruna güç veren dijital anahtar.</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setShowKey(!showKey)}
-                      className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                    >
-                      <Icon name={showKey ? "eye-slash" : "eye"} className="w-5 h-5" />
+                  <div className="flex gap-4">
+                    <button onClick={() => setShowKey(!showKey)} className="w-14 h-14 bg-white/5 text-white/30 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-all">
+                      <Icon name={showKey ? "eye-slash" : "eye"} className="w-6 h-6" />
                     </button>
                     <button 
                       onClick={handleSaveKey}
                       disabled={saveStatus !== 'idle'}
-                      className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                        saveStatus === 'saved' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-cyan-600 text-white hover:bg-cyan-700'
+                      className={`h-14 px-10 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl ${
+                        saveStatus === 'saved' ? 'bg-emerald-600 text-white shadow-emerald-600/20' : 'bg-cyan-600 text-white hover:bg-cyan-500 shadow-cyan-600/20'
                       }`}
                     >
-                      {saveStatus === 'saving' ? (
-                        <Icon name="refresh" className="w-4 h-4 animate-spin" />
-                      ) : saveStatus === 'saved' ? (
-                        <Icon name="check" className="w-4 h-4" />
-                      ) : (
-                        'Kaydet'
-                      )}
+                      {saveStatus === 'saving' ? <Icon name="refresh" className="w-6 h-6 animate-spin" /> : saveStatus === 'saved' ? 'KAYDEDİLDİ' : 'GÜNCELLE'}
                     </button>
                   </div>
                 </div>
@@ -209,25 +203,34 @@ const AiMenuView: React.FC<AiMenuViewProps> = ({ onNavigate, companyInfo, onUpda
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="API Anahtarınızı buraya yapıştırın..."
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none transition-all font-mono text-sm dark:text-white"
+                  className="w-full px-8 py-6 bg-black/40 border border-white/10 rounded-3xl focus:ring-4 focus:ring-cyan-500/30 outline-none transition-all font-mono text-lg text-white font-black tracking-widest"
                 />
               </div>
             </div>
 
-            <div className="p-6 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl border border-cyan-100 dark:border-cyan-800 flex gap-4">
-              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm h-fit">
-                <Icon name="ai" className="w-8 h-8 text-cyan-600 dark:text-cyan-400" />
+            <div className="p-12 bg-cyan-500/5 rounded-[4rem] border border-cyan-500/20 flex gap-8 items-center">
+              <div className="w-24 h-24 bg-white/5 rounded-[2.5rem] shadow-2xl flex items-center justify-center shrink-0 animate-pulse">
+                <Icon name="ai" className="w-12 h-12 text-cyan-400" />
               </div>
               <div>
-                <h4 className="font-bold text-cyan-800 dark:text-cyan-300 mb-2">Neden Yapay Zeka?</h4>
-                <p className="text-sm text-cyan-700 dark:text-cyan-400 leading-relaxed">
-                  Yapay zeka desteği ile faturaları saniyeler içinde sisteme girebilir, ürün resimlerinden otomatik stok kartı oluşturabilir ve satış verilerinizden geleceğe yönelik tahminler alabilirsiniz. İnternet bağlantınız olmadığında sistemi manuel olarak kullanmaya devam edebilirsiniz.
+                <h4 className="text-2xl font-black text-cyan-400 uppercase tracking-tight mb-4 text-shadow-lg">Neden Yapay Zeka?</h4>
+                <p className="text-sm text-cyan-100/60 font-bold leading-relaxed uppercase tracking-widest">
+                  Yapay zeka desteği ile faturaları saniyeler içinde sisteme girebilir, ürün resimlerinden otomatik stok kartı oluşturabilir ve satış verilerinizden geleceğe yönelik stratejik tahminler alabilirsiniz.
                 </p>
               </div>
             </div>
           </div>
         </section>
       </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-down { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .text-shadow { text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+      `}</style>
     </div>
   );
 };
