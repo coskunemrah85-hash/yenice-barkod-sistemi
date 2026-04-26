@@ -453,6 +453,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     }, []);
 
     const normalizeHeader = (s: string) => {
+        if (!s) return "";
         return s.trim().toLowerCase()
             .replace(/ı/g, 'i')
             .replace(/ğ/g, 'g')
@@ -460,6 +461,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             .replace(/ş/g, 's')
             .replace(/ö/g, 'o')
             .replace(/ç/g, 'c')
+            .replace(/_/g, '') // Alt çizgileri kaldır
             .replace(/\s+/g, '')
             .replace(/[^a-z0-9]/g, '');
     };
@@ -468,37 +470,53 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         'stokkodu': 'stokKodu',
         'stokkod': 'stokKodu',
         'skodu': 'stokKodu',
+        'stokno': 'stokKodu',
+        'urunno': 'stokKodu',
         'anastokkodu': 'anaStokKodu',
         'anastokkod': 'anaStokKodu',
         'askodu': 'anaStokKodu',
+        'anastokno': 'anaStokKodu',
         'stokadi': 'name',
         'stokisimi': 'name',
         'urunadi': 'name',
         'urunisimi': 'name',
+        'stokaciklamasi': 'name',
         'adi': 'name',
         'isimi': 'name',
         'kalanmiktar': 'stock',
         'stok': 'stock',
         'miktar': 'stock',
         'adet': 'stock',
+        'mevcut': 'stock',
+        'mevcutstok': 'stock',
+        'bakiyemiktar': 'stock',
         'alis' : 'buyPrice',
         'alisfiyati': 'buyPrice',
+        'alisfiyat': 'buyPrice',
         'alisfiyati1': 'buyPrice',
         'birimalis': 'buyPrice',
+        'maliyet': 'buyPrice',
         'satis': 'price',
         'satisfiyati': 'price',
+        'satisfiyat': 'price',
         'satisfiyati1': 'price',
+        'satisfiyat1': 'price',
         'birimsatis': 'price',
         'fiyati': 'price',
+        'fiyat': 'price',
         'barkodu': 'barcode',
         'barkod': 'barcode',
+        'barkodno': 'barcode',
         'beden': 'beden',
+        'bedeni': 'beden',
         'olcu': 'beden',
         'renk': 'renk',
+        'renki': 'renk',
         'renkkodu': 'renk',
         'grubu': 'group',
         'grup': 'group',
         'kategori': 'group',
+        'grupp': 'group',
         'aragrubu': 'midGroup',
         'aragrup': 'midGroup',
         'arakategori': 'midGroup',
@@ -506,10 +524,13 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         'altgrup': 'subGroup',
         'altkategori': 'subGroup',
         'marka': 'marka',
+        'markasi': 'marka',
         'model': 'model',
+        'modeli': 'model',
         'raf': 'shelfLocation',
         'konum': 'shelfLocation',
         'raflokasyonu': 'shelfLocation',
+        'rafno': 'shelfLocation',
     };
 
 
@@ -583,10 +604,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     const originalHeaders = Object.keys(jsonData[0]);
                     const headerMap: { [key: string]: string } = {};
                     
+                    console.log("[Excel] Orijinal Başlıklar:", originalHeaders);
+
                     originalHeaders.forEach(h => {
                         const normalized = normalizeHeader(h);
                         const fieldKey = CSV_PRODUCT_HEADER_MAP[normalized];
-                        if (fieldKey) headerMap[h] = fieldKey as string;
+                        if (fieldKey) {
+                            headerMap[h] = fieldKey as string;
+                            console.log(`[Excel] Eşleşti: "${h}" -> ${fieldKey}`);
+                        } else {
+                            console.warn(`[Excel] Eşleşmedi: "${h}" (Normalize: ${normalized})`);
+                        }
                     });
 
                     jsonData.forEach((row, idx) => {
