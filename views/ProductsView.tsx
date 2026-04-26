@@ -1158,7 +1158,7 @@ const GroupRow = React.memo(({
             </div>
 
             {/* Header / Search Area */}
-            <header className="flex-shrink-0 bg-slate-900/50 backdrop-blur-xl border-b border-white/5 p-3 z-20">
+            <header className="flex-shrink-0 bg-slate-900/50 backdrop-blur-xl border-b border-white/5 p-3 z-40">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                          <div className="w-9 h-9 bg-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400">
