@@ -565,134 +565,131 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         if (!file) return;
 
         const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-        if (isExcel && !XLSX) {
-            showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
-            return;
-        }
-
         const reader = new FileReader();
 
         reader.onload = (event) => {
-            showNotificationMessage('success', 'Dosya okunuyor, veriler analiz ediliyor... Lütfen bekleyin.');
+            showNotificationMessage('success', 'Dosya analiz ediliyor... Lütfen bekleyin.');
 
             setTimeout(() => {
                 try {
                     const data = event.target?.result;
                     if (!data) throw new Error("Dosya boş veya okunamıyor.");
 
-                    let jsonData: any[] = [];
+                    let rawData: any[][] = [];
                     if (isExcel) {
                         const workbook = XLSX.read(data, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
                     } else {
-                        // Handle CSV separately but still using XLSX for consistency if possible
                         const workbook = XLSX.read(data, { type: 'string' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
                     }
 
-                    if (jsonData.length === 0) throw new Error("Dosyada işlenecek veri bulunamadı.");
+                    if (rawData.length === 0) throw new Error("Dosya boş.");
 
-                    const allNewProducts: Product[] = [];
-                    let totalSkipped = 0;
-                    let skipReasons: string[] = [];
+                    // 1. Find Header Row (Scan first 10 rows for mandatory keywords)
+                    let headerRowIndex = -1;
+                    let foundHeaders: { [key: string]: number } = {};
 
-                    // Create a normalized map of headers from the first row
-                    const originalHeaders = Object.keys(jsonData[0]);
-                    const headerMap: { [key: string]: string } = {};
-                    
-                    console.log("[Excel] Orijinal Başlıklar:", originalHeaders);
+                    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+                        const row = rawData[i];
+                        const tempMap: { [key: string]: number } = {};
+                        let matchCount = 0;
 
-                    originalHeaders.forEach(h => {
-                        const normalized = normalizeHeader(h);
-                        const fieldKey = CSV_PRODUCT_HEADER_MAP[normalized];
-                        if (fieldKey) {
-                            headerMap[h] = fieldKey as string;
-                            console.log(`[Excel] Eşleşti: "${h}" -> ${fieldKey}`);
-                        } else {
-                            console.warn(`[Excel] Eşleşmedi: "${h}" (Normalize: ${normalized})`);
-                        }
-                    });
-
-                    jsonData.forEach((row, idx) => {
-                        const product: Partial<Product> = {};
-                        
-                        // Map row data using our header map
-                        Object.keys(row).forEach(key => {
-                            const fieldKey = headerMap[key];
+                        row.forEach((cell: any, cellIdx: number) => {
+                            const normalized = normalizeHeader(String(cell));
+                            const fieldKey = CSV_PRODUCT_HEADER_MAP[normalized];
                             if (fieldKey) {
-                                let value = row[key];
-                                
-                                // Clean numeric fields
-                                if (['buyPrice', 'price', 'stock'].includes(fieldKey)) {
-                                    const cleanedValue = String(value)
-                                        .replace(/[^\d,.-]/g, '')
-                                        .replace(',', '.');
-                                    const parsed = parseFloat(cleanedValue);
-                                    value = isNaN(parsed) ? 0 : parsed;
-                                }
-                                
-                                (product as any)[fieldKey] = value;
+                                tempMap[fieldKey as string] = cellIdx;
+                                if (['name', 'barcode', 'stokKodu'].includes(fieldKey as string)) matchCount++;
                             }
                         });
 
-                        // Validation
-                        if (!product.name) {
+                        if (matchCount >= 1) { // At least one main column found
+                            headerRowIndex = i;
+                            foundHeaders = tempMap;
+                            break;
+                        }
+                    }
+
+                    if (headerRowIndex === -1 || !foundHeaders['name']) {
+                        throw new Error("Ürün Adı veya Barkod sütunu bulunamadı. Lütfen Excel başlıklarını kontrol edin.");
+                    }
+
+                    console.log("[Excel] Header Found at row:", headerRowIndex + 1, foundHeaders);
+
+                    const allNewProducts: Product[] = [];
+                    let totalSkipped = 0;
+
+                    // 2. Process Data Rows
+                    for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        if (!row || row.length === 0) continue;
+
+                        const getValue = (field: string) => {
+                            const idx = foundHeaders[field];
+                            return idx !== undefined ? String(row[idx] || "").trim() : "";
+                        };
+
+                        const pName = getValue('name');
+                        if (!pName) {
                             totalSkipped++;
-                            if (totalSkipped < 5) skipReasons.push(`Satır ${idx + 2}: Ürün adı eksik.`);
-                            return;
+                            continue;
                         }
 
-                        // Ensure barcode exists
-                        let barcode = String(product.barcode || '').trim();
+                        // Parse Numbers
+                        const parseNum = (field: string) => {
+                            const val = getValue(field);
+                            if (!val) return 0;
+                            const cleaned = val.replace(/[^\d,.-]/g, '').replace(',', '.');
+                            const parsed = parseFloat(cleaned);
+                            return isNaN(parsed) ? 0 : parsed;
+                        };
+
+                        let barcode = getValue('barcode');
                         if (!barcode) {
                             barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
                         }
 
                         allNewProducts.push({
                             barcode: barcode,
-                            name: String(product.name),
-                            buyPrice: Number(product.buyPrice) || 0,
-                            price: Number(product.price) || 0,
-                            stock: Number(product.stock) || 0,
-                            stokKodu: String(product.stokKodu || ''),
-                            marka: String(product.marka || ''),
-                            model: String(product.model || ''),
-                            renk: String(product.renk || ''),
-                            beden: String(product.beden || ''),
-                            anaStokKodu: String(product.anaStokKodu || ''),
-                            group: String(product.group || ''),
-                            midGroup: String(product.midGroup || ''),
-                            subGroup: String(product.subGroup || ''),
-                            shelfLocation: String(product.shelfLocation || ''),
+                            name: pName,
+                            buyPrice: parseNum('buyPrice'),
+                            price: parseNum('price'),
+                            stock: Math.round(parseNum('stock')),
+                            stokKodu: getValue('stokKodu'),
+                            marka: getValue('marka'),
+                            model: getValue('model'),
+                            renk: getValue('renk'),
+                            beden: getValue('beden'),
+                            anaStokKodu: getValue('anaStokKodu'),
+                            group: getValue('group'),
+                            midGroup: getValue('midGroup'),
+                            subGroup: getValue('subGroup'),
+                            shelfLocation: getValue('shelfLocation'),
                             isActivated: true,
                         });
-                    });
+                    }
 
                     if (allNewProducts.length > 0) {
                         onAddMultipleProducts(allNewProducts);
-                        let msg = `${allNewProducts.length} ürün başarıyla eklendi.`;
-                        if (totalSkipped > 0) msg += ` (${totalSkipped} satır atlandı)`;
-                        showSuccess(msg);
+                        showSuccess(`${allNewProducts.length} ürün başarıyla eklendi! ${totalSkipped > 0 ? `(${totalSkipped} boş satır atlandı)` : ""}`);
                     } else {
-                        showError("Dosyadan yüklenebilecek geçerli ürün bulunamadı. Lütfen başlıkları kontrol edin.");
+                        showError("Yüklenecek geçerli ürün bulunamadı.");
                     }
 
                 } catch (err: any) {
-                    showError(`Dosya işlenirken hata: ${err.message}`);
-                    console.error(err);
+                    showError(`Yükleme Başarısız: ${err.message}`);
+                    console.error("[Excel Import Error]", err);
                 }
             }, 50);
         };
         
-        if (isExcel) {
-          reader.readAsArrayBuffer(file);
-        } else {
-          reader.readAsText(file, 'UTF-8');
-        }
+        if (isExcel) reader.readAsArrayBuffer(file);
+        else reader.readAsText(file, 'UTF-8');
         
         if (e.target) e.target.value = '';
     };
