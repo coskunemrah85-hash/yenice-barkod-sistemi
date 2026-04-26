@@ -9,20 +9,23 @@ interface AiSettingsViewProps {
 }
 
 const AiSettingsView: React.FC<AiSettingsViewProps> = ({ onNavigate, companyInfo, onUpdateCompanyInfo }) => {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(companyInfo.geminiApiKey || '');
   const [showKey, setShowKey] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
+  // Update internal state if Firestore changes (e.g. from another device)
   useEffect(() => {
-    const storedKey = localStorage.getItem('GEMINI_API_KEY');
-    if (storedKey) {
-      setApiKey(storedKey);
+    if (companyInfo.geminiApiKey !== undefined) {
+      setApiKey(companyInfo.geminiApiKey);
     }
-  }, []);
+  }, [companyInfo.geminiApiKey]);
 
   const handleSaveKey = () => {
     setSaveStatus('saving');
-    localStorage.setItem('GEMINI_API_KEY', apiKey);
+    onUpdateCompanyInfo({
+        ...companyInfo,
+        geminiApiKey: apiKey
+    });
     setTimeout(() => {
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);

@@ -147,8 +147,50 @@ const App: React.FC = () => {
   const [customers, setCustomers] = useFirestore<Customer>('customers', []);
   const [purchaseHistory, setPurchaseHistory] = useFirestore<PurchaseRecord>('purchaseHistory', []);
   const [paymentHistory, setPaymentHistory] = useFirestore<PaymentRecord>('paymentHistory', []);
-  const [missingLists, setMissingLists] = useFirestore<MissingListRecord>('missingLists', []);
+   const [labelTemplates, setLabelTemplates] = useFirestore<LabelTemplate>('labelTemplates', []);
   const [restoreAddProductSignal, setRestoreAddProductSignal] = useState(0); 
+
+  // Migration: Move localStorage data to Firestore if Firestore is empty
+  useEffect(() => {
+    // Label Templates Migration
+    if (labelTemplates.length === 0) {
+      const saved = localStorage.getItem('label_templates_v9');
+      if (saved) {
+        try {
+          const localTemplates = JSON.parse(saved);
+          if (localTemplates.length > 0) {
+            console.log('Migrating label templates to Firestore...');
+            setLabelTemplates(localTemplates);
+          }
+        } catch (e) {
+          console.error('Migration error (templates):', e);
+        }
+      }
+    }
+
+    // Settings Migration
+    const localApiKey = localStorage.getItem('GEMINI_API_KEY');
+    const localEngine = localStorage.getItem('label_engine') as any;
+    const localTplPath = localStorage.getItem('label_template_path');
+    const localAppPath = localStorage.getItem('label_app_path');
+
+    if (localApiKey || localEngine || localTplPath || localAppPath) {
+        console.log('Migrating settings to Firestore...');
+        setCompanyInfo(prev => ({
+            ...prev,
+            geminiApiKey: prev.geminiApiKey || localApiKey || '',
+            labelEngine: prev.labelEngine || localEngine || 'native',
+            labelTemplatePath: prev.labelTemplatePath || localTplPath || '',
+            labelAppPath: prev.labelAppPath || localAppPath || ''
+        }));
+        
+        // Clear local storage after migration to avoid repeated logs
+        if (localApiKey) localStorage.removeItem('GEMINI_API_KEY');
+        if (localEngine) localStorage.removeItem('label_engine');
+        if (localTplPath) localStorage.removeItem('label_template_path');
+        if (localAppPath) localStorage.removeItem('label_app_path');
+    }
+  }, [labelTemplates.length, setLabelTemplates, setCompanyInfo]);
 
   // Koyu Mod (Dark Mode) Uygulayıcı
   useEffect(() => {
@@ -880,7 +922,8 @@ const App: React.FC = () => {
       suppliers,
       customers,
       purchaseHistory,
-      paymentHistory
+      paymentHistory,
+      labelTemplates
     };
 
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -1131,7 +1174,7 @@ const App: React.FC = () => {
         return <AiSettingsView 
           onNavigate={navigateTo} 
           companyInfo={companyInfo}
-          onUpdateCompanyInfo={handleUpdateCompanyInfo}
+          onUpdateCompanyInfo={setCompanyInfo}
         />;
       case View.AI_MENU:
         return <AiMenuView 
@@ -1181,6 +1224,10 @@ const App: React.FC = () => {
           <LabelDesigner 
             products={products}
             definitions={definitions}
+            templates={labelTemplates}
+            setTemplates={setLabelTemplates}
+            companyInfo={companyInfo}
+            onUpdateCompanyInfo={setCompanyInfo}
           />
         );
       case View.DASHBOARD:

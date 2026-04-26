@@ -46,6 +46,10 @@ interface LabelTemplate {
 interface LabelDesignerProps {
     products: Product[];
     definitions: Definitions;
+    templates: LabelTemplate[];
+    setTemplates: (val: LabelTemplate[] | ((prev: LabelTemplate[]) => LabelTemplate[])) => void;
+    companyInfo: CompanyInfo;
+    onUpdateCompanyInfo: (info: CompanyInfo) => void;
 }
 
 const DEFAULT_TEMPLATES: LabelTemplate[] = [
@@ -112,12 +116,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
     const [itemsToPrint, setItemsToPrint] = useState<{ product: Product, count: number, templateId?: string }[]>([]);
     const [printQueue, setPrintQueue] = useState<{ product: Product, count: number, printer?: string, templateId?: string }[]>([]);
     
-    const [templates, setTemplates] = useState<LabelTemplate[]>(() => {
-        const saved = localStorage.getItem('label_templates_v9');
-        return saved ? JSON.parse(saved) : DEFAULT_TEMPLATES;
-    });
-    
-    const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(templates[0]?.id || null);
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [zoom, setZoom] = useState(6); // px per mm
     const [showGrid, setShowGrid] = useState(true);
@@ -141,9 +140,20 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
     const mouseCoordsRef = useRef<HTMLSpanElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
-    const [engine, setEngine] = useState<'bartender' | 'argox' | 'native'>((localStorage.getItem('label_engine') as any) || 'native');
-    const [btwPath, setBtwPath] = useState(localStorage.getItem('label_template_path') || '');
-    const [appPath, setAppPath] = useState(localStorage.getItem('label_app_path') || '');
+    const [engine, setEngine] = useState<'bartender' | 'argox' | 'native'>(companyInfo.labelEngine || 'native');
+    const [btwPath, setBtwPath] = useState(companyInfo.labelTemplatePath || '');
+    const [appPath, setAppPath] = useState(companyInfo.labelAppPath || '');
+
+    // Sync from Firestore if changed elsewhere
+    useEffect(() => {
+        if (companyInfo.labelEngine) setEngine(companyInfo.labelEngine);
+        if (companyInfo.labelTemplatePath) setBtwPath(companyInfo.labelTemplatePath);
+        if (companyInfo.labelAppPath) setAppPath(companyInfo.labelAppPath);
+    }, [companyInfo.labelEngine, companyInfo.labelTemplatePath, companyInfo.labelAppPath]);
+
+    const saveSettings = (updates: Partial<CompanyInfo>) => {
+        onUpdateCompanyInfo({ ...companyInfo, ...updates });
+    };
     
     const [activeTab, setActiveTab] = useState<'template' | 'form' | 'products'>('products');
     const [leftPanel, setLeftPanel] = useState<'tools' | 'objects'>('tools');
@@ -165,12 +175,8 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
         });
     }, [products, searchQuery, filterBrand, filterModel, filterColor, filterSize, filterCode]);
 
-    useEffect(() => {
-        localStorage.setItem('label_engine', engine);
-        localStorage.setItem('label_template_path', btwPath);
-        localStorage.setItem('label_app_path', appPath);
-        localStorage.setItem('label_templates_v9', JSON.stringify(templates));
-    }, [engine, btwPath, appPath, templates]);
+    // Removed localStorage effect as we use Firestore now
+    // Settings are saved via saveSettings helper
 
     const saveToHistory = useCallback((currentTemplates: LabelTemplate[]) => {
         setHistory(prev => {
@@ -760,7 +766,11 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions }) 
                                 {(['bartender', 'argox', 'native'] as const).map(lib => (
                                     <button 
                                         key={lib} 
-                                        onClick={() => { setEngine(lib); setActiveMenu(null); }}
+                                        onClick={() => { 
+                                            setEngine(lib); 
+                                            saveSettings({ labelEngine: lib });
+                                            setActiveMenu(null); 
+                                        }}
                                         className={`w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between ${engine === lib ? 'text-indigo-400 font-black' : ''}`}
                                     >
                                         <span className="capitalize text-[15px]">{lib} Driver</span>

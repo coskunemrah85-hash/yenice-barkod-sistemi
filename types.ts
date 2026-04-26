@@ -52,7 +52,11 @@ export interface CompanyInfo {
   autoEndOfDayEnabled?: boolean;
   autoEndOfDayTime?: string; // HH:mm format
   aiEnabled?: boolean;
+  geminiApiKey?: string;
   darkMode?: boolean;
+  labelEngine?: 'bartender' | 'argox' | 'native';
+  labelTemplatePath?: string;
+  labelAppPath?: string;
 }
 
 export interface Customer {

@@ -10,6 +10,7 @@ process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
 // 1. KRİTİK: Erişim hatalarını önler ve versiyonlar arası veri sürekliliğini sağlar
 app.setPath('userData', path.join(app.getPath('appData'), 'yenice-ic-giyim-barkod'));
+app.setAppUserModelId('com.yenice.barkod');
 
 // 2. KRİTİK: Çökmeleri engellemek için donanım hızlandırmayı kapat
 app.disableHardwareAcceleration();
