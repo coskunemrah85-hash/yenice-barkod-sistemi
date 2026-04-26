@@ -93,7 +93,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
     
     const orderedItems = useMemo(() => missingItems.filter((p: any) => (orderQuantities[p.barcode] || 0) > 0), [missingItems, orderQuantities]);
     const totalQuantity = useMemo(() => orderedItems.reduce((sum: number, item: any) => sum + (orderQuantities[item.barcode] || 0), 0), [orderedItems, orderQuantities]);
-    const totalCost = useMemo(() => orderedItems.reduce((sum: number, item: any) => sum + (item.buyPrice * (orderQuantities[item.barcode] || 0)), 0), [orderedItems, orderQuantities]);
+    const totalCost = useMemo(() => orderedItems.reduce((sum: number, item: any) => sum + (Number(item.buyPrice || 0) * (orderQuantities[item.barcode] || 0)), 0), [orderedItems, orderQuantities]);
 
     return (
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm mb-4">
@@ -302,7 +302,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
     const doc = new jsPDF();
     const totalUniqueItems = orderedItems.length;
     const totalQuantity = orderedItems.reduce((sum, item) => sum + item.orderQuantity, 0);
-    const totalCost = orderedItems.reduce((sum, item) => sum + (item.buyPrice * item.orderQuantity), 0);
+    const totalCost = orderedItems.reduce((sum, item: any) => sum + (Number(item.buyPrice || 0) * Number(item.orderQuantity || 0)), 0);
 
     doc.setFont("helvetica", "bold");
     doc.text(`${supplierName} - Siparis Listesi`, 105, 15, { align: "center" });
@@ -541,7 +541,7 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
 
     const supplierName = supplier?.name || 'Tedarikçi';
     const totalQuantity = listToProcess.reduce((sum, item: any) => sum + item.orderQuantity, 0);
-    const totalCost = 'totalCost' in (items as any) ? (items as any).totalCost : listToProcess.reduce((sum, item: any) => sum + ((item.buyPrice || 0) * item.orderQuantity), 0);
+    const totalCost = 'totalCost' in (items as any) ? (items as any).totalCost : listToProcess.reduce((sum, item: any) => sum + (Number(item.buyPrice || 0) * Number(item.orderQuantity || 0)), 0);
 
     const subject = `${supplierName} - Sipariş Listesi (${new Date().toLocaleDateString('tr-TR')})`;
     const body = `Merhaba ${supplierName},\n\nAşağıdaki ürünler için sipariş vermek istiyoruz:\n\n` +
@@ -695,8 +695,8 @@ const MissingListModal: React.FC<MissingListModalProps> = ({
                                     
                                     const orderedItems = getOrderedItems(missingItems);
                                     const totalUniqueItems = orderedItems.length;
-                                    const totalQuantity = orderedItems.reduce((sum, item) => sum + item.orderQuantity, 0);
-                                    const totalCost = orderedItems.reduce((sum, item) => sum + (item.buyPrice * item.orderQuantity), 0);
+                                    const totalQuantity = orderedItems.reduce((sum, item) => sum + Number(item.orderQuantity || 0), 0);
+                                    const totalCost = orderedItems.reduce((sum, item: any) => sum + (Number(item.buyPrice || 0) * Number(item.orderQuantity || 0)), 0);
 
                                     return (
                                         <div key={supplierId} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
