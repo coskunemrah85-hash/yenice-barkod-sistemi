@@ -173,6 +173,12 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const draggedColumn = useRef<string | null>(null);
     const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
     const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
+
+    const visibleCols = useMemo(() => {
+        return columnOrder
+            .map(id => allColumns.find(col => col.id === id)!)
+            .filter(col => !hiddenColumns.has(col.id));
+    }, [columnOrder, hiddenColumns]);
     
     // Helper to get consistent group key
     const getGroupKey = useCallback((p: Product) => {
