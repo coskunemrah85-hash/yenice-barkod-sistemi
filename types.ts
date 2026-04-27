@@ -111,6 +111,7 @@ export interface Product {
   minStock?: number;
   isDeleted?: boolean;
   isActivated?: boolean;
+  secondaryBarcodes?: string[];
 }
 
 export interface SaleItem extends Product {

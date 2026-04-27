@@ -93,7 +93,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
         }
     };
 
-    const handleVariationChange = (index: number, field: keyof Product, value: string | number) => {
+    const handleVariationChange = (index: number, field: keyof Product, value: string | number | string[]) => {
         setVariations(vars => vars.map((v, i) => {
             if (i === index) {
                 return { ...v, [field]: value };
@@ -115,7 +115,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
             stock: 0,
             buyPrice: parseFloat(String(commonData.buyPrice || 0).replace(',', '.')) || 0,
             price: parseFloat(String(commonData.price || 0).replace(',', '.')) || 0,
-            isActivated: true
+            isActivated: true,
+            secondaryBarcodes: []
         };
         setVariations([...variations, newVariation]);
     };
@@ -292,7 +293,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                                         <th className="px-3 py-2">No</th>
                                         <th className="px-3 py-2">Renk</th>
                                         <th className="px-3 py-2">Beden</th>
-                                        <th className="px-3 py-2">Barkod</th>
+                                        <th className="px-3 py-2">Barkodlar</th>
                                         <th className="px-3 py-2">Stok Kodu</th>
                                         <th className="px-3 py-2 text-center">Stok</th>
                                         {!applyPricesToAll && <><th className="px-3 py-2 text-right">Alış</th><th className="px-3 py-2 text-right">Satış</th></>}
@@ -305,7 +306,33 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                                             <td className="px-3 py-1 font-mono text-slate-600 text-[8px]">#{index + 1}</td>
                                             <td className="px-1 py-0.5"><input value={v.renk} onChange={e=>handleVariationChange(index, 'renk', e.target.value)} className="table-input-pro" placeholder="Renk"/></td>
                                             <td className="px-1 py-0.5"><input value={v.beden} onChange={e=>handleVariationChange(index, 'beden', e.target.value)} className="table-input-pro" placeholder="Beden"/></td>
-                                            <td className="px-1 py-0.5"><input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-32 text-[9px]"/></td>
+                                            <td className="px-1 py-0.5">
+                                                <div className="flex flex-col gap-1">
+                                                    <input value={v.barcode} onChange={e=>handleVariationChange(index, 'barcode', e.target.value)} className="table-input-pro font-mono text-cyan-500 w-32 text-[9px]"/>
+                                                    <div className="flex flex-wrap gap-1 px-1">
+                                                        {(v.secondaryBarcodes || []).map((bc, bIdx) => (
+                                                            <div key={bIdx} className="flex items-center gap-1 bg-white/5 px-1 rounded text-[7px] text-slate-400 group/bc">
+                                                                <span>{bc}</span>
+                                                                <button onClick={() => handleVariationChange(index, 'secondaryBarcodes', v.secondaryBarcodes!.filter((_, i) => i !== bIdx))} className="text-rose-500 hover:text-rose-400">×</button>
+                                                            </div>
+                                                        ))}
+                                                        <input 
+                                                            placeholder="+ Ekle"
+                                                            className="bg-transparent border-none text-[7px] text-slate-500 focus:outline-none w-10"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    const val = e.currentTarget.value.trim();
+                                                                    if (val && !(v.secondaryBarcodes || []).includes(val)) {
+                                                                        handleVariationChange(index, 'secondaryBarcodes', [...(v.secondaryBarcodes || []), val]);
+                                                                        e.currentTarget.value = '';
+                                                                    }
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </td>
                                             <td className="px-1 py-0.5"><input value={v.stokKodu} onChange={e=>handleVariationChange(index, 'stokKodu', e.target.value)} className="table-input-pro font-mono text-slate-500 w-32 text-[9px]"/></td>
                                              <td className="px-1 py-0.5"><input type="number" value={v.stock} onChange={e=>handleVariationChange(index, 'stock', parseInt(e.target.value) || 0)} className="table-input-pro text-center w-12 text-[10px]"/></td>
 

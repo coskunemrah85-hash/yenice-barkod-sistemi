@@ -37,7 +37,8 @@ const StockOrderView: React.FC<StockOrderViewProps> = ({ products, suppliers, de
       
       const search = sidebarSearch.toLowerCase().trim();
       const matchesSearch = !search || 
-        p.barcode.includes(search) || 
+        p.barcode.toLowerCase().includes(search) || 
+        (p.secondaryBarcodes && p.secondaryBarcodes.some(bc => bc.toLowerCase().includes(search))) || 
         (p.name || '').toLowerCase().includes(search) || 
         (p.stokKodu || '').toLowerCase().includes(search) ||
         (p.marka || '').toLowerCase().includes(search);

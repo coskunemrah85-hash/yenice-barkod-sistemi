@@ -417,7 +417,7 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
       }
     }
 
-    const product = products.find(p => p.barcode === actualBarcode);
+    const product = products.find(p => p.barcode === actualBarcode || (p.secondaryBarcodes && p.secondaryBarcodes.includes(actualBarcode)));
 
     if (product) {
       addProductToSale(product, quantity);
@@ -618,6 +618,7 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
       const isMatch =
         product.name.toLowerCase().includes(lowerCaseQuery) ||
         product.barcode.includes(lowerCaseQuery) ||
+        (product.secondaryBarcodes && product.secondaryBarcodes.some(bc => bc.includes(lowerCaseQuery))) ||
         product.stokKodu.toLowerCase().includes(lowerCaseQuery) ||
         product.anaStokKodu.toLowerCase().includes(lowerCaseQuery) ||
         product.model.toLowerCase().includes(lowerCaseQuery) ||

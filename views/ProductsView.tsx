@@ -202,6 +202,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     p.stokKodu.toLowerCase().includes(q) ||
                     (p.anaStokKodu && p.anaStokKodu.toLowerCase().includes(q)) ||
                     p.barcode.includes(q) ||
+                    (p.secondaryBarcodes && p.secondaryBarcodes.some(bc => bc.includes(q))) ||
                     p.model.toLowerCase().includes(q) ||
                     p.marka.toLowerCase().includes(q);
 
@@ -218,7 +219,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             if (f.name && !p.name.toLowerCase().includes(f.name.toLowerCase())) return false;
             if (f.stokKodu && !p.stokKodu.toLowerCase().includes(f.stokKodu.toLowerCase())) return false;
             if (f.anaStokKodu && !p.anaStokKodu.toLowerCase().includes(f.anaStokKodu.toLowerCase())) return false;
-            if (f.barcode && !p.barcode.includes(f.barcode)) return false;
+            if (f.barcode && !p.barcode.includes(f.barcode) && !(p.secondaryBarcodes && p.secondaryBarcodes.some(bc => bc.includes(f.barcode)))) return false;
             if (f.marka && p.marka !== f.marka) return false;
             if (f.model && p.model !== f.model) return false;
             if (f.group && p.group !== f.group) return false;

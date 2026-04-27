@@ -43,6 +43,7 @@ const initialVariationState = {
     renk: '',
     beden: '',
     barcode: '',
+    secondaryBarcodes: [] as string[],
     stokKodu: '',
     stock: '0',
 };
@@ -198,7 +199,8 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
             beden: '',
             stock: '0',
             barcode: '',
-            stokKodu: ''
+            stokKodu: '',
+            secondaryBarcodes: []
         }));
         barcodeInputRef.current?.focus();
     };
@@ -266,6 +268,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
                 supplierId: commonData.supplierId || undefined,
                 shelfLocation: commonData.shelfLocation || '',
                 isActivated: true,
+                secondaryBarcodes: v.secondaryBarcodes
             };
         });
 
@@ -459,6 +462,34 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
                                                     <Icon name="refresh" className="w-4 h-4" />
                                                 </button>
                                             </div>
+                                            {/* Secondary Barcodes for Variations */}
+                                            <div className="mt-2 space-y-1">
+                                                {currentVariation.secondaryBarcodes.map((bc, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-mono">
+                                                        <span>{bc}</span>
+                                                        <button type="button" onClick={() => setCurrentVariation(v => ({ ...v, secondaryBarcodes: v.secondaryBarcodes.filter((_, i) => i !== idx) }))} className="text-red-500 hover:text-red-700">
+                                                            <Icon name="trash" className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <div className="flex gap-1">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="+ Ek Barkod" 
+                                                        className="bg-transparent border-b border-slate-300 dark:border-slate-600 text-[10px] w-full focus:outline-none"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                const val = e.currentTarget.value.trim();
+                                                                if (val && !currentVariation.secondaryBarcodes.includes(val)) {
+                                                                    setCurrentVariation(v => ({ ...v, secondaryBarcodes: [...v.secondaryBarcodes, val] }));
+                                                                    e.currentTarget.value = '';
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="md:col-span-2"><label className="label-style">Stok</label><input type="number" name="stock" value={currentVariation.stock} onChange={handleChangeVariation} className="input-style w-full" /></div>
                                         <div className="md:col-span-2"><button type="button" onClick={handleAddVariation} className="btn-primary w-full shadow-lg shadow-cyan-600/20"><Icon name="plus" className="w-5 h-5"/></button></div>
@@ -467,8 +498,15 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
                                     {addedVariations.length > 0 && (
                                         <div className="mt-6 border dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
                                             <table className="w-full text-xs text-left">
-                                                <thead className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-700 font-black text-slate-400 uppercase tracking-tighter"><tr className="text-left"><th className="p-3">Renk</th><th className="p-3">Beden</th><th className="p-3">Barkod</th><th className="p-3">Stok</th><th className="p-3 text-right">İşlem</th></tr></thead>
-                                                <tbody>{addedVariations.map(v => (<tr key={v.id} className="border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"><td className="p-3 font-bold">{v.renk}</td><td className="p-3">{v.beden}</td><td className="p-3 font-mono text-cyan-600 dark:text-cyan-400">{v.barcode}</td><td className="p-3">{v.stock}</td><td className="p-3 text-right"><button type="button" onClick={() => handleRemoveVariation(v.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><Icon name="trash" className="w-4 h-4" /></button></td></tr>))}</tbody>
+                                                <thead className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-700 font-black text-slate-400 uppercase tracking-tighter"><tr className="text-left"><th className="p-3">Renk</th><th className="p-3">Beden</th><th className="p-3">Barkodlar</th><th className="p-3">Stok</th><th className="p-3 text-right">İşlem</th></tr></thead>
+                                                <tbody>{addedVariations.map(v => (<tr key={v.id} className="border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"><td className="p-3 font-bold">{v.renk}</td><td className="p-3">{v.beden}</td><td className="p-3 font-mono text-cyan-600 dark:text-cyan-400">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        <span className="font-bold">{v.barcode}</span>
+                                                        {v.secondaryBarcodes.map((bc, i) => (
+                                                            <span key={i} className="opacity-50 text-[10px]">, {bc}</span>
+                                                        ))}
+                                                    </div>
+                                                </td><td className="p-3">{v.stock}</td><td className="p-3 text-right"><button type="button" onClick={() => handleRemoveVariation(v.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><Icon name="trash" className="w-4 h-4" /></button></td></tr>))}</tbody>
                                             </table>
                                         </div>
                                     )}
@@ -526,7 +564,7 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
     generateUniqueBarcode: (p: Product[]) => string;
     onTriggerQuickAdd: (type: 'brand' | 'model' | 'group' | 'color' | 'size', brandName?: string, callback?: (name: string) => void) => void;
 }> = ({onClose, onSave, definitions, suppliers, products, generateUniqueBarcode, onTriggerQuickAdd}) => {
-    const [product, setProduct] = useState({ ...initialCommonState, barcode: '', renk: '', beden: '', stokKodu: '', stock: '0' });
+    const [product, setProduct] = useState({ ...initialCommonState, barcode: '', secondaryBarcodes: [] as string[], renk: '', beden: '', stokKodu: '', stock: '0' });
     const [error, setError] = useState('');
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
@@ -605,7 +643,8 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
             supplierId: product.supplierId || undefined,
             shelfLocation: product.shelfLocation || '',
             isActivated: true,
-            isDeleted: false
+            isDeleted: false,
+            secondaryBarcodes: product.secondaryBarcodes
         };
         onSave([finalProduct]);
     };
@@ -645,6 +684,34 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
                                     <button type="button" onClick={() => setProduct(p => ({ ...p, barcode: generateUniqueBarcode(products) }))} className="absolute right-0 top-0 h-full px-4 text-cyan-600 hover:text-cyan-700" title="Otomatik Barkod Oluştur">
                                         <Icon name="refresh" className="w-5 h-5" />
                                     </button>
+                                </div>
+                                {/* Secondary Barcodes for Single Product */}
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {product.secondaryBarcodes.map((bc, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 bg-cyan-500/10 text-cyan-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-cyan-500/20">
+                                            <span>{bc}</span>
+                                            <button type="button" onClick={() => setProduct(p => ({ ...p, secondaryBarcodes: p.secondaryBarcodes.filter((_, i) => i !== idx) }))} className="hover:text-cyan-800">
+                                                <Icon name="x-circle" className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <div className="relative flex-grow min-w-[150px]">
+                                        <input 
+                                            type="text" 
+                                            placeholder="+ Ek Barkod Ekle (Enter)" 
+                                            className="w-full bg-slate-100 dark:bg-slate-900 border-none rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-cyan-500/50"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const val = e.currentTarget.value.trim();
+                                                    if (val && !product.secondaryBarcodes.includes(val) && val !== product.barcode) {
+                                                        setProduct(p => ({ ...p, secondaryBarcodes: [...p.secondaryBarcodes, val] }));
+                                                        e.currentTarget.value = '';
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                             <div className="md:col-span-2">
