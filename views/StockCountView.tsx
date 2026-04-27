@@ -24,7 +24,7 @@ const StockCountView: React.FC<StockCountViewProps> = ({ products, onBulkStockUp
         (p.secondaryBarcodes && p.secondaryBarcodes.some(bc => bc.includes(lowercasedFilter))) ||
         p.stokKodu.toLowerCase().includes(lowercasedFilter)
       )
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [products, filter]);
 
   const handleCountChange = (barcode: string, value: string) => {

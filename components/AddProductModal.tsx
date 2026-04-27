@@ -19,6 +19,7 @@ type VariationEntry = {
     renk: string;
     beden: string;
     barcode: string;
+    secondaryBarcodes: string[];
     stokKodu: string;
     stock: string;
 };
@@ -60,19 +61,37 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
     const [addedVariations, setAddedVariations] = useState<VariationEntry[]>([]);
     const barcodeInputRef = useRef<HTMLInputElement>(null);
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+    const [duplicateError, setDuplicateError] = useState<{barcode: string, productName: string} | null>(null);
 
     const generateUniqueBarcode = (existingProducts: Product[], existingVariations: VariationEntry[] = []): string => {
-        let barcode: string;
+        const generateEAN13 = () => {
+            // Turkey prefix 869 + 9 random digits = 12 digits
+            const base = "869" + Array.from({length: 9}, () => Math.floor(Math.random() * 10)).join('');
+            
+            // Calculate Check Digit
+            let sum = 0;
+            for (let i = 0; i < 12; i++) {
+                const digit = parseInt(base[i]);
+                sum += (i % 2 === 0) ? digit : digit * 3;
+            }
+            const checkDigit = (10 - (sum % 10)) % 10;
+            return base + checkDigit;
+        };
+
+        let barcode = '';
         let isUnique = false;
-        while (!isUnique) {
-            barcode = '20' + Math.floor(10000000000 + Math.random() * 90000000000).toString();
-            const isUsedInProducts = existingProducts.some(p => p.barcode === barcode);
+        let attempts = 0;
+        
+        while (!isUnique && attempts < 100) {
+            barcode = generateEAN13();
+            const isUsedInProducts = existingProducts.some(p => p.barcode === barcode || p.secondaryBarcodes?.includes(barcode));
             const isUsedInVariations = existingVariations.some(v => v.barcode === barcode);
             if (!isUsedInProducts && !isUsedInVariations) {
                 isUnique = true;
             }
+            attempts++;
         }
-        return barcode!;
+        return barcode || Date.now().toString(); // Fallback to timestamp if somehow stuck
     };
 
     const [quickAddType, setQuickAddType] = useState<'brand' | 'model' | 'group' | 'color' | 'size' | null>(null);
@@ -186,10 +205,27 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
             setError("Lütfen Varyasyon için Renk, Beden ve Barkod girin.");
             return;
         }
-        if (products.some(p => p.barcode === barcode) || addedVariations.some(v => v.barcode === barcode)) {
-            setError("Bu barkod zaten kullanımda.");
-            barcodeInputRef.current?.select();
-            return;
+        const allBarcodesToCheck = [barcode, ...(currentVariation.secondaryBarcodes || [])].map(b => b.trim());
+        
+        for (const bc of allBarcodesToCheck) {
+            const conflict = products.find(p => {
+                if (p.barcode === bc) return true;
+                return p.secondaryBarcodes?.some(sb => sb === bc);
+            });
+            
+            const inCurrentList = addedVariations.find(v => {
+                if (v.barcode === bc) return true;
+                return v.secondaryBarcodes?.some(sb => sb === bc);
+            });
+            
+            if (conflict) {
+                setDuplicateError({ barcode: bc, productName: conflict.name });
+                return;
+            }
+            if (inCurrentList) {
+                setDuplicateError({ barcode: bc, productName: 'Mevcut Listede' });
+                return;
+            }
         }
         
         setAddedVariations(prev => [...prev, { ...currentVariation, id: Date.now() }]);
@@ -242,6 +278,25 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
         if (addedVariations.length === 0) {
             setError('Kaydetmek için en az bir varyasyon eklemelisiniz.');
             return;
+        }
+
+        // Final duplicate sweep for all added variations
+        const seenInCurrentBatch = new Set<string>();
+        for (const v of addedVariations) {
+            const barcodes = [v.barcode, ...(v.secondaryBarcodes || [])].map(b => b.trim()).filter(Boolean);
+            for (const bc of barcodes) {
+                if (seenInCurrentBatch.has(bc)) {
+                    setDuplicateError({ barcode: bc, productName: 'Aşağıdaki listedeki başka bir varyasyon' });
+                    return;
+                }
+                seenInCurrentBatch.add(bc);
+
+                const conflict = products.find(p => p.barcode === bc || p.secondaryBarcodes?.includes(bc));
+                if (conflict) {
+                    setDuplicateError({ barcode: bc, productName: conflict.name });
+                    return;
+                }
+            }
         }
         
         const priceValue = parseFloat(commonData.price.replace(',', '.')) || 0;
@@ -553,6 +608,32 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onSa
                     </form>
                 )}
             </div>
+            {/* Duplicate Error Modal */}
+            {duplicateError && (
+                <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[200] p-4 animate-fade-in">
+                    <div className="bg-[#0f172a] border border-rose-500/30 rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent"></div>
+                        
+                        <div className="w-20 h-20 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-500">
+                            <Icon name="exclamation-circle" className="w-10 h-10" />
+                        </div>
+                        
+                        <h2 className="text-xl font-black text-white uppercase tracking-tight mb-2">Barkod Kullanımda!</h2>
+                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                            <span className="text-rose-400 font-mono font-bold">"{duplicateError.barcode}"</span> barkodu başka bir üründe zaten kayıtlı.
+                            <br/>
+                            <span className="text-white font-bold uppercase text-[10px] tracking-widest mt-2 block">Kayıtlı Ürün: {duplicateError.productName}</span>
+                        </p>
+                        
+                        <button 
+                            onClick={() => setDuplicateError(null)}
+                            className="w-full h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-rose-900/20 transition-all active:scale-95"
+                        >
+                            ANLADIM, KAPAT
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     </div>
   );
@@ -567,6 +648,7 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
     const [product, setProduct] = useState({ ...initialCommonState, barcode: '', secondaryBarcodes: [] as string[], renk: '', beden: '', stokKodu: '', stock: '0' });
     const [error, setError] = useState('');
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+    const [duplicateError, setDuplicateError] = useState<{barcode: string, productName: string} | null>(null);
 
     const handleGenerateDescription = async () => {
         setIsGeneratingDescription(true);
@@ -616,8 +698,16 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
             setError('Yıldızlı (*) ile işaretli tüm alanlar zorunludur.');
             return;
         }
-        if (products.some(p => p.barcode === product.barcode)) {
-            setError('Bu barkod zaten kullanımda.');
+
+        const allBarcodes = [product.barcode, ...product.secondaryBarcodes].map(b => b.trim()).filter(Boolean);
+        const conflict = products.find(p => {
+            if (allBarcodes.includes(p.barcode)) return true;
+            return p.secondaryBarcodes?.some(sb => allBarcodes.includes(sb));
+        });
+        
+        if (conflict) {
+            const matchedBarcode = allBarcodes.find(bc => bc === conflict.barcode || conflict.secondaryBarcodes?.includes(bc));
+            setDuplicateError({ barcode: matchedBarcode || product.barcode, productName: conflict.name });
             return;
         }
         
@@ -818,6 +908,32 @@ const SingleProductForm: React.FC<Omit<AddProductModalProps, 'onSave' | 'isOpen'
                 <button type="button" onClick={onClose} className="btn-secondary px-8 font-black uppercase text-xs">Vazgeç</button>
                 <button type="submit" className="btn-primary px-10 font-black uppercase text-xs shadow-xl shadow-cyan-600/30 tracking-widest">Ürünü Kaydet</button>
             </div>
+            {/* Duplicate Error Modal */}
+            {duplicateError && (
+                <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[200] p-4 animate-fade-in">
+                    <div className="bg-[#0f172a] border border-rose-500/30 rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent"></div>
+                        
+                        <div className="w-20 h-20 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-500">
+                            <Icon name="exclamation-circle" className="w-10 h-10" />
+                        </div>
+                        
+                        <h2 className="text-xl font-black text-white uppercase tracking-tight mb-2">Barkod Kullanımda!</h2>
+                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                            <span className="text-rose-400 font-mono font-bold">"{duplicateError.barcode}"</span> barkodu başka bir üründe zaten kayıtlı.
+                            <br/>
+                            <span className="text-white font-bold uppercase text-[10px] tracking-widest mt-2 block">Kayıtlı Ürün: {duplicateError.productName}</span>
+                        </p>
+                        
+                        <button 
+                            onClick={() => setDuplicateError(null)}
+                            className="w-full h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-rose-900/20 transition-all active:scale-95"
+                        >
+                            ANLADIM, KAPAT
+                        </button>
+                    </div>
+                </div>
+            )}
         </form>
     );
 };

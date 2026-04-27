@@ -110,7 +110,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ suppliers, purchaseHistory, p
         totalPaid,
         balance,
       };
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [suppliers, purchaseHistory, paymentHistory]);
   
   const grandTotals = useMemo(() => {

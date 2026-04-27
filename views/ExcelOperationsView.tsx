@@ -18,7 +18,7 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
 
   const handleDownloadTemplate = () => {
     if (!XLSX) {
-      alert("Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.");
+      alert("Excel kütüphanesi yüklenemedi.");
       return;
     }
     const templateData = [{
@@ -109,7 +109,7 @@ const ExcelOperationsView: React.FC<ExcelOperationsViewProps> = ({ onNavigate, p
     setIsExporting(true);
     try {
       if (!XLSX) {
-        alert("Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.");
+        alert("Excel kütüphanesi yüklenemedi.");
         return;
       }
       exportFn();

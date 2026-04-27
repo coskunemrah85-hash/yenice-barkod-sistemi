@@ -34,7 +34,11 @@ interface ProductsViewProps {
     onAddDefinition?: (type: 'brand' | 'model' | 'group' | 'color' | 'size', data: any) => void;
     onMinimizeTask?: (task: any) => void;
     restoreSignal?: number;
+    restoreEditSignal?: number;
+    restoreEditData?: any;
     companyInfo: CompanyInfo;
+    persistenceState?: any;
+    setPersistenceState?: (state: any) => void;
 }
 
 const allColumns = [
@@ -76,10 +80,29 @@ const defaultOrder = allColumns.map(c => c.id);
 const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const { products, suppliers, salesHistory, onAddProduct, onAddMultipleProducts, onStartAiTask, definitions, onDeleteProduct, onRestoreProduct, onUpdateProductPrice, onUpdateProductBuyPrice, onUpdateProduct, onUpdateProductStock, onBulkUpdateProducts, onAddDefinition, onMinimizeTask } = props;
 
+    const {
+        persistenceState,
+        setPersistenceState
+    } = props;
+
+    const updatePersist = (updates: any) => {
+        if (setPersistenceState && persistenceState) {
+            setPersistenceState({ ...persistenceState, ...updates });
+        }
+    };
+
+    const isFiltersOpen = persistenceState?.isFiltersOpen || false;
+    const setIsFiltersOpen = (val: boolean) => updatePersist({ isFiltersOpen: val });
+    
+    const filters = persistenceState?.filters || {};
+    const setFilters = (val: ProductFilters) => updatePersist({ filters: val });
+
+    const expandedGroupsArr = persistenceState?.expandedGroups || [];
+    const expandedGroups = useMemo(() => new Set<string>(expandedGroupsArr), [expandedGroupsArr]);
+    const setExpandedGroups = (val: Set<string>) => updatePersist({ expandedGroups: Array.from(val) });
+
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-    const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-    const [filters, setFilters] = useState<ProductFilters>({});
     const [editingProductGroup, setEditingProductGroup] = useState<Product[] | null>(null);
 
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -88,7 +111,6 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const excelMenuRef = useRef<HTMLDivElement>(null);
     const [isFabOpen, setIsFabOpen] = useState(false);
 
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [editingCell, setEditingCell] = useState<{ barcode: string; field: 'stock' | 'buyPrice' | 'price'; isGroup?: boolean } | null>(null);
     const [editValue, setEditValue] = useState<string>('');
 
@@ -128,6 +150,14 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
             setIsAddModalOpen(true);
         }
     }, [props.restoreSignal]);
+
+    useEffect(() => {
+        if (props.restoreEditSignal && props.restoreEditSignal > 0 && props.restoreEditData) {
+            setEditingProductGroup(props.restoreEditData);
+        }
+    }, [props.restoreEditSignal, props.restoreEditData]);
+
+
 
     const showNotificationMessage = useCallback((type: 'success' | 'error', message: string) => {
         setNotification({ type, message });
@@ -238,6 +268,42 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
         });
     }, [products, filters, activeSearchQuery]);
 
+    useEffect(() => {
+        const handleSelectAll = () => {
+            const allBarcodes = filteredProducts.map(p => p.barcode);
+            setSelectedBarcodes(new Set(allBarcodes));
+        };
+        
+        const handleDeleteSelected = () => {
+            if (selectedBarcodes.size === 0) return;
+            selectedBarcodes.forEach(barcode => {
+                onDeleteProduct(barcode);
+            });
+            setSelectedBarcodes(new Set());
+            showSuccess(`${selectedBarcodes.size} ürün başarıyla silindi.`);
+        };
+
+        const handleRefresh = (e: any) => {
+            if (e.detail?.viewId === 'products') {
+                // Products are reactive via props, but we can reset filters/search
+                setFilters({});
+                setSearchQuery('');
+                setActiveSearchQuery('');
+                showSuccess('Ürün listesi yenilendi.');
+            }
+        };
+
+        window.addEventListener('app-select-all', handleSelectAll);
+        window.addEventListener('app-delete-selected', handleDeleteSelected);
+        window.addEventListener('app-refresh-view', handleRefresh);
+
+        return () => {
+            window.removeEventListener('app-select-all', handleSelectAll);
+            window.removeEventListener('app-delete-selected', handleDeleteSelected);
+            window.removeEventListener('app-refresh-view', handleRefresh);
+        };
+    }, [filteredProducts, selectedBarcodes, onDeleteProduct, showSuccess]);
+
     const productGroups = useMemo(() => {
         const groups = new Map<string, Product[]>();
         filteredProducts.forEach(product => {
@@ -259,7 +325,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                 return a.name.length - b.name.length;
             });
         });
-        return Array.from(groups.values()).sort((a, b) => (a[0]?.name || '').localeCompare(b[0]?.name || ''));
+        return Array.from(groups.values()).sort((a, b) => (a[0]?.name || '').localeCompare(b[0]?.name || '', 'tr'));
     }, [filteredProducts]);
 
     // 2. Refs and state that use computed values
@@ -793,15 +859,13 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
     const toggleGroup = (key: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setExpandedGroups(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
-            return newSet;
-        });
+        const newSet = new Set<string>(expandedGroups);
+        if (newSet.has(key)) {
+            newSet.delete(key);
+        } else {
+            newSet.add(key);
+        }
+        setExpandedGroups(newSet);
     };
 
     const handleEditStart = (barcode: string, field: 'stock' | 'buyPrice' | 'price', value: number, isGroup: boolean = false) => {
@@ -935,13 +999,16 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
 
         const handleMouseMove = (event: MouseEvent) => {
             if (isResizing.current) {
-                const deltaX = event.clientX - startX;
-                const newWidth = Math.max(startWidth + deltaX, minWidth);
+                requestAnimationFrame(() => {
+                    if (!isResizing.current) return;
+                    const deltaX = event.clientX - startX;
+                    const newWidth = Math.max(startWidth + deltaX, minWidth);
 
-                setColumnWidths(prev => ({
-                    ...prev,
-                    [columnId]: newWidth
-                }));
+                    setColumnWidths(prev => {
+                        if (prev[columnId] === newWidth) return prev;
+                        return { ...prev, [columnId]: newWidth };
+                    });
+                });
             }
         };
 
@@ -1229,9 +1296,38 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                             )}
                         </div>
 
-                        <button onClick={() => setIsColumnManagerOpen(!isColumnManagerOpen)} className="h-9 w-9 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white transition-all">
-                            <Icon name="view-columns" className="w-5 h-5" />
-                        </button>
+                        <div className="relative" ref={columnManagerRef}>
+                            <button onClick={() => setIsColumnManagerOpen(!isColumnManagerOpen)} className={`h-9 w-9 flex items-center justify-center border rounded-xl transition-all ${isColumnManagerOpen ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}>
+                                <Icon name="view-columns" className="w-5 h-5" />
+                            </button>
+                            {isColumnManagerOpen && (
+                                <div className="absolute top-full mt-2 right-0 w-64 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+                                    <div className="p-3 border-b border-white/5 bg-white/5">
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sütunları Yönet</h3>
+                                    </div>
+                                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-2">
+                                        {allColumns.filter(c => c.id !== 'actions').map(col => (
+                                            <button 
+                                                key={col.id}
+                                                onClick={() => {
+                                                    const next = new Set(hiddenColumns);
+                                                    if (next.has(col.id)) next.delete(col.id);
+                                                    else next.add(col.id);
+                                                    setHiddenColumns(next);
+                                                    localStorage.setItem('products_hidden_columns', JSON.stringify(Array.from(next)));
+                                                }}
+                                                className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 rounded-lg transition-colors group"
+                                            >
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider ${!hiddenColumns.has(col.id) ? 'text-white' : 'text-slate-500'}`}>{col.label}</span>
+                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${!hiddenColumns.has(col.id) ? 'bg-cyan-600 border-cyan-500' : 'border-white/10'}`}>
+                                                    {!hiddenColumns.has(col.id) && <Icon name="check" className="w-2.5 h-2.5 text-white" />}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         <button onClick={() => setIsFiltersOpen(!isFiltersOpen)} className={`h-9 px-4 flex items-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${Object.keys(filters).length > 0 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-slate-400 border border-white/10'}`}>
                             <Icon name="filter" className="w-4 h-4" /> FİLTRE {Object.keys(filters).length > 0 && `(${Object.keys(filters).length})`}
@@ -1265,10 +1361,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 {visibleCols.map(col => (
                                     <th
                                         key={col.id}
-                                        className={`p-2 text-[8px] font-black text-slate-500 uppercase tracking-widest relative group select-none ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                                        className={`p-2 text-[8px] font-black text-slate-500 uppercase tracking-widest relative group select-none border-r border-white/5 last:border-r-0 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
                                         style={{ width: columnWidths[col.id] || 100 }}
                                     >
-                                        {col.label}
+                                        <div className="truncate pr-1">{col.label}</div>
+                                        {/* Resize Handle - High Precision Area */}
+                                        <div 
+                                            onMouseDown={(e) => handleMouseDown(e, col.id)}
+                                            className="absolute -right-2 top-0 bottom-0 w-5 cursor-col-resize hover:bg-cyan-500/20 active:bg-cyan-500/40 transition-colors z-[60] flex items-center justify-center group/resize"
+                                        >
+                                            <div className="w-px h-4 bg-white/0 group-hover/resize:bg-white/20" />
+                                        </div>
                                     </th>
                                 ))}
                             </tr>
@@ -1405,6 +1508,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     onClose={() => setEditingProductGroup(null)}
                     onSave={handleSaveAndCloseEditModal}
                     products={editingProductGroup}
+                    allProducts={products}
                     suppliers={suppliers}
                     definitions={definitions}
                     onAddDefinition={onAddDefinition}

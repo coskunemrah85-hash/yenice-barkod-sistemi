@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Product, SaleRecord, View, SaleItem, ReturnRecord, Brand, Model, Color, Size, Group, AITask, Supplier, PurchaseRecord, PaymentRecord, Tab, TabIcon, EndOfDayRecord, User, AppBackup, CompanyInfo, ReturnItem, PurchaseItem, Customer, MissingListRecord, LabelTemplate } from './types';
+import { Product, SaleRecord, View, SaleItem, ReturnRecord, Brand, Model, Color, Size, Group, AITask, Supplier, PurchaseRecord, PaymentRecord, Tab, TabIcon, EndOfDayRecord, User, AppBackup, CompanyInfo, ReturnItem, PurchaseItem, Customer, MissingListRecord, LabelTemplate, ProductFilters } from './types';
 import DashboardView from './views/DashboardView';
 import SaleView from './views/SaleView';
 import ProductsView from './views/ProductsView';
@@ -165,7 +165,99 @@ const App: React.FC = () => {
   const [paymentHistory, setPaymentHistory] = useFirestore<PaymentRecord>('paymentHistory', []);
   const [missingLists, setMissingLists] = useFirestore<MissingListRecord>('missingLists', []);
   const [labelTemplates, setLabelTemplates] = useFirestore<LabelTemplate>('labelTemplates', []);
-  const [restoreAddProductSignal, setRestoreAddProductSignal] = useState(0); 
+  const [restoreAddProductSignal, setRestoreAddProductSignal] = useState(0);
+  const [restoreEditSignal, setRestoreEditSignal] = useState(0);
+  const [restoreEditData, setRestoreEditData] = useState<any>(null); 
+
+  // --- Global Persistence States ---
+  // Bulk Price Update State
+  const [bpuState, setBpuState] = useState({
+    sidebarSearch: '',
+    filterMarka: '',
+    filterModel: '',
+    filterGrup: '',
+    filterRenk: '',
+    filterBeden: '',
+    filterBarcode: '',
+    filterAnaStokKodu: '',
+    filterStokKodu: '',
+    selectedBarcodes: [] as string[], // Set'ler state'de sorun çıkarabildiği için dizi tutuyoruz
+    updateValue: '',
+    updateType: 'amount' as 'percent' | 'amount',
+    operation: 'set' as 'increase' | 'decrease' | 'set',
+    targetType: 'price' as 'price' | 'buyPrice'
+  });
+
+  // Products View State (Stok Yönetimi)
+  const [pvState, setPvState] = useState({
+    filters: {} as ProductFilters,
+    isFiltersOpen: false,
+    expandedGroups: [] as string[]
+  });
+
+  // --- Canlı Piyasalar Global State (2026 Verileri) ---
+  const [marketRates, setMarketRates] = useState({ USD: 45.01, EUR: 52.80, GA: 6820.00 });
+  const [prevMarketRates, setPrevMarketRates] = useState({ USD: 45.00, EUR: 52.75, GA: 6815.00 });
+  const [isRatesLoading, setIsRatesLoading] = useState(false);
+
+  const fetchGlobalRates = useCallback(async () => {
+    setIsRatesLoading(true);
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/TRY');
+      const data = await res.json();
+      
+      if (data && data.rates) {
+        const usdRate = 1 / data.rates.USD;
+        const eurRate = 1 / data.rates.EUR;
+        const goldConstant = 151.5; 
+        const gramGold = usdRate * goldConstant;
+
+        setMarketRates(prev => {
+          setPrevMarketRates(prev); // Önceki kurları güncelle
+          return {
+            USD: usdRate,
+            EUR: eurRate,
+            GA: gramGold || 6820.00
+          };
+        });
+        console.log('Anlık kurlar güncellendi');
+      }
+    } catch (error) {
+      console.log('Kur çekme hatası');
+    } finally {
+      setIsRatesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGlobalRates();
+    const interval = setInterval(fetchGlobalRates, 15000); // 15 saniyede bir (Anlık hissi için)
+    return () => clearInterval(interval);
+  }, [fetchGlobalRates]);
+
+  // --- Marka & Tedarikçi Senkronizasyonu ---
+  useEffect(() => {
+    if (brands.length === 0) return;
+    
+    const supplierNames = new Set(suppliers.map(s => s.name.toLowerCase().trim()));
+    const missingBrands = brands.filter(b => !supplierNames.has(b.name.toLowerCase().trim()));
+    
+    if (missingBrands.length > 0) {
+      const newSuppliers: Supplier[] = missingBrands.map(b => ({
+        id: (window as any).crypto?.randomUUID?.() || Math.random().toString(36).substring(2),
+        name: b.name,
+        phone: '',
+        email: '',
+        address: '',
+        taxOffice: '',
+        taxNumber: '',
+        authorizedPerson: '',
+        notes: 'Marka Tanımlarından Otomatik Eklendi'
+      }));
+      setSuppliers([...suppliers, ...newSuppliers]);
+      console.log(`${missingBrands.length} marka tedarikçi listesine eklendi.`);
+    }
+  }, [brands, suppliers, setSuppliers]);
 
   // Migration: Move localStorage data to Firestore if Firestore is empty
   useEffect(() => {
@@ -239,8 +331,42 @@ const App: React.FC = () => {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
+  const [contextMenuSelectedText, setContextMenuSelectedText] = useState('');
+
+  // Calculator State (Persistent across navigation)
+  const [calcDisplay, setCalcDisplay] = useState<string>('0');
+  const [calcEquation, setCalcEquation] = useState<string>('');
+  const [calcPreviousValue, setCalcPreviousValue] = useState<string>('');
+  const [calcOperator, setCalcOperator] = useState<string>('');
+  const [calcHistory, setCalcHistory] = useState<string[]>([]);
+
+  // Money Counter State (Persistent across navigation)
+  const [mcCounts, setMcCounts] = useState<Record<string, number>>({});
+  const [mcCreditCard, setMcCreditCard] = useState<number>(0);
+  const [mcNote, setMcNote] = useState<string>('');
+  const [mcHistory, setMcHistory] = useState<Array<{ timestamp: string; total: number; note: string }>>([]);
+
+  // Stock Order State (Persistent across navigation)
+  const [orderAmounts, setOrderAmounts] = useState<Record<string, number>>({});
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    
+    let selection = window.getSelection()?.toString();
+    
+    // If window selection is empty, check if right-click was on an input or textarea
+    if (!selection || selection.trim() === '') {
+        const target = e.target as any;
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+            const start = target.selectionStart || 0;
+            const end = target.selectionEnd || 0;
+            if (start !== end) {
+                selection = target.value.substring(start, end);
+            }
+        }
+    }
+    
+    setContextMenuSelectedText(selection || '');
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setShowContextMenu(true);
   }, []);
@@ -354,6 +480,11 @@ const App: React.FC = () => {
   const addSaleRecord = useCallback((record: SaleRecord) => {
     setSalesHistory(prevHistory => [...prevHistory, record]);
     
+    // Para Sayma ekranındaki Kredi Kartı alanını otomatik güncelle
+    if (record.paymentMethod === 'Kredi Kartı') {
+      setMcCreditCard(prev => prev + record.total);
+    }
+    
     setProducts(currentProducts => {
         const productsMap: Map<string, Product> = new Map(currentProducts.map(p => [p.barcode, { ...p }]));
         for (const item of record.items) {
@@ -366,7 +497,7 @@ const App: React.FC = () => {
         return Array.from(productsMap.values());
     });
     setCurrentSale([]);
-  }, [setSalesHistory, setProducts]);
+  }, [setSalesHistory, setProducts, setMcCreditCard]);
 
   const addReturnRecord = useCallback((record: ReturnRecord) => {
     setReturnHistory(prev => [...prev, record]);
@@ -720,26 +851,50 @@ const App: React.FC = () => {
   }, [handleAddMultipleProducts, handleDismissAiTask]);
 
   const updateProductPrice = useCallback((barcode: string, newPrice: number) => {
+    // Find the target product first to get its anaStokKodu
+    const targetProduct = products.find(p => p.barcode === barcode);
+    if (!targetProduct) return;
+
+    const anaStokKodu = targetProduct.anaStokKodu?.trim();
+    const marka = targetProduct.marka?.trim();
+    const model = targetProduct.model?.trim();
+    const hasAnaStokKodu = anaStokKodu && anaStokKodu !== '';
+
     setProducts(prevProducts =>
-        prevProducts.map(p =>
-            p.barcode === barcode ? { ...p, price: newPrice } : p
-        )
+        prevProducts.map(p => {
+            if (hasAnaStokKodu) {
+                return p.anaStokKodu?.trim() === anaStokKodu ? { ...p, price: newPrice } : p;
+            } else if (marka && model) {
+                return (p.marka?.trim() === marka && p.model?.trim() === model) ? { ...p, price: newPrice } : p;
+            }
+            return p.barcode === barcode ? { ...p, price: newPrice } : p;
+        })
     );
 
     setCurrentSale(prevSale =>
-        prevSale.map(item =>
-            item.barcode === barcode ? { ...item, price: newPrice } : item
-        )
+        prevSale.map(item => {
+            if (hasAnaStokKodu) {
+                return item.anaStokKodu?.trim() === anaStokKodu ? { ...item, price: newPrice } : item;
+            } else if (marka && model) {
+                return (item.marka?.trim() === marka && item.model?.trim() === model) ? { ...item, price: newPrice } : item;
+            }
+            return item.barcode === barcode ? { ...item, price: newPrice } : item;
+        })
     );
 
     setSuspendedSales(prevSuspended =>
         prevSuspended.map(sale =>
-            sale.map(item =>
-                item.barcode === barcode ? { ...item, price: newPrice } : item
-            )
+            sale.map(item => {
+                if (hasAnaStokKodu) {
+                    return item.anaStokKodu?.trim() === anaStokKodu ? { ...item, price: newPrice } : item;
+                } else if (marka && model) {
+                    return (item.marka?.trim() === marka && item.model?.trim() === model) ? { ...item, price: newPrice } : item;
+                }
+                return item.barcode === barcode ? { ...item, price: newPrice } : item;
+            })
         )
     );
-  }, [setProducts, setCurrentSale, setSuspendedSales]);
+  }, [products, setProducts, setCurrentSale, setSuspendedSales]);
 
   const handleStartAiSupplierTask = useCallback(async (file: File, prompt: string) => {
     // For now, extract and directly add instead of reviewing for suppliers
@@ -776,24 +931,50 @@ const App: React.FC = () => {
     );
   }, [setProducts, setCurrentSale, setSuspendedSales]);
 
-  const updatePricesByAnaStokKodu = useCallback((updates: { [anaStokKodu: string]: number }) => {
-    const updatedAnaStokKodlari = Object.keys(updates);
-    if (updatedAnaStokKodlari.length === 0) return;
+  const updatePricesByAnaStokKodu = useCallback((updates: { [key: string]: number }) => {
+    const validUpdates = Object.entries(updates).filter(([k]) => k && k.trim() !== '');
+    if (validUpdates.length === 0) return;
 
     setProducts(prevProducts =>
         prevProducts.map(p => {
-            if (updates[p.anaStokKodu] !== undefined) {
-                return { ...p, price: updates[p.anaStokKodu] };
+            const trimmedCode = p.anaStokKodu?.trim();
+            const marka = p.marka?.trim();
+            const model = p.model?.trim();
+            
+            // Check by anaStokKodu first
+            if (trimmedCode && updates[trimmedCode] !== undefined) {
+                return { ...p, price: updates[trimmedCode] };
             }
+            
+            // Fallback to Marka:Model
+            if (marka && model) {
+                const modelKey = `${marka}:${model}`;
+                if (updates[modelKey] !== undefined) {
+                    return { ...p, price: updates[modelKey] };
+                }
+            }
+            
             return p;
         })
     );
 
     setCurrentSale(prevSale =>
         prevSale.map(item => {
-            if (updates[item.anaStokKodu] !== undefined) {
-                return { ...item, price: updates[item.anaStokKodu] };
+            const trimmedCode = item.anaStokKodu?.trim();
+            const marka = item.marka?.trim();
+            const model = item.model?.trim();
+
+            if (trimmedCode && updates[trimmedCode] !== undefined) {
+                return { ...item, price: updates[trimmedCode] };
             }
+
+            if (marka && model) {
+                const modelKey = `${marka}:${model}`;
+                if (updates[modelKey] !== undefined) {
+                    return { ...item, price: updates[modelKey] };
+                }
+            }
+
             return item;
         })
     );
@@ -801,9 +982,21 @@ const App: React.FC = () => {
     setSuspendedSales(prevSuspended =>
         prevSuspended.map(sale =>
             sale.map(item => {
-                if (updates[item.anaStokKodu] !== undefined) {
-                    return { ...item, price: updates[item.anaStokKodu] };
+                const trimmedCode = item.anaStokKodu?.trim();
+                const marka = item.marka?.trim();
+                const model = item.model?.trim();
+
+                if (trimmedCode && updates[trimmedCode] !== undefined) {
+                    return { ...item, price: updates[trimmedCode] };
                 }
+
+                if (marka && model) {
+                    const modelKey = `${marka}:${model}`;
+                    if (updates[modelKey] !== undefined) {
+                        return { ...item, price: updates[modelKey] };
+                    }
+                }
+
                 return item;
             })
         )
@@ -915,8 +1108,12 @@ const App: React.FC = () => {
     setMinimizedTasks(prev => {
         const exists = prev.find(t => t.id === task.id);
         if (exists) {
+            // Restore logic
             if (task.type === 'add-product') {
-                setRestoreAddProductSignal(s => s + 1); // Sinyali tetikle
+                setRestoreAddProductSignal(s => s + 1);
+            } else if (task.type === 'edit_product') {
+                setRestoreEditData(task.data);
+                setRestoreEditSignal(s => s + 1);
             }
             return prev.filter(t => t.id !== task.id);
         }
@@ -1039,11 +1236,12 @@ const App: React.FC = () => {
 
   const renderView = () => {
     const definitions = { brands, models, colors, sizes, groups };
-    const activeTab = openTabs.find(tab => tab.id === activeTabId);
-    const viewPayload = activeTab?.payload;
+    const activeTab = openTabs.find(tab => tab.id === activeTabId) || openTabs[0] || { id: View.DASHBOARD, payload: undefined };
+    const viewId = activeTab.id;
+    const viewPayload = activeTab.payload;
 
-    console.log('Rendering View:', activeTabId);
-    switch (activeTabId) {
+    console.log('Rendering View:', viewId);
+    switch (viewId) {
       case View.SALE:
         return <SaleView 
             products={products} 
@@ -1085,7 +1283,11 @@ const App: React.FC = () => {
             onAddDefinition={handleQuickAddDefinition}
             onMinimizeTask={toggleTaskMinimize}
             restoreSignal={restoreAddProductSignal}
+            restoreEditSignal={restoreEditSignal}
+            restoreEditData={restoreEditData}
             companyInfo={companyInfo}
+            persistenceState={pvState}
+            setPersistenceState={setPvState}
         />;
       case View.REPORTS:
         return <ReportsView 
@@ -1236,13 +1438,28 @@ const App: React.FC = () => {
           onNavigate={navigateTo}
         />;
       case View.CALCULATOR:
-        return <CalculatorView />;
+        return <CalculatorView 
+            display={calcDisplay} setDisplay={setCalcDisplay}
+            equation={calcEquation} setEquation={setCalcEquation}
+            previousValue={calcPreviousValue} setPreviousValue={setCalcPreviousValue}
+            operator={calcOperator} setOperator={setCalcOperator}
+            history={calcHistory} setHistory={setCalcHistory}
+            rates={marketRates}
+            prevRates={prevMarketRates}
+            loadingRates={isRatesLoading}
+            onRefreshRates={fetchGlobalRates}
+        />;
       case View.CALCULATOR_MENU:
         return <CalculatorMenuView 
           onNavigate={navigateTo}
         />;
       case View.MONEY_COUNTER:
-        return <MoneyCounterView />;
+        return <MoneyCounterView 
+            counts={mcCounts} setCounts={setMcCounts}
+            creditCard={mcCreditCard} setCreditCard={setMcCreditCard}
+            note={mcNote} setNote={setMcNote}
+            history={mcHistory} setHistory={setMcHistory}
+        />;
       case View.BULK_PRICE_UPDATE:
         console.log('Rendering BulkPriceUpdateView');
         return <BulkPriceUpdateView 
@@ -1250,6 +1467,8 @@ const App: React.FC = () => {
             definitions={definitions}
             onUpdateProducts={handleBulkUpdateProducts}
             onNavigate={navigateTo}
+            persistenceState={bpuState}
+            setPersistenceState={setBpuState}
         />;
       case View.STOCK_ORDER:
         console.log('Rendering StockOrderView');
@@ -1258,6 +1477,8 @@ const App: React.FC = () => {
             suppliers={suppliers}
             definitions={definitions}
             onNavigate={navigateTo}
+            orderAmounts={orderAmounts}
+            setOrderAmounts={setOrderAmounts}
         />;
       case View.SERIAL_LABEL:
         return (
@@ -1329,25 +1550,119 @@ const App: React.FC = () => {
   }, [activeTabId, products, salesHistory, purchaseHistory, paymentHistory]);
 
   const contextMenuOptions = useMemo(() => [
-    { label: 'Tümünü Seç', icon: 'check', onClick: () => window.dispatchEvent(new CustomEvent('app-select-all')), variant: 'default' as const },
-    { label: 'Seçimi Kaldır', icon: 'x-circle', onClick: () => window.dispatchEvent(new CustomEvent('app-deselect-all')), variant: 'default' as const },
-    { label: 'Excele Aktar', icon: 'excel', onClick: () => {
-      console.log('Export requested for tab:', activeTabId);
-      if (activeTabId === View.PRODUCTS) {
-        if ((window as any).handleExportStock) {
-           (window as any).handleExportStock();
-        } else {
-           window.dispatchEvent(new CustomEvent('app-export-excel'));
+    { label: 'Geri Git', icon: 'arrow-left', onClick: () => {
+        try {
+            const index = openTabs.findIndex(t => t.id === activeTabId);
+            if (index > 0) setActiveTabId(openTabs[index - 1].id);
+        } catch (e) { console.error('Geri gitme hatası:', e); }
+    }},
+    { label: 'İleri Git', icon: 'arrow-right', onClick: () => {
+        try {
+            const index = openTabs.findIndex(t => t.id === activeTabId);
+            if (index < openTabs.length - 1) setActiveTabId(openTabs[index + 1].id);
+        } catch (e) { console.error('İleri gitme hatası:', e); }
+    }},
+    { label: 'Sayfayı Yenile', icon: 'refresh', onClick: () => {
+        try {
+            window.dispatchEvent(new CustomEvent('app-refresh-view', { detail: { viewId: activeTabId } }));
+        } catch (e) { console.error('Yenileme hatası:', e); }
+    }},
+    { isSeparator: true },
+    { label: 'Tümünü Seç', icon: 'check-circle', onClick: () => {
+        try {
+            window.dispatchEvent(new CustomEvent('app-select-all'));
+        } catch (e) { console.error('Seçme hatası:', e); }
+    }},
+    { label: 'Seçiliyi Sil', icon: 'trash', variant: 'danger' as const, onClick: () => {
+        try {
+            if (window.confirm('Seçili olan tüm öğeleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+                window.dispatchEvent(new CustomEvent('app-delete-selected'));
+            }
+        } catch (e) { console.error('Silme hatası:', e); }
+    }},
+    { isSeparator: true },
+    { label: 'Kopyala', icon: 'copy', onClick: () => {
+        try {
+            // First attempt: Standard copy command (works because we prevented focus loss)
+            const success = document.execCommand('copy');
+            
+            // Backup attempt: If execCommand didn't work or returned false, use our captured state
+            if (!success && contextMenuSelectedText) {
+                const electron = (window as any).require?.('electron');
+                if (electron?.clipboard) {
+                    electron.clipboard.writeText(contextMenuSelectedText);
+                } else {
+                    navigator.clipboard.writeText(contextMenuSelectedText).catch(() => {});
+                }
+            }
+        } catch (e) {
+            console.error('Kopyalama hatası:', e);
         }
-      } else {
-        handleExportCurrentViewToExcel();
-      }
+    }},
+    { label: 'Yapıştır', icon: 'plus', onClick: async () => {
+        try {
+            // First attempt: Standard paste command (some browsers block this for security)
+            const success = document.execCommand('paste');
+            
+            // Backup attempt: If standard paste fails, use our custom clipboard reader
+            if (!success) {
+                let text = '';
+                const electron = (window as any).require?.('electron');
+                if (electron?.clipboard) {
+                    text = electron.clipboard.readText();
+                } else {
+                    text = await navigator.clipboard.readText();
+                }
+
+                if (text) {
+                    window.dispatchEvent(new CustomEvent('app-paste', { detail: text }));
+                    const activeEl = document.activeElement;
+                    if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) {
+                        const start = activeEl.selectionStart || 0;
+                        const end = activeEl.selectionEnd || 0;
+                        const newValue = activeEl.value.substring(0, start) + text + activeEl.value.substring(end);
+                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+                        if (nativeInputValueSetter) {
+                            nativeInputValueSetter.call(activeEl, newValue);
+                        } else {
+                            activeEl.value = newValue;
+                        }
+                        activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Yapıştırma hatası:', err);
+        }
+    }},
+    { isSeparator: true },
+    { label: 'Hızlı Ürün Ekle', icon: 'plus', onClick: () => {
+        try {
+            navigateTo(View.PRODUCTS, 'Ürünler', 'products');
+            setRestoreAddProductSignal(Date.now());
+        } catch (e) { console.error('Ürün ekleme hatası:', e); }
     }, variant: 'success' as const },
-    { label: 'Kaydet / Değişiklikleri Uygula', icon: 'check', onClick: () => console.log('Save requested'), variant: 'default' as const },
-    { label: 'Kopyala (Metin Seçiliyse)', icon: 'copy', onClick: () => document.execCommand('copy'), variant: 'default' as const },
-    { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData, variant: 'default' as const },
-    { label: 'Sil / Arşivle', icon: 'trash', onClick: () => console.log('Delete requested'), variant: 'danger' as const },
-  ], [handleExportCurrentViewToExcel, handleExportData, activeTabId]);
+    { label: 'Raporları Aç', icon: 'reports', onClick: () => {
+        try { navigateTo(View.REPORTS, 'Raporlar', 'reports'); } catch(e) {}
+    }},
+    { isSeparator: true },
+    { label: 'Excele Aktar', icon: 'excel', onClick: () => {
+      try {
+        if (activeTabId === View.PRODUCTS) {
+            if ((window as any).handleExportStock) {
+                (window as any).handleExportStock();
+            } else {
+                window.dispatchEvent(new CustomEvent('app-export-excel'));
+            }
+        } else {
+            handleExportCurrentViewToExcel();
+        }
+      } catch (e) { console.error('Excel hatası:', e); }
+    }, variant: 'success' as const },
+    { label: 'Yedek Al (JSON)', icon: 'database', onClick: handleExportData },
+    { isSeparator: true },
+    { label: 'Yardım / Klavye', icon: 'info-circle', onClick: () => setIsManualOpen(true) },
+  ], [handleExportCurrentViewToExcel, handleExportData, activeTabId, navigateTo]);
 
   if (!isAuthReady) {
     return (
@@ -1455,7 +1770,7 @@ const App: React.FC = () => {
                   <button 
                       key={task.id} 
                       onClick={() => {
-                          if (task.type === 'add-product') navigateTo(View.PRODUCTS, 'Ürünler', 'products');
+                          if (task.type === 'add-product' || task.type === 'edit_product') navigateTo(View.PRODUCTS, 'Ürünler', 'products');
                           toggleTaskMinimize(task);
                       }}
                       className="flex items-center gap-3 px-5 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all group shadow-lg shadow-cyan-900/40"

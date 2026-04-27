@@ -3,6 +3,7 @@ import { SaleRecord, Product, PurchaseRecord, PaymentRecord, ReturnRecord, Suppl
 import Icon from '../components/Icon';
 import { analyzeSalesData } from '../services/geminiService';
 import Markdown from 'react-markdown';
+import * as XLSX from 'xlsx';
 
 type ReportTab = 'statistics' | 'sales' | 'purchases' | 'endOfDay' | 'ai' | 'financial';
 
@@ -159,8 +160,8 @@ const ReportsView: React.FC<ReportsViewProps> = (props) => {
   };
 
   const handleExportToExcel = () => {
-      if (!(window as any).XLSX) {
-          alert("Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.");
+      if (!XLSX) {
+          alert("Excel kütüphanesi yüklenemedi.");
           return;
       }
 
@@ -209,10 +210,10 @@ const ReportsView: React.FC<ReportsViewProps> = (props) => {
           return;
       }
 
-      const ws = (window as any).XLSX.utils.json_to_sheet(data);
-      const wb = (window as any).XLSX.utils.book_new();
-      (window as any).XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      (window as any).XLSX.writeFile(wb, fileName);
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, fileName);
   };
 
   const menuItems: { id: ReportTab; label: string; icon: 'reports' | 'new-sale' | 'purchase' | 'list-bullet' | 'ai' | 'finance' }[] = [

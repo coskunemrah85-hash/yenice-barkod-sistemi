@@ -27,7 +27,7 @@ const CariManagementView: React.FC<CariManagementViewProps> = ({
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (activeTab === 'suppliers' && (item as Supplier).taxNumber?.includes(searchTerm)) ||
       (item as any).phone?.includes(searchTerm)
-    );
+    ).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [activeTab, customers, suppliers, searchTerm]);
 
   const stats = useMemo(() => {

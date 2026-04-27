@@ -60,6 +60,9 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
         setFilterBrandId(null);
     }, [activeTab]);
 
+    const sortedBrands = useMemo(() => [...definitions.brands].sort((a, b) => a.name.localeCompare(b.name, 'tr')), [definitions.brands]);
+    const sortedMainGroups = useMemo(() => [...definitions.groups].filter(g => !g.parentId).sort((a, b) => a.name.localeCompare(b.name, 'tr')), [definitions.groups]);
+
     const filteredContent = useMemo(() => {
         const lowerSearch = searchTerm.toLowerCase();
         let content: any[] = [];
@@ -360,7 +363,7 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                                             if (val) setSelectedBrandId(val); // Sync with add form
                                         }} className="w-full h-10 bg-slate-900 border border-white/10 rounded-xl px-3 text-[10px] font-bold text-white outline-none focus:border-cyan-500/50 transition-all">
                                             <option value="">Tüm Markalar</option>
-                                            {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                            {sortedBrands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                         </select>
                                     </div>
                                     {activeTab === 'groups' && (
@@ -368,7 +371,7 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                                             <label className="text-[8px] font-black text-slate-500 uppercase">Ana Gruba Göre Süz</label>
                                             <select value={filterParentGroupId || ''} onChange={e => setFilterParentGroupId(e.target.value || null)} className="w-full h-10 bg-slate-900 border border-white/10 rounded-xl px-3 text-[10px] font-bold text-white outline-none">
                                                 <option value="">Tüm Gruplar</option>
-                                                {definitions.groups.filter(g => !g.parentId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                                {sortedMainGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                             </select>
                                         </div>
                                     )}
@@ -386,7 +389,7 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                                             <label className="text-[9px] font-black text-slate-500 uppercase px-1">Marka Seçimi</label>
                                             <select value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
                                                 <option value="">İlgili Marka Seçin</option>
-                                                {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                {sortedBrands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                             </select>
                                         </div>
                                     )}
@@ -396,14 +399,14 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                                                 <label className="text-[9px] font-black text-slate-500 uppercase px-1">ÜST GRUP (VARSA)</label>
                                                 <select value={selectedParentGroupId} onChange={e => setSelectedParentGroupId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
                                                     <option value="">Ana Grup Olarak Ekle</option>
-                                                    {definitions.groups.filter(g => !g.parentId).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                                    {sortedMainGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                                 </select>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[9px] font-black text-slate-500 uppercase px-1">İLGİLİ MARKA</label>
                                                 <select value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)} className="w-full h-12 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs font-bold text-white outline-none">
                                                     <option value="">Genel (Tüm Markalar)</option>
-                                                    {definitions.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                    {sortedBrands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                                 </select>
                                             </div>
                                         </div>
@@ -436,7 +439,7 @@ const DefinitionsView: React.FC<DefinitionsViewProps> = (props) => {
                                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{definitions.brands.length} KAYITLI</p>
                                     </div>
                                     <div className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-2">
-                                        {definitions.brands.map(brand => (
+                                        {sortedBrands.map(brand => (
                                             <button 
                                                 key={brand.id}
                                                 onClick={() => {

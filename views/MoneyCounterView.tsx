@@ -23,10 +23,23 @@ const MONEY_ITEMS: MoneyItem[] = [
   { id: 'coin1k', name: '1 Kuruş', value: 0.01, type: 'coin' },
 ];
 
-const MoneyCounterView: React.FC = () => {
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [note, setNote] = useState<string>('');
-  const [history, setHistory] = useState<Array<{ timestamp: string; total: number; note: string }>>([]);
+interface MoneyCounterViewProps {
+  counts: Record<string, number>;
+  setCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  creditCard: number;
+  setCreditCard: React.Dispatch<React.SetStateAction<number>>;
+  note: string;
+  setNote: React.Dispatch<React.SetStateAction<string>>;
+  history: Array<{ timestamp: string; total: number; note: string }>;
+  setHistory: React.Dispatch<React.SetStateAction<Array<{ timestamp: string; total: number; note: string }>>>;
+}
+
+const MoneyCounterView: React.FC<MoneyCounterViewProps> = ({
+  counts, setCounts, creditCard, setCreditCard, note, setNote, history, setHistory
+}) => {
+  const [activeSubTab, setActiveSubTab] = useState<'counter' | 'history'>('counter');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterNote, setFilterNote] = useState('');
 
   const handleCountChange = (id: string, value: number) => {
     setCounts(prev => ({
@@ -36,10 +49,11 @@ const MoneyCounterView: React.FC = () => {
   };
 
   const total = useMemo(() => {
-    return MONEY_ITEMS.reduce((sum, item) => {
+    const cashTotal = MONEY_ITEMS.reduce((sum, item) => {
       return sum + (counts[item.id] || 0) * item.value;
     }, 0);
-  }, [counts]);
+    return cashTotal + (creditCard || 0);
+  }, [counts, creditCard]);
 
   const banknotesTotal = useMemo(() => {
     return MONEY_ITEMS.filter(item => item.type === 'banknote')
@@ -58,31 +72,51 @@ const MoneyCounterView: React.FC = () => {
     }
 
     const now = new Date();
+    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const dayName = days[now.getDay()];
+    
     const timeString = now.toLocaleTimeString('tr-TR', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
     });
 
-    setHistory(prev => [
-      { timestamp: `${now.toLocaleDateString('tr-TR')} ${timeString}`, total, note: note || 'Not yok' },
-      ...prev,
-    ]);
+    const dateString = now.toLocaleDateString('tr-TR');
 
+    const newRecord = {
+      timestamp: `${dateString} | ${timeString} | ${dayName}`,
+      total,
+      note: note || 'Not yok',
+      details: {
+        banknotes: banknotesTotal,
+        coins: coinsTotal,
+        card: creditCard
+      }
+    };
+
+    setHistory(prev => [newRecord, ...prev]);
+
+    // Kayıt sonrası sıfırla
     setCounts({});
+    setCreditCard(0);
     setNote('');
+    alert('Sayım başarıyla kaydedildi.');
   };
 
   const handleReset = () => {
-    if (confirm('Sayımı sıfırlamak istediğinize emin misiniz?')) {
-      setCounts({});
-    }
+    // Kullanıcı confirm çalışmıyor dediği için direkt sıfırlama yapıyoruz veya daha güvenli bir tetikleyici kullanıyoruz
+    setCounts({});
+    setCreditCard(0);
+    setNote('');
   };
 
+  const filteredHistory = history.filter(item => {
+    const matchesDate = filterDate ? item.timestamp.includes(filterDate) : true;
+    const matchesNote = filterNote ? item.note.toLowerCase().includes(filterNote.toLowerCase()) : true;
+    return matchesDate && matchesNote;
+  });
+
   const handleClearHistory = () => {
-    if (confirm('Tüm geçmişi silmek istediğinize emin misiniz?')) {
-      setHistory([]);
-    }
+    setHistory([]);
   };
 
   const handlePrint = () => {
@@ -194,191 +228,332 @@ const MoneyCounterView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3 shrink-0 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Icon name="finance" className="w-6 h-6 text-green-600" />
-          Para Sayma Aracı
-        </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-          Kasada bulunan nakit parayı sayın ve toplam tutarı hesaplayın
-        </p>
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      {/* Header & Tabs */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2 shrink-0">
+        <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
+              <Icon name="finance" className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase">Para Sayma & Kasa</h1>
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Nakit ve Kart Kontrolü</p>
+            </div>
+          </div>
+
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveSubTab('counter')}
+              className={`px-4 py-1.5 rounded-md text-[10px] font-black transition-all ${
+                activeSubTab === 'counter' 
+                ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                : 'text-slate-50 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              PARA SAYMA
+            </button>
+            <button
+              onClick={() => setActiveSubTab('history')}
+              className={`px-4 py-1.5 rounded-md text-[10px] font-black transition-all ${
+                activeSubTab === 'history' 
+                ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                : 'text-slate-50 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              KAYIT GEÇMİŞİ
+            </button>
+          </div>
         </div>
       </div>
 
       {/* İçerik */}
-      <div className="flex-1 overflow-hidden p-3 flex flex-col max-w-5xl mx-auto w-full">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex flex-col h-full gap-4">
-          
-          {/* 2-Column Grid for Tables */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 overflow-y-auto pr-2">
+      <div className="flex-1 overflow-hidden p-2 lg:p-3 flex flex-col w-full gap-2">
+        {activeSubTab === 'counter' ? (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm flex flex-col h-full gap-3 overflow-hidden">
             
-            {/* Banknotlar */}
-            <div className="flex flex-col bg-orange-50/50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-900/30 overflow-hidden h-fit">
-              <div className="bg-orange-100/50 dark:bg-orange-900/40 py-2 px-3 border-b border-orange-200 dark:border-orange-900/50 shrink-0">
-                <h3 className="font-bold text-orange-800 dark:text-orange-300 text-sm text-center tracking-wide">Banknotlar</h3>
-              </div>
-              <div className="p-2">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                      <th className="py-1.5 px-2 text-left font-medium">Birim</th>
-                      <th className="py-1.5 px-2 text-center font-medium">Adet</th>
-                      <th className="py-1.5 px-2 text-right font-medium">Toplam</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {MONEY_ITEMS.filter(i => i.type === 'banknote').map(item => (
-                      <tr key={item.id} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0 hover:bg-white dark:hover:bg-slate-800 transition-colors">
-                        <td className="py-2 px-2 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{item.name}</td>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleCountChange(item.id, (counts[item.id] || 0) - 1)}
-                              className="w-7 h-7 flex items-center justify-center bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/60 active:scale-95 transition-all text-base font-bold leading-none"
-                              tabIndex={-1}
-                            >−</button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={counts[item.id] || 0}
-                              onChange={(e) => handleCountChange(item.id, parseInt(e.target.value) || 0)}
-                              className="w-16 h-7 text-center border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 hide-arrows"
-                            />
-                            <button
-                              onClick={() => handleCountChange(item.id, (counts[item.id] || 0) + 1)}
-                              className="w-7 h-7 flex items-center justify-center bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/60 active:scale-95 transition-all text-base font-bold leading-none"
-                              tabIndex={-1}
-                            >+</button>
-                          </div>
-                        </td>
-                        <td className="py-2 px-2 text-right font-black text-cyan-700 dark:text-cyan-400">
-                          ₺{((counts[item.id] || 0) * item.value).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Madeni Paralar */}
-            <div className="flex flex-col bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30 overflow-hidden h-fit">
-              <div className="bg-blue-100/50 dark:bg-blue-900/40 py-2 px-3 border-b border-blue-200 dark:border-blue-900/50 shrink-0">
-                <h3 className="font-bold text-blue-800 dark:text-blue-300 text-sm text-center tracking-wide">Madeni Paralar</h3>
-              </div>
-              <div className="p-2">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                      <th className="py-1.5 px-2 text-left font-medium">Birim</th>
-                      <th className="py-1.5 px-2 text-center font-medium">Adet</th>
-                      <th className="py-1.5 px-2 text-right font-medium">Toplam</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {MONEY_ITEMS.filter(i => i.type === 'coin').map(item => (
-                      <tr key={item.id} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0 hover:bg-white dark:hover:bg-slate-800 transition-colors">
-                        <td className="py-2 px-2 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{item.name}</td>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleCountChange(item.id, (counts[item.id] || 0) - 1)}
-                              className="w-7 h-7 flex items-center justify-center bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/60 active:scale-95 transition-all text-base font-bold leading-none"
-                              tabIndex={-1}
-                            >−</button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={counts[item.id] || 0}
-                              onChange={(e) => handleCountChange(item.id, parseInt(e.target.value) || 0)}
-                              className="w-16 h-7 text-center border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 hide-arrows"
-                            />
-                            <button
-                              onClick={() => handleCountChange(item.id, (counts[item.id] || 0) + 1)}
-                              className="w-7 h-7 flex items-center justify-center bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/60 active:scale-95 transition-all text-base font-bold leading-none"
-                              tabIndex={-1}
-                            >+</button>
-                          </div>
-                        </td>
-                        <td className="py-2 px-2 text-right font-black text-cyan-700 dark:text-cyan-400">
-                          ₺{((counts[item.id] || 0) * item.value).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Sabit Alt Kısım */}
-          <div className="shrink-0 flex flex-col gap-3">
-            {/* Özet Kartları */}
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="flex-1 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800/30 p-2 flex flex-col items-center justify-center">
-                <span className="text-[11px] text-orange-800 dark:text-orange-400 uppercase font-black tracking-wider mb-0.5">Banknot Toplamı</span>
-                <span className="text-xl font-bold text-orange-700 dark:text-orange-300">₺{banknotesTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex-1 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800/30 p-2 flex flex-col items-center justify-center">
-                <span className="text-[11px] text-blue-800 dark:text-blue-400 uppercase font-black tracking-wider mb-0.5">Madeni Para Toplamı</span>
-                <span className="text-xl font-bold text-blue-700 dark:text-blue-300">₺{coinsTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex-[1.5] bg-gradient-to-br from-cyan-500 to-blue-600 dark:from-cyan-700 dark:to-blue-900 rounded-xl border border-cyan-600 dark:border-cyan-800 p-2 flex flex-col items-center justify-center shadow-lg shadow-cyan-500/20">
-                <span className="text-[11px] text-cyan-100 uppercase font-black tracking-widest mb-0.5">Genel Toplam</span>
-                <span className="text-3xl font-black text-white drop-shadow-md">₺{total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Aksiyon Butonları ve Not */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Icon name="tag" className="w-4 h-4 text-slate-400" />
+            {/* 2-Column Grid for Tables */}
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden">
+              
+              {/* Banknotlar */}
+              <div className="flex flex-col bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-fit">
+                <div className="bg-slate-100 dark:bg-slate-800 py-1 px-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                  <h3 className="font-bold text-slate-700 dark:text-slate-300 text-[10px] text-center uppercase tracking-widest">Banknotlar</h3>
                 </div>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Sayımla ilgili not (isteğe bağlı)..."
-                  className="w-full h-11 pl-9 pr-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-sm transition-all"
-                />
+                <div className="p-1">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-slate-500 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                        <th className="py-1 px-2 text-left font-bold uppercase tracking-wider">Birim</th>
+                        <th className="py-1 px-2 text-center font-bold uppercase tracking-wider">Adet</th>
+                        <th className="py-1 px-2 text-right font-bold uppercase tracking-wider">Toplam</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MONEY_ITEMS.filter(i => i.type === 'banknote').map(item => (
+                        <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800/30 last:border-0 hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-1 px-2 font-bold text-slate-900 dark:text-white">{item.name}</td>
+                          <td className="py-1 px-2">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleCountChange(item.id, (counts[item.id] || 0) - 1)}
+                                className="w-5 h-5 flex items-center justify-center bg-rose-500/10 text-rose-600 dark:text-rose-500 rounded hover:bg-rose-500/20 active:scale-95 transition-all text-xs font-bold"
+                                tabIndex={-1}
+                              >−</button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={counts[item.id] || 0}
+                                onChange={(e) => handleCountChange(item.id, parseInt(e.target.value) || 0)}
+                                className="w-10 h-5 text-center border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-bold outline-none focus:border-emerald-500 text-[10px] hide-arrows"
+                              />
+                              <button
+                                onClick={() => handleCountChange(item.id, (counts[item.id] || 0) + 1)}
+                                className="w-5 h-5 flex items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded hover:bg-emerald-500/20 active:scale-95 transition-all text-xs font-bold"
+                                tabIndex={-1}
+                              >+</button>
+                            </div>
+                          </td>
+                          <td className="py-1 px-2 text-right font-bold text-slate-900 dark:text-emerald-500">
+                            ₺{((counts[item.id] || 0) * item.value).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleReset}
-                  className="px-5 h-11 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-95"
-                >
-                  <Icon name="refresh" className="w-4 h-4" /> Sıfırla
-                </button>
-                <button
-                  onClick={handlePrint}
-                  className="px-5 h-11 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-95"
-                >
-                  <Icon name="printer" className="w-4 h-4" /> Yazdır
-                </button>
-                <button
-                  onClick={handleSaveCounting}
-                  className="px-6 h-11 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-green-500/30 active:scale-95"
-                >
-                  <Icon name="check" className="w-4 h-4" /> Kaydet
-                </button>
+
+              {/* Madeni Paralar */}
+              <div className="flex flex-col bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-fit">
+                <div className="bg-slate-100 dark:bg-slate-800 py-1 px-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                  <h3 className="font-bold text-slate-700 dark:text-slate-300 text-[10px] text-center uppercase tracking-widest">Madeni Paralar</h3>
+                </div>
+                <div className="p-1">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-slate-500 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                        <th className="py-1 px-2 text-left font-bold uppercase tracking-wider">Birim</th>
+                        <th className="py-1 px-2 text-center font-bold uppercase tracking-wider">Adet</th>
+                        <th className="py-1 px-2 text-right font-bold uppercase tracking-wider">Toplam</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MONEY_ITEMS.filter(i => i.type === 'coin').map(item => (
+                        <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800/30 last:border-0 hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-1 px-2 font-bold text-slate-900 dark:text-white">{item.name}</td>
+                          <td className="py-1 px-2">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleCountChange(item.id, (counts[item.id] || 0) - 1)}
+                                className="w-5 h-5 flex items-center justify-center bg-rose-500/10 text-rose-600 dark:text-rose-500 rounded hover:bg-rose-500/20 active:scale-95 transition-all text-xs font-bold"
+                                tabIndex={-1}
+                              >−</button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={counts[item.id] || 0}
+                                onChange={(e) => handleCountChange(item.id, parseInt(e.target.value) || 0)}
+                                className="w-10 h-5 text-center border border-slate-200 dark:border-slate-800 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-bold outline-none focus:border-emerald-500 text-[10px] hide-arrows"
+                              />
+                              <button
+                                onClick={() => handleCountChange(item.id, (counts[item.id] || 0) + 1)}
+                                className="w-5 h-5 flex items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded hover:bg-emerald-500/20 active:scale-95 transition-all text-xs font-bold"
+                                tabIndex={-1}
+                              >+</button>
+                            </div>
+                          </td>
+                          <td className="py-1 px-2 text-right font-bold text-slate-900 dark:text-emerald-500">
+                            ₺{((counts[item.id] || 0) * item.value).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Sabit Alt Kısım */}
+            <div className="shrink-0 flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              
+              {/* Kredi Kartı ve Özet Kartları */}
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-[1.2] bg-indigo-500/5 dark:bg-indigo-500/10 rounded-xl border border-indigo-500/20 p-2 flex flex-col justify-center">
+                  <span className="text-[8px] text-indigo-600 dark:text-indigo-400 uppercase font-black tracking-widest flex items-center gap-2 px-1 mb-1">
+                    <Icon name="reports" className="w-3 h-3" /> KREDİ KARTI
+                  </span>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-indigo-500">₺</span>
+                    <input 
+                      type="number"
+                      value={creditCard || ''}
+                      onChange={(e) => setCreditCard(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      className="w-full h-8 bg-white dark:bg-slate-950 border border-indigo-500/20 rounded pl-7 pr-3 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-1">
+                  <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-800 px-3 py-0.5 flex justify-between items-center">
+                    <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest">Banknot</span>
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">₺{banknotesTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-800 px-3 py-0.5 flex justify-between items-center">
+                    <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest">Madeni</span>
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">₺{coinsTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-xl border border-emerald-500/20 p-2 flex flex-col items-center justify-center">
+                  <span className="text-[8px] text-emerald-600 dark:text-emerald-400 uppercase font-black tracking-widest mb-0.5">Nakit Toplam</span>
+                  <span className="text-sm font-black text-slate-900 dark:text-white">₺{(banknotesTotal + coinsTotal).toFixed(2)}</span>
+                </div>
+
+                <div className="flex-[1.3] bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-xl p-2 flex flex-col items-center justify-center shadow-lg border border-white/10">
+                  <span className="text-[9px] text-emerald-100 uppercase font-bold tracking-[0.1em] mb-0.5">GENEL TOPLAM</span>
+                  <span className="text-xl font-black text-white tabular-nums">₺{total.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Aksiyon Butonları ve Not */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Icon name="reports" className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                  <input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Not ekle..."
+                    className="w-full h-8 pl-9 pr-3 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-500 outline-none text-[10px] transition-all"
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={handleReset}
+                    className="px-3 h-8 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-[9px] uppercase tracking-wider"
+                  >
+                    Sıfırla
+                  </button>
+                  <button
+                    onClick={handlePrint}
+                    className="px-3 h-8 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-[9px] uppercase tracking-wider"
+                  >
+                    <Icon name="printer" className="w-3.5 h-3.5" /> Yazdır
+                  </button>
+                  <button
+                    onClick={handleSaveCounting}
+                    className="px-5 h-8 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-[9px] uppercase tracking-wider shadow-sm"
+                  >
+                    Kaydet
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm flex flex-col h-full gap-3 overflow-hidden">
+            <div className="flex flex-col md:flex-row items-center gap-3 shrink-0">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Icon name="calendar" className="w-3.5 h-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Tarih Filtrele..."
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-full h-8 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-3 text-[10px] outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Icon name="reports" className="w-3.5 h-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Not İçinde Ara..."
+                    value={filterNote}
+                    onChange={(e) => setFilterNote(e.target.value)}
+                    className="w-full h-8 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-3 text-[10px] outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleClearHistory}
+                className="px-3 h-8 bg-rose-500/10 text-rose-600 dark:text-rose-500 font-bold rounded-lg text-[9px] uppercase tracking-wider hover:bg-rose-500/20 transition-all"
+              >
+                TÜMÜNÜ SİL
+              </button>
+            </div>
 
-        </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+              <div className="space-y-1.5">
+                {filteredHistory.length > 0 ? (
+                  filteredHistory.map((item, index) => (
+                    <div key={index} className="bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 p-2.5 hover:border-emerald-500/30 transition-all group">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 flex items-center justify-center shrink-0">
+                            <Icon name="finance" className="w-4 h-4 text-emerald-500" />
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                              {item.timestamp}
+                            </div>
+                            <div className="text-[9px] text-slate-500 font-medium italic mt-0.5">
+                              "{item.note}"
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="text-[7px] text-slate-400 uppercase font-black tracking-[0.2em]">Toplam</div>
+                            <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              ₺{item.total.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="h-40 flex flex-col items-center justify-center text-slate-400">
+                    <Icon name="reports" className="w-10 h-10 opacity-20 mb-2" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">Kayıt Bulunamadı</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
       <style>{`
         .hide-arrows::-webkit-outer-spin-button,
         .hide-arrows::-webkit-inner-spin-button {
           -webkit-appearance: none;
           margin: 0;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #1e293b;
+        }
       `}</style>
-      </div>
+    </div>
   );
 };
 

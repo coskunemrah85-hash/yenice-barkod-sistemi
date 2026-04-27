@@ -448,10 +448,13 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
   // AI and Excel states
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isMissingListModalOpen, setIsMissingListModalOpen] = useState(false);
+  const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
+  const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   const [aiTasks, setAiTasks] = useState<AITask[]>([]);
   const [reviewingTask, setReviewingTask] = useState<AITask | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
-  const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
   const excelMenuRef = useRef<HTMLDivElement>(null);
 
 
@@ -462,7 +465,6 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
   const [isDiscountApplied, setIsDiscountApplied] = useState(false);
   
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   
   const defaultWidths = { name: 300, barcode: 150, quantity: 120, stock: 150, buyPrice: 130, total: 120, stokKodu: 130, marka: 110, model: 110, renk: 90, beden: 90, anaStokKodu: 140, actions: 60 };
   const defaultHidden = new Set(['stokKodu', 'marka', 'model', 'renk', 'beden', 'anaStokKodu', 'barcode', 'stock']);
@@ -497,8 +499,6 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
     }
   });
 
-
-  const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
   const isResizing = useRef<string | null>(null);
   const draggedColumn = useRef<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -583,15 +583,13 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
     // TEDARİKÇİ DOĞRULAMA (ESNEK KİLİT)
     if (selectedSupplier) {
         const prodMarka = (product.marka || '').toLowerCase().trim();
-        const prodSupplier = (product.tedarikçi as string || '').toLowerCase().trim();
         const supName = (selectedSupplier.name || '').toLowerCase().trim();
         
-        // Eğer isimlerden biri diğerini içeriyorsa veya birebir aynıysa izin ver
-        const isMatch = (prodMarka && (supName.includes(prodMarka) || prodMarka.includes(supName))) || 
-                        (prodSupplier && (supName.includes(prodSupplier) || prodSupplier.includes(supName)));
+        // Eğer marka ismi tedarikçi ismiyle eşleşiyorsa izin ver (Her marka bir tedarikçidir mantığı)
+        const isMatch = (prodMarka && (supName.includes(prodMarka) || prodMarka.includes(supName)));
 
         if (!isMatch) {
-            console.warn(`[Tedarikçi Kilidi] Eşleşme Bulunamadı: Ürün:${prodMarka}/${prodSupplier} <=> Tedarikçi:${supName}`);
+            console.warn(`[Tedarikçi Kilidi] Eşleşme Bulunamadı: Ürün Markası:${prodMarka} <=> Seçili Tedarikçi:${supName}`);
             showError(`HATA: "${product.name}" ürünü ${selectedSupplier.name} firmasına ait değil!`);
             return;
         }
@@ -732,13 +730,20 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
   };
 
   const cancelPurchase = () => {
-    if (window.confirm('Mevcut alış faturası iptal edilecek. Emin misiniz?')) {
-        setCurrentPurchase([]);
-        setError(null);
-        setBarcode('');
-        setIsDiscountApplied(false);
-        barcodeInputRef.current?.focus();
-    }
+    setConfirmModal({
+        isOpen: true,
+        title: 'Faturayı İptal Et',
+        message: 'Mevcut alış faturası iptal edilecek ve başa dönülecektir. Emin misiniz?',
+        onConfirm: () => {
+            setCurrentPurchase([]);
+            setSelectedSupplier(null);
+            setPurchaseState('SELECT_SUPPLIER');
+            setError(null);
+            setBarcode('');
+            setIsDiscountApplied(false);
+            setConfirmModal(null);
+        }
+    });
   };
   
   const total = currentPurchase.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
@@ -785,7 +790,19 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
   }
 
   const handleChangeSupplier = () => {
-    if(currentPurchase.length > 0 && !window.confirm('Mevcut fatura iptal edilecek ve tedarikçi değiştirilecektir. Emin misiniz?')) {
+    if(currentPurchase.length > 0) {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Tedarikçi Değiştir',
+            message: 'Mevcut fatura iptal edilecek ve tedarikçi değiştirilecektir. Emin misiniz?',
+            onConfirm: () => {
+                setCurrentPurchase([]);
+                setIsDiscountApplied(false);
+                setSelectedSupplier(null);
+                setPurchaseState('SELECT_SUPPLIER');
+                setConfirmModal(null);
+            }
+        });
         return;
     }
     setCurrentPurchase([]);
@@ -818,12 +835,34 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
       const notFoundIdentifiers: string[] = [];
       const newCartItems: PurchaseItem[] = [];
 
-      for (const item of items) {
+      // Performans Optimizasyonu: Ürünleri hızlı arama için Map'e alıyoruz (O(1) erişim)
+      const productByBarcode = new Map(products.map(p => [p.barcode, p]));
+      const productByStokKodu = new Map(products.map(p => [p.stokKodu, p]));
+
+      for (const item of items as (Partial<PurchaseItem> & { tedarikçi?: string })[]) {
           if (!item.quantity || item.quantity <= 0) continue;
 
           let product: Product | undefined;
-          if (item.barcode) product = products.find(p => p.barcode === item.barcode);
-          if (!product && item.stokKodu) product = products.find(p => p.stokKodu === item.stokKodu);
+          if (item.barcode) product = productByBarcode.get(item.barcode);
+          if (!product && item.stokKodu) product = productByStokKodu.get(item.stokKodu);
+
+          // TEDARİKÇİ FİLTRELEME: Excel'deki veya DB'deki ürünün markası seçili firma ile uyuşmuyorsa atla
+          if (selectedSupplier) {
+              const excelMarka = (item.marka || '').toLowerCase().trim();
+              const excelTedarikci = (item.tedarikçi || '').toLowerCase().trim();
+              const dbMarka = (product?.marka || '').toLowerCase().trim();
+              const supName = (selectedSupplier.name || '').toLowerCase().trim();
+
+              // Marka önceliği: Excel'deki marka yoksa DB'deki markaya bak
+              const activeMarka = excelMarka || dbMarka;
+
+              const isMatch = (activeMarka && (supName.includes(activeMarka) || activeMarka.includes(supName))) || 
+                              (excelTedarikci && (supName.includes(excelTedarikci) || excelTedarikci.includes(supName)));
+
+              if (!isMatch && (activeMarka || excelTedarikci)) {
+                  continue; // Farklı bir tedarikçinin ürünü ise faturaya ekleme
+              }
+          }
           
           if (product) {
               const importedBuyPrice = item.buyPrice !== undefined ? item.buyPrice : product.buyPrice;
@@ -959,8 +998,8 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
     if (!file) return;
 
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-    if (isExcel && !(window as any).XLSX) {
-        showError("Excel kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+    if (isExcel && !XLSX) {
+        showError("Excel kütüphanesi yüklenemedi.");
         if (excelInputRef.current) excelInputRef.current.value = '';
         return;
     }
@@ -1188,8 +1227,8 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
         groups.get(product.anaStokKodu)!.push(product);
       }
     }
-    return Array.from(groups.values());
-  }, [searchQuery, products]);
+    return Array.from(groups.values()).sort((a, b) => a[0].name.localeCompare(b[0].name, 'tr'));
+  }, [searchQuery, products, selectedSupplier]);
 
   const navigableItems = useMemo(() => {
     const items: Array<{ type: 'group' | 'variant'; product: Product; }> = [];
@@ -1340,7 +1379,9 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
 
 
   if (purchaseState === 'SELECT_SUPPLIER') {
-    const filteredSuppliers = suppliers.filter(s => s.name.toLowerCase().includes(supplierSearchTerm.toLowerCase()));
+    const filteredSuppliers = suppliers
+        .filter(s => s.name.toLowerCase().includes(supplierSearchTerm.toLowerCase()))
+        .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     return (
         <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900">
             <div className="w-full max-w-2xl bg-white dark:bg-slate-800 p-8 rounded-xl shadow-xl border dark:border-slate-700">
@@ -1407,6 +1448,23 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
     <div className="w-full h-full flex flex-col gap-4">
         {isAiModalOpen && <AiPurchaseModal onClose={() => setIsAiModalOpen(false)} onStartTask={handleStartAiTask} />}
         {reviewingTask && <AiPurchaseReviewModal task={reviewingTask} onClose={() => setReviewingTask(null)} onCommit={handleCommitAiResults} onDismiss={handleDismissAiTask} />}
+        {confirmModal?.isOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
+                    <div className="p-8 text-center">
+                        <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-amber-600">
+                            <Icon name="reports" className="w-10 h-10" />
+                        </div>
+                        <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-2">{confirmModal.title}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-[10px] leading-relaxed px-4">{confirmModal.message}</p>
+                    </div>
+                    <div className="flex border-t dark:border-slate-700">
+                        <button onClick={() => setConfirmModal(null)} className="flex-1 h-20 font-black text-xs uppercase tracking-[0.2em] text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">VAZGEÇ</button>
+                        <button onClick={confirmModal.onConfirm} className="flex-1 h-20 font-black text-xs uppercase tracking-[0.2em] bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-inner">EVET, ONAYLA</button>
+                    </div>
+                </div>
+            </div>
+        )}
         {isMissingListModalOpen && (
             <MissingListModal 
                 isOpen={true} 
@@ -1448,11 +1506,19 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
         <header className="p-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
            <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Alış Faturası Oluştur</h2>
-             <div>
-                <span className="font-semibold text-slate-600 dark:text-slate-400">Tedarikçi: </span>
-                <span className="font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/30 px-3 py-1 rounded-full">{selectedSupplier?.name}</span>
-                <button onClick={handleChangeSupplier} className="ml-4 text-sm text-blue-600 dark:text-blue-400 hover:underline">Değiştir</button>
-             </div>
+             <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tedarikçi: </span>
+                <div className="flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800/50 px-4 py-1.5 rounded-xl shadow-sm">
+                   <Icon name="supplier" className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                   <span className="font-bold text-cyan-800 dark:text-cyan-200">{selectedSupplier?.name}</span>
+                </div>
+                <button 
+                  onClick={handleChangeSupplier} 
+                  className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-[10px] font-black text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 transition-all uppercase tracking-tighter"
+                >
+                   <Icon name="refresh" className="w-3 h-3" /> DEĞİŞTİR
+                </button>
+              </div>
            </div>
           <div className="flex items-start gap-4">
               <form onSubmit={handleBarcodeSubmit} className="relative flex-grow">
@@ -1573,39 +1639,54 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
             <tbody>
               {currentPurchase.length === 0 ? (
                 <tr><td colSpan={visibleColumns.length} className="text-center py-10"><div className="flex flex-col items-center justify-center text-slate-400 p-8"><Icon name="purchase" className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600"/><h3 className="text-xl font-medium text-slate-500 dark:text-slate-400">Fatura Boş</h3><p className="text-sm">Başlamak için bir ürünün barkodunu okutun veya arayın.</p></div></td></tr>
-              ) : (currentPurchase.map(item => (
-                  <tr key={item.barcode} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 last:border-0 hover:bg-amber-50 dark:hover:bg-amber-900/20 group/row transition-colors">
-                     {visibleColumns.map((col: any) => {
-                        let content: React.ReactNode;
-                        if (col.id === 'quantity') {
-                            content = (
-                                <div className="flex items-center justify-center gap-2">
-                                  <button onClick={() => updateQuantity(item.barcode, -1)} className="btn-quantity dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"><Icon name="minus" className="w-4 h-4" /></button>
-                                  <span className="w-8 text-center font-bold text-md text-slate-800 dark:text-slate-200">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.barcode, 1)} className="btn-quantity dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"><Icon name="plus" className="w-4 h-4" /></button>
-                                </div>
-                            );
-                        } else if (col.id === 'buyPrice') {
-                            content = editingBuyPrice?.barcode === item.barcode ? 
-                                (<input type="text" value={editingBuyPrice.value} onChange={(e) => setEditingBuyPrice({ ...editingBuyPrice, value: e.target.value })} onBlur={handleBuyPriceUpdate} onKeyDown={(e) => handlePriceInputKeyDown(e, item.barcode)} autoFocus onFocus={(e) => e.target.select()} className="w-24 text-right bg-white dark:bg-slate-700 border-2 border-cyan-500 rounded px-2 py-1 outline-none ring-2 ring-cyan-200 dark:text-white"/>) : 
-                                (<div onClick={() => setEditingBuyPrice({ barcode: item.barcode, value: item.buyPrice.toString() })} className="cursor-pointer p-1 -m-1 rounded hover:bg-cyan-100 dark:hover:bg-cyan-900/30 flex items-center justify-end" title="Fiyatı düzenle"><span>{`${item.buyPrice.toFixed(2)} ₺`}</span><Icon name="edit" className="w-3 h-3 ml-2 text-slate-400 opacity-0 group-hover/row:opacity-100 transition-opacity" /></div>);
-                        } else if (col.id === 'total') {
-                            content = `${(item.buyPrice * item.quantity).toFixed(2)} ₺`;
-                        } else if (col.id === 'stock') {
-                            content = item.stock + item.quantity;
-                        } else if (col.id === 'actions') {
-                            content = <div className="flex justify-center"><button onClick={() => removeItem(item.barcode)} className="p-2 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition"><Icon name="trash" className="w-4 h-4" /></button></div>
-                        } else {
-                            content = (item as any)[col.id] ?? '';
-                        }
+              ) : (
+                <>
+                  {currentPurchase.slice(0, 200).map(item => (
+                    <tr key={item.barcode} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 last:border-0 hover:bg-amber-50 dark:hover:bg-amber-900/20 group/row transition-colors">
+                       {visibleColumns.map((col: any) => {
+                          let content: React.ReactNode;
+                          if (col.id === 'quantity') {
+                              content = (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button onClick={() => updateQuantity(item.barcode, -1)} className="btn-quantity dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"><Icon name="minus" className="w-4 h-4" /></button>
+                                    <span className="w-8 text-center font-bold text-md text-slate-800 dark:text-slate-200">{item.quantity}</span>
+                                    <button onClick={() => updateQuantity(item.barcode, 1)} className="btn-quantity dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"><Icon name="plus" className="w-4 h-4" /></button>
+                                  </div>
+                              );
+                          } else if (col.id === 'buyPrice') {
+                              content = editingBuyPrice?.barcode === item.barcode ? 
+                                  (<input type="text" value={editingBuyPrice.value} onChange={(e) => setEditingBuyPrice({ ...editingBuyPrice, value: e.target.value })} onBlur={handleBuyPriceUpdate} onKeyDown={(e) => handlePriceInputKeyDown(e, item.barcode)} autoFocus onFocus={(e) => e.target.select()} className="w-24 text-right bg-white dark:bg-slate-700 border-2 border-cyan-500 rounded px-2 py-1 outline-none ring-2 ring-cyan-200 dark:text-white"/>) : 
+                                  (<div onClick={() => setEditingBuyPrice({ barcode: item.barcode, value: item.buyPrice.toString() })} className="cursor-pointer p-1 -m-1 rounded hover:bg-cyan-100 dark:hover:bg-cyan-900/30 flex items-center justify-end" title="Fiyatı düzenle"><span>{`${item.buyPrice.toFixed(2)} ₺`}</span><Icon name="edit" className="w-3 h-3 ml-2 text-slate-400 opacity-0 group-hover/row:opacity-100 transition-opacity" /></div>);
+                          } else if (col.id === 'total') {
+                              content = `${(item.buyPrice * item.quantity).toFixed(2)} ₺`;
+                          } else if (col.id === 'stock') {
+                              content = item.stock + item.quantity;
+                          } else if (col.id === 'actions') {
+                              content = <div className="flex justify-center"><button onClick={() => removeItem(item.barcode)} className="p-2 rounded-full text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition"><Icon name="trash" className="w-4 h-4" /></button></div>
+                          } else {
+                              content = (item as any)[col.id] ?? '';
+                          }
 
-                        return (
-                            <td key={col.id} className="px-2 py-0.5 border-r border-slate-200 dark:border-slate-700 last:border-r-0" style={{ textAlign: col.align || 'left', fontWeight: ['total', 'buyPrice', 'stock'].includes(col.id) ? 600 : 400, color: col.id === 'total' ? (companyInfo.darkMode ? '#22d3ee' : '#0891b2') : ''}}>
-                                {content}
-                            </td>
-                        )
-                    })}
-                  </tr>)))}
+                          return (
+                              <td key={col.id} className="px-2 py-0.5 border-r border-slate-200 dark:border-slate-700 last:border-r-0" style={{ textAlign: col.align || 'left', fontWeight: ['total', 'buyPrice', 'stock'].includes(col.id) ? 600 : 400, color: col.id === 'total' ? (companyInfo.darkMode ? '#22d3ee' : '#0891b2') : ''}}>
+                                  {content}
+                              </td>
+                          )
+                       })}
+                    </tr>
+                  ))}
+                  {currentPurchase.length > 200 && (
+                    <tr className="bg-amber-50 dark:bg-amber-900/10">
+                      <td colSpan={visibleColumns.length} className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-400 font-bold uppercase tracking-widest text-[10px]">
+                          <Icon name="reports" className="w-4 h-4 animate-bounce" />
+                          PERFORMANS İÇİN İLK 200 ÜRÜN GÖSTERİLİYOR. TOPLAM {currentPurchase.length} ÜRÜN İŞLEME ALINDI.
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )}
             </tbody>
           </table>
         </div>
@@ -1631,7 +1712,23 @@ const PurchaseView: React.FC<PurchaseViewProps> = (props) => {
                 <p className="text-2xl font-bold tracking-tight text-cyan-300 dark:text-cyan-400">{total.toFixed(2)}<span className="text-lg ml-1">₺</span></p>
             </div>
         </div>
-        <div className="flex items-center gap-3"><button onClick={cancelPurchase} disabled={currentPurchase.length === 0} className="btn-footer bg-red-500/20 text-red-300 hover:bg-red-500/40 text-xs">İptal Et</button><button onClick={savePurchase} disabled={currentPurchase.length === 0} className="btn-footer w-48 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-sm shadow-lg hover:shadow-green-500/40 transform hover:-translate-y-1"><Icon name="check" className="w-5 h-5" /><span>Faturayı Kaydet</span></button></div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={cancelPurchase} 
+            disabled={currentPurchase.length === 0} 
+            className="flex items-center gap-2 px-6 h-12 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Icon name="trash" className="w-4 h-4" /> FATURAYI İPTAL ET
+          </button>
+          <button 
+            onClick={savePurchase} 
+            disabled={currentPurchase.length === 0} 
+            className="flex items-center gap-3 px-10 h-12 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-black text-sm shadow-xl shadow-emerald-900/20 hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Icon name="check" className="w-5 h-5" /> 
+            <span>FATURAYI KAYDET</span>
+          </button>
+        </div>
       </div>
       <style>{`
           .btn-quantity { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem; background-color: #e2e8f0; color: #334155; transition: all 0.2s; }

@@ -68,22 +68,33 @@ const ProductFiltersPanel: React.FC<ProductFiltersPanelProps> = ({
         onApply(localFilters);
     };
 
+    const sortAZ = (a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'tr');
+
+    const sortedBrands = useMemo(() => [...definitions.brands].sort(sortAZ), [definitions.brands]);
+
     const filteredModels = useMemo(() => {
-        if (!localFilters.marka) return definitions.models;
-        const brand = definitions.brands.find(b => b.name === localFilters.marka);
-        return brand ? definitions.models.filter(m => m.brandId === brand.id) : [];
+        let models = definitions.models;
+        if (localFilters.marka) {
+            const brand = definitions.brands.find(b => b.name === localFilters.marka);
+            models = brand ? definitions.models.filter(m => m.brandId === brand.id) : [];
+        }
+        return [...models].sort(sortAZ);
     }, [localFilters.marka, definitions.brands, definitions.models]);
 
-    const mainGroups = useMemo(() => definitions.groups.filter(g => g.parentId === null), [definitions.groups]);
+    const mainGroups = useMemo(() => {
+        return definitions.groups.filter(g => g.parentId === null).sort(sortAZ);
+    }, [definitions.groups]);
+
     const midGroups = useMemo(() => {
         if (!localFilters.group) return [];
         const selectedGroup = mainGroups.find(g => g.name === localFilters.group);
-        return selectedGroup ? definitions.groups.filter(g => g.parentId === selectedGroup.id) : [];
+        return selectedGroup ? definitions.groups.filter(g => g.parentId === selectedGroup.id).sort(sortAZ) : [];
     }, [localFilters.group, mainGroups, definitions.groups]);
+
     const subGroups = useMemo(() => {
         if (!localFilters.midGroup) return [];
         const selectedMidGroup = midGroups.find(g => g.name === localFilters.midGroup);
-        return selectedMidGroup ? definitions.groups.filter(g => g.parentId === selectedMidGroup.id) : [];
+        return selectedMidGroup ? definitions.groups.filter(g => g.parentId === selectedMidGroup.id).sort(sortAZ) : [];
     }, [localFilters.midGroup, midGroups, definitions.groups]);
     
     if (!isOpen) return null;
@@ -136,7 +147,7 @@ const ProductFiltersPanel: React.FC<ProductFiltersPanelProps> = ({
                             <h3 className="font-semibold text-slate-600">Detaylar</h3>
                             <select name="marka" value={localFilters.marka || ''} onChange={handleChange} className="input-style w-full">
                                 <option value="">Tüm Markalar</option>
-                                {definitions.brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                                {sortedBrands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                             </select>
                             <select name="model" value={localFilters.model || ''} onChange={handleChange} className="input-style w-full" disabled={!localFilters.marka}>
                                 <option value="">Tüm Modeller</option>

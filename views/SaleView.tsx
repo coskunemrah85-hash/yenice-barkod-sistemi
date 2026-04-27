@@ -299,9 +299,50 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
   const searchResultsRef = useRef<HTMLDivElement>(null);
 
 
-  useEffect(() => {
+  const focusBarcodeInput = useCallback(() => {
     barcodeInputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const handleDeleteSelected = () => {
+        if (currentSale.length === 0) return;
+        setCurrentSale([]);
+        setBarcode('');
+        setSearchQuery('');
+        focusBarcodeInput();
+    };
+
+    const handleRefresh = (e: any) => {
+        if (e.detail?.viewId === 'new-sale') {
+            setSearchQuery('');
+            setBarcode('');
+            setError(null);
+            focusBarcodeInput();
+        }
+    };
+
+    const handlePaste = (e: any) => {
+        const text = e.detail;
+        if (text) {
+            setBarcode(text);
+            focusBarcodeInput();
+        }
+    };
+
+    window.addEventListener('app-delete-selected', handleDeleteSelected);
+    window.addEventListener('app-refresh-view', handleRefresh);
+    window.addEventListener('app-paste', handlePaste);
+
+    return () => {
+        window.removeEventListener('app-delete-selected', handleDeleteSelected);
+        window.removeEventListener('app-refresh-view', handleRefresh);
+        window.removeEventListener('app-paste', handlePaste);
+    };
+  }, [currentSale.length, setCurrentSale, focusBarcodeInput]);
+
+  useEffect(() => {
+    focusBarcodeInput();
+  }, [focusBarcodeInput]);
 
   useEffect(() => {
     try {
@@ -433,7 +474,11 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
     const trimmedBarcode = newBarcode.trim();
     // Auto-process if it looks like a complete, single barcode (e.g., from a scanner)
     if (!trimmedBarcode.includes('*') && /^\d{12,13}$/.test(trimmedBarcode)) {
-        if (products.some(p => p.barcode === trimmedBarcode)) {
+        const hasProduct = products.some(p => 
+            p.barcode === trimmedBarcode || 
+            (p.secondaryBarcodes && p.secondaryBarcodes.includes(trimmedBarcode))
+        );
+        if (hasProduct) {
              processBarcode(trimmedBarcode);
         }
     }
@@ -601,10 +646,12 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
   const filteredCustomers = useMemo(() => {
     if (customerSearch.length < 2) return [];
     const lowerCaseQuery = customerSearch.toLowerCase();
-    return customers.filter(c => 
+    return customers
+      .filter(c => 
         c.name.toLowerCase().includes(lowerCaseQuery) ||
         c.phone?.includes(lowerCaseQuery)
-    );
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [customerSearch, customers]);
 
   const searchResultGroups = useMemo(() => {
@@ -632,7 +679,7 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
       }
     });
 
-    return Array.from(groups.values());
+    return Array.from(groups.values()).sort((a, b) => a[0].name.localeCompare(b[0].name, 'tr'));
   }, [searchQuery, products]);
 
   const navigableItems = useMemo(() => {
@@ -820,7 +867,16 @@ const SaleView: React.FC<SaleViewProps> = ({ products, onSaleComplete, suspended
         isOpen={isBulkPriceModalOpen}
         onClose={() => setIsBulkPriceModalOpen(false)}
         currentSale={currentSale}
-        onSave={updatePricesByAnaStokKodu}
+        onSave={(updates, mode) => {
+          if (mode === 'anaStokKodu') {
+            updatePricesByAnaStokKodu(updates);
+          } else {
+            // If barcode mode, call updateProductPrice for each barcode
+            Object.entries(updates).forEach(([barcode, price]) => {
+              updateProductPrice(barcode, price);
+            });
+          }
+        }}
       />
        {isAddCustomerModalOpen && <AddCustomerModal isOpen={isAddCustomerModalOpen} onClose={() => setIsAddCustomerModalOpen(false)} onSave={handleSaveAndSelectCustomer} />}
       <style>{`
