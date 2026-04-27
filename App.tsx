@@ -667,6 +667,7 @@ const App: React.FC = () => {
                       stokKodu: newP.stokKodu || existing.stokKodu,
                       anaStokKodu: newP.anaStokKodu || existing.anaStokKodu,
                       group: newP.group || existing.group,
+                      secondaryBarcodes: newP.secondaryBarcodes || existing.secondaryBarcodes,
                       buyPrice: parsedBuyPrice > 0 ? parsedBuyPrice : existing.buyPrice,
                       price: parsedPrice > 0 ? parsedPrice : existing.price,
                       stock: parsedStock,

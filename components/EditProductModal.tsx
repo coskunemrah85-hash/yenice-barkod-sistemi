@@ -184,26 +184,27 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
     }, [commonData.midGroup, midGroups, definitions.groups]);
 
     return (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4" onClick={onClose}>
-            <div className="bg-[#0f172a] border border-white/10 rounded-[1.5rem] shadow-2xl w-full max-w-6xl max-h-[96vh] h-auto flex flex-col overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-slate-950 z-[100] flex flex-col animate-fade-in">
+            <div className="bg-[#0f172a] h-full w-full flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 
                 {/* Header */}
-                <header className="flex-shrink-0 p-2 px-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-xl">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center text-cyan-400">
-                            <Icon name="edit" className="w-4 h-4"/>
-                        </div>
+                <header className="flex-shrink-0 h-16 px-8 border-b border-white/5 flex justify-between items-center bg-slate-900/40 backdrop-blur-2xl sticky top-0 z-20">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <button onClick={onClose} className="group/back flex items-center gap-2 text-slate-500 hover:text-white transition-all pr-4 border-r border-white/10">
+                            <Icon name="refresh" className="w-4 h-4 rotate-180 group-hover/back:-translate-x-1 transition-transform" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">GERİ</span>
+                        </button>
                         <div className="min-w-0">
-                            <h2 className="text-sm font-black text-white uppercase tracking-tight italic truncate">Ürün Grubu Düzenle</h2>
-                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate">GRUP: <span className="text-cyan-500">{commonData.anaStokKodu || commonData.model || 'GENEL'}</span></p>
+                            <h2 className="text-lg font-black text-white uppercase tracking-tighter italic leading-tight">Ürün Düzenleme Menüsü</h2>
+                            <p className="text-[9px] font-bold text-cyan-500/60 uppercase tracking-[0.2em] leading-none">
+                                {commonData.name || 'İsimsiz Ürün'} • {commonData.anaStokKodu || 'Kodsuz'}
+                            </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button onClick={handleMinimize} title="Küçült" className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:text-cyan-400 hover:bg-white/10 transition-all">
+                    <div className="flex items-center gap-3">
+                        <button onClick={handleMinimize} className="flex items-center gap-2 px-4 h-10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-cyan-400 rounded-xl transition-all border border-white/5">
                              <Icon name="minus" className="w-4 h-4" />
-                        </button>
-                        <button onClick={onClose} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-all">
-                            <Icon name="x-circle" className="w-5 h-5"/>
+                             <span className="text-[9px] font-black uppercase tracking-widest">KÜÇÜLT</span>
                         </button>
                     </div>
                 </header>
@@ -355,9 +356,22 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onClose, on
                     </section>
                 </main>
 
-                <footer className="flex-shrink-0 p-2 px-6 border-t border-white/5 bg-slate-900/50 backdrop-blur-xl flex justify-end gap-2 flex-wrap">
-                    <button onClick={onClose} className="px-4 h-8 bg-white/5 hover:bg-white/10 text-slate-400 rounded-lg font-black uppercase text-[8.5px] tracking-widest transition-all flex-shrink-0">Vazgeç</button>
-                    <button onClick={handleSave} className="px-6 h-8 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-black uppercase text-[8.5px] tracking-widest shadow-lg shadow-cyan-900/20 transition-all flex-shrink-0">Değişiklikleri Uygula</button>
+                <footer className="flex-shrink-0 p-4 px-8 border-t border-white/5 bg-slate-900/60 backdrop-blur-2xl flex justify-between items-center z-20">
+                    <div className="flex items-center gap-6">
+                        <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">TOPLAM VARYASYON</span>
+                            <span className="text-sm font-black text-white">{variations.length} ADET</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/5"></div>
+                        <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">TOPLAM STOK</span>
+                            <span className="text-sm font-black text-cyan-400">{variations.reduce((s,v)=>s+v.stock, 0)} ADET</span>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 h-11 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border border-white/5">Vazgeç</button>
+                        <button onClick={handleSave} className="px-10 h-11 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-cyan-900/20 transition-all transform hover:scale-[1.02] active:scale-[0.98]">Değişiklikleri Kaydet</button>
+                    </div>
                 </footer>
             </div>
             
