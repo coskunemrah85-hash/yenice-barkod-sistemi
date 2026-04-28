@@ -33,6 +33,7 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 firebase-applet-config.json
+firebase-key.json
 # firebase-blueprint.json (Eğer sadece şablonsa kalabilir ama gizliyse kapat)
 
 # --- Editör ve Sistem Dosyaları ---

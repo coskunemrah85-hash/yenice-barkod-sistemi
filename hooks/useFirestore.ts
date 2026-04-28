@@ -67,42 +67,65 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
   useEffect(() => {
     // 1. Önce yerel yedekten yükle (Çevrimdışı ve hızlı başlangıç için)
     const loadLocal = async () => {
-      const ipc = (window as any).require?.('electron')?.ipcRenderer;
-      if (ipc) {
-        const localData = await ipc.invoke('get-data', { collection: collectionName });
-        if (localData && Array.isArray(localData) && localData.length > 0) {
-          console.log(`[useFirestore] ${collectionName} yerel yedekten yüklendi.`);
-          setData(localData);
+      try {
+        const ipc = (window as any).require?.('electron')?.ipcRenderer;
+        if (ipc) {
+          const localData = await ipc.invoke('get-data', { collection: collectionName });
+          if (localData && Array.isArray(localData) && localData.length > 0) {
+            console.log(`[useFirestore] ${collectionName} yerel yedekten yüklendi (${localData.length} öğe).`);
+            setData(localData);
+          }
         }
+      } catch (err) {
+        console.error(`[useFirestore] ${collectionName} yerel yükleme hatası:`, err);
+      } finally {
+        isInitialized.current = true; // Attempt completed, allow writes now
       }
-      isInitialized.current = true; // Attempt completed, allow writes now
     };
     loadLocal();
 
-    const q = query(collection(db, collectionName));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: T[] = [];
-      snapshot.forEach((doc) => {
-        items.push({ ...doc.data(), id: doc.id } as T);
-      });
-      
-      setData(items);
-      isInitialized.current = true;
-      
-      // Firestore'dan gelen veriyi yerel yedeğe de yaz
-      const ipc = (window as any).require?.('electron')?.ipcRenderer;
-      if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, collectionName);
+    // 2. Sadece oturum açılmışsa Firestore'u dinle
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        console.log(`[useFirestore] ${collectionName} Firestore dinleyicisi başlatılıyor (Kullanıcı: ${user.email}).`);
+        const q = query(collection(db, collectionName));
+        const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+          const items: T[] = [];
+          snapshot.forEach((doc) => {
+            items.push({ ...doc.data(), id: doc.id } as T);
+          });
+          
+          // KRİTİK: Eğer Firestore boşsa ve biz henüz yerel veriyi yüklemişsek, 
+          // yerel veriyi hemen silmeyelim, bir süre bekleyelim veya emin olalım.
+          // Ancak oturum açıkken Firestore her zaman kaynaktır.
+          setData(items);
+          isInitialized.current = true;
+          
+          // Firestore'dan gelen veriyi yerel yedeğe de yaz
+          const ipc = (window as any).require?.('electron')?.ipcRenderer;
+          if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, collectionName);
+        });
+
+        return () => unsubscribeSnapshot();
+      } else {
+        console.log(`[useFirestore] ${collectionName} Firestore dinleyicisi durduruldu (Oturum kapalı).`);
+      }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [collectionName]);
 
   const setValue = useCallback(async (value: T[] | ((val: T[]) => T[])) => {
-    // Guard: Prevent operations if not initialized to avoid accidental deletions/overwrites during startup
+    // Guard: Prevent operations if not initialized or not logged in
     if (!isInitialized.current) {
-      console.warn(`[useFirestore] ${collectionName} yet not initialized. Write operation ignored.`);
+      console.warn(`[useFirestore] ${collectionName} henüz hazır değil. Yazma işlemi yoksayıldı.`);
+      return;
+    }
+
+    if (!auth.currentUser) {
+      console.warn(`[useFirestore] ${collectionName} yazma hatası: Oturum açılmamış.`);
       return;
     }
 
@@ -136,6 +159,7 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
         const id = item.id || item.barcode;
         if (id) {
           const oldItem = oldItemsMap.get(id);
+          // Obje karşılaştırması için daha derin bir kontrol gerekebilir ama JSON.stringify basit vakalar için yeterli
           if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
             const docRef = doc(db, collectionName, id);
             batch.set(docRef, item);
@@ -146,6 +170,7 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
 
       if (opsCount > 0) {
         await batch.commit();
+        console.log(`[useFirestore] ${collectionName} ${opsCount} işlem başarıyla Firestore'a yazıldı.`);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, collectionName);
@@ -164,31 +189,40 @@ export function useFirestoreDoc<T>(
 
   useEffect(() => {
     const loadLocal = async () => {
-      const ipc = (window as any).require?.('electron')?.ipcRenderer;
-      if (ipc) {
-        const localData = await ipc.invoke('get-data', { collection: `${collectionName}_doc_${docId}` });
-        if (localData) {
-          console.log(`[useFirestoreDoc] ${collectionName}/${docId} yerel yedekten yüklendi.`);
-          setData(localData);
+      try {
+        const ipc = (window as any).require?.('electron')?.ipcRenderer;
+        if (ipc) {
+          const localData = await ipc.invoke('get-data', { collection: `${collectionName}_doc_${docId}` });
+          if (localData) {
+            console.log(`[useFirestoreDoc] ${collectionName}/${docId} yerel yedekten yüklendi.`);
+            setData(localData);
+          }
         }
+      } catch (err) {
+        console.error(`[useFirestoreDoc] ${collectionName}/${docId} yerel yükleme hatası:`, err);
       }
     };
     loadLocal();
 
-    const docRef = doc(db, collectionName, docId);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const docData = docSnap.data() as T;
-        setData(docData);
-        
-        const ipc = (window as any).require?.('electron')?.ipcRenderer;
-        if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: docData });
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        const docRef = doc(db, collectionName, docId);
+        const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const docData = docSnap.data() as T;
+            setData(docData);
+            
+            const ipc = (window as any).require?.('electron')?.ipcRenderer;
+            if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: docData });
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `${collectionName}/${docId}`);
+        });
+        return () => unsubscribeSnapshot();
       }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `${collectionName}/${docId}`);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [collectionName, docId]);
 
   const setValue = useCallback(async (value: T | ((val: T) => T)) => {

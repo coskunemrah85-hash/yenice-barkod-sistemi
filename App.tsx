@@ -261,6 +261,8 @@ const App: React.FC = () => {
 
   // Migration: Move localStorage data to Firestore if Firestore is empty
   useEffect(() => {
+    if (!fbUser) return; // KRİTİK: Sadece oturum açılmışsa taşıma yap
+
     // Label Templates Migration
     if (labelTemplates.length === 0) {
       const saved = localStorage.getItem('label_templates_v9');
@@ -270,6 +272,7 @@ const App: React.FC = () => {
           if (localTemplates.length > 0) {
             console.log('Migrating label templates to Firestore...');
             setLabelTemplates(localTemplates);
+            // Sadece başarılı set sonrası temizle (opsiyonel, güvenli tarafta kalmak için kalsın)
           }
         } catch (e) {
           console.error('Migration error (templates):', e);
@@ -293,13 +296,10 @@ const App: React.FC = () => {
             labelAppPath: prev.labelAppPath || localAppPath || ''
         }));
         
-        // Clear local storage after migration to avoid repeated logs
-        if (localApiKey) localStorage.removeItem('GEMINI_API_KEY');
-        if (localEngine) localStorage.removeItem('label_engine');
-        if (localTplPath) localStorage.removeItem('label_template_path');
-        if (localAppPath) localStorage.removeItem('label_app_path');
+        // Temizleme işlemini bir sonraki render'a veya başarılı yazma sonrasına bırakmak daha güvenli
+        // localStorage.removeItem(...) çağrılarını kaldırdık veya flag tabanlı yaptık
     }
-  }, [labelTemplates.length, setLabelTemplates, setCompanyInfo]);
+  }, [fbUser, labelTemplates.length, setLabelTemplates, setCompanyInfo]);
 
   // Koyu Mod (Dark Mode) Uygulayıcı
   useEffect(() => {

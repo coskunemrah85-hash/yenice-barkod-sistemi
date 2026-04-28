@@ -12,12 +12,15 @@ import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec.firebaseapp.com",
-  projectId: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec",
-  storageBucket: "ai-studio-369e4703-1f8d-49ee-91a7-f76a3e15d9ec.firebasestorage.app",
+  authDomain: "gen-lang-client-0621614496.firebaseapp.com",
+  projectId: "gen-lang-client-0621614496",
+  storageBucket: "gen-lang-client-0621614496.firebasestorage.app",
   messagingSenderId: "351683423682",
-  appId: "1:351683423682:web:7b42b3edb4e01ce8c6ba5b"
 };
+
+if (!firebaseConfig.apiKey) {
+  console.error("FIREBASE API KEY EKSİK! Lütfen .env dosyasını veya Vite konfigürasyonunu kontrol edin.");
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
