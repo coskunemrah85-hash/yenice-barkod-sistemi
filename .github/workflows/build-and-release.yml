@@ -27,11 +27,16 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Get version
+        id: package-version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
       - name: Build React and Electron
-        # electron-builder'ı publish modunda değil, sadece build modunda çalıştırıyoruz
+        # electron-builder'ı build modunda çalıştırıyoruz, release'i aşağıda biz yöneteceğiz
         run: npm run electron:build 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,10 +44,12 @@ jobs:
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       - name: Create GitHub Release
-        # Sadece v ile başlayan tag'ler pushlandığında çalışır
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Hem v* tag'lerinde hem de main branch push'larında çalışır
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.package-version.outputs.version }}
+          name: Sürüm v${{ steps.package-version.outputs.version }}
           files: |
             dist_electron/*.exe
             dist_electron/latest.yml
@@ -50,9 +57,9 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## 🆕 Yenice Barkod Sistemi
-            Bu sürüm GitHub Actions tarafından otomatik olarak oluşturulmuştur.
-          generate_release_notes: true # Notları otomatik oluşturur
+            ## 🆕 Yenice Barkod Sistemi v${{ steps.package-version.outputs.version }}
+            Bu sürüm GitHub Actions tarafından otomatik olarak derlenmiş ve yayınlanmıştır.
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
