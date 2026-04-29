@@ -95,15 +95,30 @@ export function useFirestore<T extends { id?: string; barcode?: string }>(
             items.push({ ...doc.data(), id: doc.id } as T);
           });
           
-          // KRİTİK: Eğer Firestore boşsa ve biz henüz yerel veriyi yüklemişsek, 
-          // yerel veriyi hemen silmeyelim, bir süre bekleyelim veya emin olalım.
-          // Ancak oturum açıkken Firestore her zaman kaynaktır.
-          setData(items);
-          isInitialized.current = true;
+          setData(prevData => {
+            // KRİTİK KORUMA: 
+            // Eğer Firestore'dan boş veri gelmişse VE bizim yerel verimiz zaten varsa,
+            // yerel veriyi ezmeyelim. Bu durum genellikle oturum yeni açıldığında
+            // veya senkronizasyon geciktiğinde yaşanır.
+            if (items.length === 0 && prevData.length > 0) {
+              console.warn(`[useFirestore] ${collectionName} Firestore boş döndü, yerel veri korunuyor (${prevData.length} öğe).`);
+              return prevData;
+            }
+            
+            // Eğer Firestore'da veri varsa veya yerel verimiz zaten boşsa güncelle
+            if (JSON.stringify(prevData) !== JSON.stringify(items)) {
+              console.log(`[useFirestore] ${collectionName} Firestore'dan güncellendi (${items.length} öğe).`);
+              
+              // Firestore'dan gelen veriyi yerel yedeğe de yaz (Yan etki olarak burada yapıyoruz)
+              const ipc = (window as any).require?.('electron')?.ipcRenderer;
+              if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
+              
+              return items;
+            }
+            return prevData;
+          });
           
-          // Firestore'dan gelen veriyi yerel yedeğe de yaz
-          const ipc = (window as any).require?.('electron')?.ipcRenderer;
-          if (ipc) ipc.invoke('save-data', { collection: collectionName, data: items });
+          isInitialized.current = true;
         }, (error) => {
           handleFirestoreError(error, OperationType.LIST, collectionName);
         });
@@ -210,10 +225,20 @@ export function useFirestoreDoc<T>(
         const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const docData = docSnap.data() as T;
-            setData(docData);
             
-            const ipc = (window as any).require?.('electron')?.ipcRenderer;
-            if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: docData });
+            setData(prevData => {
+              if (JSON.stringify(prevData) !== JSON.stringify(docData)) {
+                console.log(`[useFirestoreDoc] ${collectionName}/${docId} Firestore'dan güncellendi.`);
+                
+                const ipc = (window as any).require?.('electron')?.ipcRenderer;
+                if (ipc) ipc.invoke('save-data', { collection: `${collectionName}_doc_${docId}`, data: docData });
+                
+                return docData;
+              }
+              return prevData;
+            });
+          } else {
+             console.warn(`[useFirestoreDoc] ${collectionName}/${docId} Firestore'da bulunamadı, yerel veri korunuyor.`);
           }
         }, (error) => {
           handleFirestoreError(error, OperationType.GET, `${collectionName}/${docId}`);
