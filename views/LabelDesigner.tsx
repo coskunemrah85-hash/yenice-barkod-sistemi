@@ -146,6 +146,13 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
         });
     }, [products, searchQuery, filterBrand, filterModel, filterColor, filterSize, filterCode]);
 
+    // Unique values for dropdowns
+    const uniqueBrands = useMemo(() => Array.from(new Set(products.map(p => p.marka).filter(Boolean))), [products]);
+    const uniqueModels = useMemo(() => Array.from(new Set(products.map(p => p.model).filter(Boolean))), [products]);
+    const uniqueColors = useMemo(() => Array.from(new Set(products.map(p => p.renk).filter(Boolean))), [products]);
+    const uniqueSizes = useMemo(() => Array.from(new Set(products.map(p => p.beden).filter(Boolean))), [products]);
+    const uniqueCodes = useMemo(() => Array.from(new Set([...products.map(p => p.stokKodu), ...products.map(p => p.anaStokKodu)].filter(Boolean))), [products]);
+
     // Removed localStorage effect as we use Firestore now
     // Settings are saved via saveSettings helper
 
@@ -229,14 +236,21 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             ? Math.max(...activeTemplate.elements.map(e => e.zIndex || 0)) + 1 
             : 1;
 
+        const defaultWidth = type === 'line' ? 20 : (type === 'image' ? 20 : (type === 'barcode' ? 30 : 15));
+        const defaultHeight = type === 'line' ? 0.5 : (type === 'image' ? 20 : (type === 'barcode' ? 8 : 10));
+        
+        // Otomatik ortala (Barkod için özel hassasiyet)
+        const centeredX = Math.round(((activeTemplate.width - defaultWidth) / 2) * 10) / 10;
+        const centeredY = Math.round(((activeTemplate.height - defaultHeight) / 2) * 10) / 10;
+
         const newElement: LabelElement = {
             id: `el-${Date.now()}`,
             type,
-            x: 5,
-            y: 5,
-            width: type === 'line' ? 20 : (type === 'image' ? 20 : 15),
-            height: type === 'line' ? 0.5 : (type === 'image' ? 20 : 10),
-            fontSize: 10,
+            x: centeredX,
+            y: centeredY,
+            width: defaultWidth,
+            height: defaultHeight,
+            fontSize: type === 'barcode' ? 2 : 10,
             fontWeight: 'bold',
             fontFamily: 'Inter',
             textAlign: 'center',
@@ -352,7 +366,9 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
         
         const el = activeTemplate.elements.find(el => el.id === id);
         if (el && canvasRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
+            const labelEl = canvasRef.current.querySelector('.relative.bg-white');
+            if (!labelEl) return;
+            const rect = labelEl.getBoundingClientRect();
             const mouseX = (e.clientX - rect.left) / zoom;
             const mouseY = (e.clientY - rect.top) / zoom;
             setDragOffset({ x: mouseX - el.x, y: mouseY - el.y });
@@ -384,18 +400,18 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const onMouseMove = useCallback((e: MouseEvent) => {
         if ((!isDragging && !isResizing && !isRotating) || !selectedElementId || !canvasRef.current) return;
         
+        const labelEl = canvasRef.current.querySelector('.relative.bg-white');
+        if (!labelEl) return;
+        const rect = labelEl.getBoundingClientRect();
+        
         if (requestRef.current) cancelAnimationFrame(requestRef.current);
         
         requestRef.current = requestAnimationFrame(() => {
-            const rect = canvasRef.current!.getBoundingClientRect();
-            let mouseX = (e.clientX - rect.left) / zoom;
-            let mouseY = (e.clientY - rect.top) / zoom;
-            
-            const mmX = Math.round(mouseX * 10) / 10;
-            const mmY = Math.round(mouseY * 10) / 10;
+            const mouseX = (e.clientX - rect.left) / zoom;
+            const mouseY = (e.clientY - rect.top) / zoom;
             
             if (mouseCoordsRef.current) {
-                mouseCoordsRef.current.innerText = `X: ${mmX.toFixed(1)}mm Y: ${mmY.toFixed(1)}mm`;
+                mouseCoordsRef.current.innerText = `X: ${mouseX.toFixed(1)}mm Y: ${mouseY.toFixed(1)}mm`;
             }
             
             const precision = e.altKey ? 100 : 10;
@@ -404,82 +420,47 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                 let newX = mouseX - dragOffset.x;
                 let newY = mouseY - dragOffset.y;
                 
+                // Hassas Snap ve Ortala
+                const centerX = (activeTemplate.width - dragState.width) / 2;
+                const centerY = (activeTemplate.height - dragState.height) / 2;
+                const snapTolerance = 0.5;
+
+                if (Math.abs(newX - centerX) < snapTolerance && !e.altKey) newX = centerX;
+                if (Math.abs(newY - centerY) < snapTolerance && !e.altKey) newY = centerY;
+
                 newX = Math.round(newX * precision) / precision;
                 newY = Math.round(newY * precision) / precision;
                 
                 if (snapToGrid && !e.altKey) {
-                    newX = Math.round(newX / 0.5) * 0.5;
-                    newY = Math.round(newY / 0.5) * 0.5;
+                    newX = Math.round(newX / 0.1) * 0.1;
+                    newY = Math.round(newY / 0.1) * 0.1;
                 }
-
-                newX = Math.max(-10, Math.min(activeTemplate.width, newX));
-                newY = Math.max(-10, Math.min(activeTemplate.height, newY));
 
                 setDragState(prev => prev ? { ...prev, x: newX, y: newY } : null);
             } else if (isResizing && resizeHandle && dragState) {
                 let { x, y, width, height } = dragState;
-                
-                mouseX = Math.round(mouseX * precision) / precision;
-                mouseY = Math.round(mouseY * precision) / precision;
+                const curX = Math.round(mouseX * precision) / precision;
+                const curY = Math.round(mouseY * precision) / precision;
 
                 switch (resizeHandle) {
-                    case 'br':
-                        width = Math.max(0.1, mouseX - x);
-                        height = Math.max(0.1, mouseY - y);
-                        break;
-                    case 'tr':
-                        width = Math.max(0.1, mouseX - x);
-                        const oldY_tr = y;
-                        y = Math.min(oldY_tr + height - 0.1, mouseY);
-                        height = height + (oldY_tr - y);
-                        break;
-                    case 'bl':
-                        const oldX_bl = x;
-                        x = Math.min(oldX_bl + width - 0.1, mouseX);
-                        width = width + (oldX_bl - x);
-                        height = Math.max(0.1, mouseY - y);
-                        break;
-                    case 'tl':
-                        const ox_tl = x; const oy_tl = y;
-                        x = Math.min(ox_tl + width - 0.1, mouseX);
-                        y = Math.min(oy_tl + height - 0.1, mouseY);
-                        width = width + (ox_tl - x);
-                        height = height + (oy_tl - y);
-                        break;
-                    case 'r': width = Math.max(0.1, mouseX - x); break;
-                    case 'b': height = Math.max(0.1, mouseY - y); break;
-                    case 'l':
-                        const prevX_l = x;
-                        x = Math.min(prevX_l + width - 0.1, mouseX);
-                        width = width + (prevX_l - x);
-                        break;
-                    case 't':
-                        const prevY_t = y;
-                        y = Math.min(prevY_t + height - 0.1, mouseY);
-                        height = height + (prevY_t - y);
-                        break;
+                    case 'br': width = Math.max(0.1, curX - x); height = Math.max(0.1, curY - y); break;
+                    case 'tr': width = Math.max(0.1, curX - x); height = Math.max(0.1, height + (y - curY)); y = curY; break;
+                    case 'bl': width = Math.max(0.1, width + (x - curX)); x = curX; height = Math.max(0.1, curY - y); break;
+                    case 'tl': width = Math.max(0.1, width + (x - curX)); x = curX; height = Math.max(0.1, height + (y - curY)); y = curY; break;
+                    case 'r': width = Math.max(0.1, curX - x); break;
+                    case 'b': height = Math.max(0.1, curY - y); break;
+                    case 'l': width = Math.max(0.1, width + (x - curX)); x = curX; break;
+                    case 't': height = Math.max(0.1, height + (y - curY)); y = curY; break;
                 }
-
-                setDragState({ 
-                    x: Math.round(x * precision) / precision, 
-                    y: Math.round(y * precision) / precision, 
-                    width: Math.round(width * precision) / precision, 
-                    height: Math.round(height * precision) / precision 
-                });
+                setDragState({ x, y, width, height });
             } else if (isRotating && selectedElementId) {
                 const el = activeTemplate.elements.find(e => e.id === selectedElementId);
                 if (el) {
-                    const rect = canvasRef.current!.getBoundingClientRect();
                     const centerX = (el.x + el.width / 2) * zoom + rect.left;
                     const centerY = (el.y + el.height / 2) * zoom + rect.top;
-                    
                     const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
                     let finalAngle = (angle + 90) % 360;
-                    
-                    if (snapToGrid && !e.altKey) {
-                        finalAngle = Math.round(finalAngle / 15) * 15;
-                    }
-                    
+                    if (snapToGrid && !e.altKey) finalAngle = Math.round(finalAngle / 15) * 15;
                     updateElement(selectedElementId, { rotation: finalAngle });
                 }
             }
@@ -630,200 +611,141 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
     return (
         <div className="w-full h-full flex flex-col bg-[#0f172a] text-slate-300 font-sans overflow-hidden select-none">
-            {/* TOP COMMAND CENTER (RIBBON STYLE) */}
             <header className="flex-shrink-0 bg-slate-900 border-b border-white/10 z-[60] shadow-2xl relative no-print">
-                <div className="h-12 px-6 flex items-center gap-8 text-[15px] font-black text-slate-400 border-b border-white/5">
-                    <div className="relative group">
-                        <button onClick={() => setActiveMenu(activeMenu === 'dosya' ? null : 'dosya')} className={`transition-all hover:text-white ${activeMenu === 'dosya' ? 'text-white' : ''}`}>Dosya</button>
-                        {activeMenu === 'dosya' && (
-                            <div className="absolute top-full left-0 mt-1 w-48 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 z-[100] animate-in fade-in slide-in-from-top-2">
-                                <button onClick={createNewTemplate} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Yeni Şablon</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+N</span>
-                                </button>
-                                <button onClick={() => { setShowSaveMessage(true); setTimeout(() => setShowSaveMessage(false), 2000); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Kaydet</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+S</span>
-                                </button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <div className="relative group/sub">
-                                    <button className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                        <span className="text-[15px]">Şablon Aç</span>
-                                        <Icon name="list-bullet" className="w-4 h-4" />
+                {/* ROW 1: MENUS & STATUS */}
+                <div className="h-8 px-3 flex items-center justify-between text-[11px] font-bold text-slate-400 border-b border-white/5">
+                    <div className="flex items-center gap-4">
+                        <div className="relative group">
+                            <button onClick={() => setActiveMenu(activeMenu === 'dosya' ? null : 'dosya')} className={`transition-all hover:text-white ${activeMenu === 'dosya' ? 'text-white' : ''}`}>Dosya</button>
+                            {activeMenu === 'dosya' && (
+                                <div className="absolute top-full left-0 mt-1 w-44 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-1.5 z-[100] animate-in fade-in slide-in-from-top-1">
+                                    <button onClick={createNewTemplate} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between text-[13px]">
+                                        <span>Yeni Şablon</span>
+                                        <span className="text-[10px] opacity-50">Ctrl+N</span>
                                     </button>
-                                    <div className="absolute left-full top-0 ml-1 w-56 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 hidden group-hover/sub:block">
-                                        {templates.map(t => (
-                                            <button 
-                                                key={t.id} 
-                                                onClick={() => openTemplate(t.id)}
-                                                className={`w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white text-[14px] ${selectedTemplateId === t.id ? 'text-indigo-400 font-black' : ''}`}
-                                            >
-                                                {t.name}
-                                            </button>
-                                        ))}
+                                    <button onClick={() => { setShowSaveMessage(true); setTimeout(() => setShowSaveMessage(false), 2000); setActiveMenu(null); }} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between text-[13px]">
+                                        <span>Kaydet</span>
+                                        <span className="text-[10px] opacity-50">Ctrl+S</span>
+                                    </button>
+                                    <div className="h-px bg-white/5 my-1" />
+                                    <div className="relative group/sub">
+                                        <button className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between text-[13px]">
+                                            <span>Şablon Aç</span>
+                                            <Icon name="list-bullet" className="w-3.5 h-3.5" />
+                                        </button>
+                                        <div className="absolute left-full top-0 ml-1 w-48 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-1.5 hidden group-hover/sub:block">
+                                            {templates.map(t => (
+                                                <button key={t.id} onClick={() => openTemplate(t.id)} className={`w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white text-[12px] ${selectedTemplateId === t.id ? 'text-indigo-400 font-black' : ''}`}>{t.name}</button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="h-px bg-white/5 my-1" />
-                                <button onClick={() => { setShowSaveMessage(true); setTimeout(() => setShowSaveMessage(false), 2000); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white text-[15px]">Dışa Aktar...</button>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
 
-                    <div className="relative group">
-                        <button onClick={() => setActiveMenu(activeMenu === 'duzen' ? null : 'duzen')} className={`transition-all hover:text-white ${activeMenu === 'duzen' ? 'text-white' : ''}`}>Düzen</button>
-                        {activeMenu === 'duzen' && (
-                            <div className="absolute top-full left-0 mt-1 w-48 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 z-[100] animate-in fade-in slide-in-from-top-2">
-                                <button onClick={() => { undo(); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Geri Al</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+Z</span>
-                                </button>
-                                <button className="w-full px-5 py-3 text-left opacity-50 cursor-not-allowed text-[15px]">İleri Al</button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <button onClick={cutElement} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Kes</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+X</span>
-                                </button>
-                                <button onClick={copyElement} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Kopyala</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+C</span>
-                                </button>
-                                <button onClick={pasteElement} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Yapıştır</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Ctrl+V</span>
-                                </button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <button onClick={() => { setSelectedElementId(null); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white text-[15px]">Seçimi Kaldır</button>
-                                <button onClick={() => { selectedElementId && deleteElement(selectedElementId); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-rose-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Sil</span>
-                                    <span className="text-[11px] opacity-50 font-bold">Del</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="relative group">
-                        <button onClick={() => setActiveMenu(activeMenu === 'gorunum' ? null : 'gorunum')} className={`transition-all hover:text-white ${activeMenu === 'gorunum' ? 'text-white' : ''}`}>Görünüm</button>
-                        {activeMenu === 'gorunum' && (
-                            <div className="absolute top-full left-0 mt-1 w-48 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 z-[100] animate-in fade-in slide-in-from-top-2">
-                                <button onClick={() => { setShowGrid(!showGrid); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Izgara Göster</span>
-                                    <Icon name={showGrid ? 'list-bullet' : 'plus'} className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => { setSnapToGrid(!snapToGrid); setActiveMenu(null); }} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Izgaraya Yapış</span>
-                                    <Icon name={snapToGrid ? 'list-bullet' : 'plus'} className="w-4 h-4" />
-                                </button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <div className="px-5 py-2 text-[10px] text-slate-500 font-black">HIZLI TASLAKLAR</div>
-                                {templates.slice(0, 3).map(t => (
-                                    <button key={t.id} onClick={() => openTemplate(t.id)} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white text-[14px] truncate">
-                                        {t.name}
+                        <div className="relative group">
+                            <button onClick={() => setActiveMenu(activeMenu === 'duzen' ? null : 'duzen')} className={`transition-all hover:text-white ${activeMenu === 'duzen' ? 'text-white' : ''}`}>Düzen</button>
+                            {activeMenu === 'duzen' && (
+                                <div className="absolute top-full left-0 mt-1 w-44 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-1.5 z-[100]">
+                                    <button onClick={() => { undo(); setActiveMenu(null); }} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between text-[13px]">
+                                        <span>Geri Al</span>
+                                        <span className="text-[10px] opacity-50">Ctrl+Z</span>
                                     </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="relative group">
-                        <button onClick={() => setActiveMenu(activeMenu === 'ayarlar' ? null : 'ayarlar')} className={`transition-all hover:text-white ${activeMenu === 'ayarlar' ? 'text-white' : ''}`}>Ayarlar</button>
-                        {activeMenu === 'ayarlar' && (
-                            <div className="absolute top-full left-0 mt-1 w-56 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 z-[100] animate-in fade-in slide-in-from-top-2">
-                                <div className="px-5 py-2 text-[10px] text-slate-500 font-black">YAZICI MOTORU</div>
-                                {(['bartender', 'argox', 'native'] as const).map(lib => (
-                                    <button 
-                                        key={lib} 
-                                        onClick={() => { 
-                                            setEngine(lib); 
-                                            saveSettings({ labelEngine: lib });
-                                            setActiveMenu(null); 
-                                        }}
-                                        className={`w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between ${engine === lib ? 'text-indigo-400 font-black' : ''}`}
-                                    >
-                                        <span className="capitalize text-[15px]">{lib} Driver</span>
-                                        {engine === lib && <div className="w-2 h-2 bg-indigo-400 rounded-full" />}
-                                    </button>
-                                ))}
-                                <div className="h-px bg-white/5 my-1" />
-                                <button onClick={() => addElement('qr', { barcodeType: 'QR' })} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">QR Kod Ekle</span>
-                                    <Icon name="barcode" className="w-4 h-4" />
-                                </button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <button onClick={() => fileInputRef.current?.click()} className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                    <span className="text-[15px]">Resim Yükle...</span>
-                                    <Icon name="list-bullet" className="w-4 h-4" />
-                                </button>
-                                <div className="h-px bg-white/5 my-1" />
-                                <div className="relative group/shape">
-                                    <button className="w-full px-5 py-3 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between">
-                                        <span className="text-[15px]">Şekil Ekle</span>
-                                        <Icon name="plus" className="w-4 h-4" />
-                                    </button>
-                                    <div className="absolute left-full top-0 ml-1 w-48 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-2 hidden group-hover/shape:block">
-                                        <button onClick={() => addElement('rect', { shapeType: 'rect' })} className="w-full px-5 py-2.5 text-left hover:bg-indigo-600 text-[14px]">Dikdörtgen</button>
-                                        <button onClick={() => addElement('line', { shapeType: 'line' })} className="w-full px-5 py-2.5 text-left hover:bg-indigo-600 text-[14px]">Çizgi</button>
-                                        <button onClick={() => addElement('circle', { shapeType: 'circle' })} className="w-full px-5 py-2.5 text-left hover:bg-indigo-600 text-[14px]">Daire / Elips</button>
-                                    </div>
+                                    <div className="h-px bg-white/5 my-1" />
+                                    <button onClick={copyElement} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white text-[13px]">Kopyala</button>
+                                    <button onClick={pasteElement} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white text-[13px]">Yapıştır</button>
+                                    <button onClick={() => { selectedElementId && deleteElement(selectedElementId); setActiveMenu(null); }} className="w-full px-4 py-2 text-left hover:bg-rose-600 hover:text-white text-[13px]">Sil</button>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+
+                        <div className="relative group">
+                            <button onClick={() => setActiveMenu(activeMenu === 'gorunum' ? null : 'gorunum')} className={`transition-all hover:text-white ${activeMenu === 'gorunum' ? 'text-white' : ''}`}>Görünüm</button>
+                            {activeMenu === 'gorunum' && (
+                                <div className="absolute top-full left-0 mt-1 w-44 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-1.5 z-[100]">
+                                    <button onClick={() => { setShowGrid(!showGrid); setActiveMenu(null); }} className="w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white flex items-center justify-between text-[13px]">
+                                        <span>Izgara Göster</span>
+                                        <Icon name={showGrid ? 'check-circle' : 'plus'} className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="relative group">
+                            <button onClick={() => setActiveMenu(activeMenu === 'ayarlar' ? null : 'ayarlar')} className={`transition-all hover:text-white ${activeMenu === 'ayarlar' ? 'text-white' : ''}`}>Ayarlar</button>
+                            {activeMenu === 'ayarlar' && (
+                                <div className="absolute top-full left-0 mt-1 w-52 bg-slate-900 border border-white/10 rounded-lg shadow-2xl py-1.5 z-[100]">
+                                    {(['bartender', 'argox', 'native'] as const).map(lib => (
+                                        <button key={lib} onClick={() => { setEngine(lib); saveSettings({ labelEngine: lib }); setActiveMenu(null); }} className={`w-full px-4 py-2 text-left hover:bg-indigo-600 hover:text-white text-[13px] flex items-center justify-between ${engine === lib ? 'text-indigo-400 font-bold' : ''}`}>
+                                            <span className="capitalize">{lib} Driver</span>
+                                            {engine === lib && <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    
-                    <div className="relative group flex items-center gap-2">
-                        <button 
-                            onClick={() => setActiveTab('products')} 
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${activeTab === 'products' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                        >
-                            <Icon name="list-bullet" className="w-4 h-4" />
-                            <span className="text-[15px] font-black uppercase tracking-wider">Ürünler</span>
-                        </button>
 
-                        <button 
-                            onClick={() => setActiveTab('template')} 
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${activeTab === 'template' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                        >
-                            <Icon name="plus" className="w-4 h-4" />
-                            <span className="text-[15px] font-black uppercase tracking-wider">Tasarım</span>
-                        </button>
-
-                        <div className="w-px h-6 bg-white/10 mx-2" />
-
-                        <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-lg shadow-emerald-900/20 active:scale-95">
-                            <Icon name="printer" className="w-4 h-4" />
-                            <span className="text-[15px] font-black uppercase tracking-wider">Yazdır</span>
-                        </button>
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-4 text-indigo-400">
-                        {showSaveMessage && <span className="text-emerald-400 animate-pulse flex items-center gap-1 text-[9px]"><Icon name="list-bullet" className="w-3 h-3" /> Değişiklikler Kaydedildi</span>}
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div> Bağlı: Studio Pro v9</span>
+                    <div className="flex items-center gap-3">
+                        {showSaveMessage && <span className="text-emerald-400 animate-pulse flex items-center gap-1 text-[9px]"><Icon name="check-circle" className="w-3 h-3" /> KAYDEDİLDİ</span>}
+                        <div className="w-px h-3 bg-white/10 mx-1" />
+                        <span className="text-slate-500 text-[9px] tracking-widest font-black">STUDIO v9.2.3</span>
                     </div>
                 </div>
 
-                <div className="h-14 px-4 flex items-center gap-6 bg-slate-900/50 no-print">
-                    {selectedElement && (
-                        <div className="flex items-center gap-3 pr-4 border-r border-white/10 animate-in slide-in-from-left-4">
-                            <div className="flex items-center bg-slate-950/50 rounded-lg p-0.5 border border-white/5">
-                                <select value={selectedElement.fontFamily} onChange={e => updateElement(selectedElementId!, { fontFamily: e.target.value })} className="bg-transparent text-[10px] font-bold text-slate-300 px-2 py-1 outline-none border-r border-white/10 cursor-pointer">
-                                    <option value="Inter">Inter</option>
-                                    <option value="Roboto">Roboto</option>
-                                    <option value="Arial">Arial</option>
-                                    <option value="Monospace">Monospace</option>
-                                </select>
-                                <input type="number" value={selectedElement.fontSize} onChange={e => updateElement(selectedElementId!, { fontSize: parseInt(e.target.value) })} className="bg-transparent text-[10px] font-bold text-indigo-400 w-10 text-center outline-none" />
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <button onClick={() => moveZIndex(selectedElementId!, 'top')} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all" title="En Öne Getir"><Icon name="plus" className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => moveZIndex(selectedElementId!, 'bottom')} className="p-2 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-all" title="En Arkaya Gönder"><Icon name="minus" className="w-3.5 h-3.5" /></button>
-                            </div>
-                        </div>
-                    )}
+                {/* ROW 2: MAIN TOOLBAR */}
+                <div className="h-11 px-3 flex items-center justify-between bg-slate-900/50 backdrop-blur-md">
+                    <div className="flex items-center gap-1 bg-slate-950/40 p-0.5 rounded-lg border border-white/5">
+                        <button 
+                            onClick={() => setActiveTab('products')} 
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${activeTab === 'products' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                        >
+                            <Icon name="search" className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Ürün Seç</span>
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('template')} 
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${activeTab === 'template' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                        >
+                            <Icon name="plus" className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Tasarım</span>
+                        </button>
 
-                    <div className="ml-auto flex items-center gap-4">
-                        <div className="flex items-center bg-slate-950 p-1.5 rounded-xl border border-white/5">
-                            <button onClick={() => setZoom(Math.max(2, zoom - 1))} className="p-2 hover:text-white transition-all"><Icon name="minus" className="w-4 h-4" /></button>
-                            <span className="text-[13px] font-black w-14 text-center text-indigo-400">{Math.round((zoom/6) * 100)}%</span>
-                            <button onClick={() => setZoom(Math.min(15, zoom + 1))} className="p-2 hover:text-white transition-all"><Icon name="plus" className="w-4 h-4" /></button>
+                        <div className="flex items-center bg-slate-950/50 p-1 rounded-md border border-white/10 mx-1">
+                            <button onClick={() => setZoom(Math.max(2, zoom - 1))} className="p-1 hover:text-white text-slate-400 transition-all"><Icon name="minus" className="w-3 h-3" /></button>
+                            <span className="text-[10px] font-black w-8 text-center text-indigo-400">{Math.round((zoom/6) * 100)}%</span>
+                            <button onClick={() => setZoom(Math.min(15, zoom + 1))} className="p-1 hover:text-white text-slate-400 transition-all"><Icon name="plus" className="w-3 h-3" /></button>
+                        </div>
+
+                        <div className="w-px h-5 bg-white/10 mx-0.5" />
+
+                        <button onClick={handlePrint} className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-all shadow-lg shadow-emerald-900/20 active:scale-95">
+                            <Icon name="printer" className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Yazdır</span>
+                        </button>
+                    </div>
+
+                    {/* CONTEXTUAL TOOLS */}
+                    <div className="flex items-center gap-3">
+                        {selectedElement && activeTab === 'template' && (
+                            <div className="flex items-center gap-2 pr-2 border-r border-white/10 animate-in slide-in-from-right-4">
+                                <div className="flex items-center bg-slate-950/50 rounded-lg p-0.5 border border-white/5">
+                                    <select value={selectedElement.fontFamily} onChange={e => updateElement(selectedElementId!, { fontFamily: e.target.value })} className="bg-transparent text-[10px] font-bold text-slate-300 px-1.5 py-1 outline-none border-r border-white/10 cursor-pointer">
+                                        <option value="Inter">Inter</option>
+                                        <option value="Roboto">Roboto</option>
+                                        <option value="Arial">Arial</option>
+                                    </select>
+                                    <input type="number" value={selectedElement.fontSize} onChange={e => updateElement(selectedElementId!, { fontSize: parseInt(e.target.value) })} className="bg-transparent text-[10px] font-bold text-indigo-400 w-8 text-center outline-none" />
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                    <button onClick={() => moveZIndex(selectedElementId!, 'top')} className="p-1.5 hover:bg-white/5 rounded-md text-slate-400 hover:text-white" title="Öne Getir"><Icon name="plus" className="w-3 h-3" /></button>
+                                    <button onClick={() => moveZIndex(selectedElementId!, 'bottom')} className="p-1.5 hover:bg-white/5 rounded-md text-slate-400 hover:text-white" title="Arkaya Gönder"><Icon name="minus" className="w-3 h-3" /></button>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Sistem Hazır</span>
                         </div>
                     </div>
                 </div>
@@ -833,102 +755,107 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                 {activeTab === 'products' ? (
                     <div className="flex-1 flex overflow-hidden animate-in fade-in duration-500">
                         {/* SOL: GELİŞMİŞ FİLTRELEME VE ARAMA SONUÇLARI */}
-                        <div className="w-[380px] border-r border-white/5 flex flex-col bg-slate-900/40 backdrop-blur-xl">
-                            <div className="p-6 border-b border-white/5 space-y-4">
-                                <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
-                                    <Icon name="filter" className="w-5 h-5 text-indigo-400" /> ARA VE FİLTRELE
+                        <div className="w-[300px] border-r border-white/5 flex flex-col bg-slate-900/40 backdrop-blur-xl">
+                            <div className="p-4 border-b border-white/5 space-y-3">
+                                <h3 className="text-white font-black text-[10px] uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                    <Icon name="filter" className="w-4 h-4 text-indigo-400" /> ARA VE FİLTRELE
                                 </h3>
-                                
-                                <div className="grid grid-cols-1 gap-3">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Genel Arama</label>
+
+                                <div className="grid grid-cols-1 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Genel Arama</label>
                                         <div className="relative group">
                                             <input 
                                                 type="text" 
                                                 placeholder="Ürün adı veya barkod..." 
-                                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 outline-none transition-all pl-10"
+                                                className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none transition-all pl-8"
                                                 value={searchQuery}
                                                 onChange={e => setSearchQuery(e.target.value)}
                                             />
-                                            <Icon name="search" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400" />
+                                            <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 group-focus-within:text-indigo-400" />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Marka</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Marka</label>
                                             <input 
                                                 type="text" 
+                                                list="brand-list"
                                                 placeholder="Marka..." 
-                                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                                                className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterBrand}
                                                 onChange={e => setFilterBrand(e.target.value)}
                                             />
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Model</label>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Model</label>
                                             <input 
                                                 type="text" 
+                                                list="model-list"
                                                 placeholder="Model..." 
-                                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                                                className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterModel}
                                                 onChange={e => setFilterModel(e.target.value)}
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Renk</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Renk</label>
                                             <input 
                                                 type="text" 
+                                                list="color-list"
                                                 placeholder="Renk..." 
-                                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                                                className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterColor}
                                                 onChange={e => setFilterColor(e.target.value)}
                                             />
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Beden</label>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Beden</label>
                                             <input 
                                                 type="text" 
+                                                list="size-list"
                                                 placeholder="Beden..." 
-                                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-indigo-500 outline-none transition-all"
+                                                className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterSize}
                                                 onChange={e => setFilterSize(e.target.value)}
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Model Kodu / Stok Kodu</label>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Stok Kodu</label>
                                         <input 
                                             type="text" 
+                                            list="code-list"
                                             placeholder="Kod ara..." 
-                                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 outline-none transition-all"
+                                            className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none transition-all"
                                             value={filterCode}
                                             onChange={e => setFilterCode(e.target.value)}
                                         />
                                     </div>
                                 </div>
-                                
-                                <button 
-                                    onClick={() => {
-                                        setSearchQuery('');
-                                        setFilterBrand('');
-                                        setFilterModel('');
-                                        setFilterColor('');
-                                        setFilterSize('');
-                                        setFilterCode('');
-                                    }}
-                                    className="w-full py-2 text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
-                                >
-                                    Filtreleri Sıfırla
-                                </button>
                             </div>
+                            
+                            <button 
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setFilterBrand('');
+                                    setFilterModel('');
+                                    setFilterColor('');
+                                    setFilterSize('');
+                                    setFilterCode('');
+                                }}
+                                className="w-full py-1 text-[9px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
+                            >
+                                Sıfırla
+                            </button>
 
                             <div className="flex-1 overflow-hidden flex flex-col">
-                                <div className="px-6 py-4 border-b border-white/5 bg-slate-950/30 flex items-center justify-between">
+                                <div className="px-4 py-2 border-b border-white/5 bg-slate-950/30 flex items-center justify-between">
                                     <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Arama Sonuçları</span>
                                     <span className="text-[10px] text-indigo-400 font-black">{filteredProducts.length} Ürün</span>
                                 </div>
@@ -960,27 +887,27 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                         {/* ORTA: BASILACAK ÜRÜNLER (KUYRUK) */}
                         <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/20 shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]">
-                            <div className="p-8 flex items-center justify-between border-b border-white/5 bg-slate-900/20">
+                            <div className="p-4 flex items-center justify-between border-b border-white/5 bg-slate-900/20">
                                 <div>
-                                    <h2 className="text-3xl font-black text-white tracking-tighter mb-1">Baskı Listesi</h2>
-                                    <p className="text-slate-500 text-xs uppercase tracking-widest font-bold">Hazırlanan Etiketler</p>
+                                    <h2 className="text-xl font-black text-white tracking-tighter mb-0.5">Baskı Listesi</h2>
+                                    <p className="text-slate-500 text-[9px] uppercase tracking-widest font-bold">Hazırlanan Etiketler</p>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-slate-900 px-6 py-3 rounded-2xl border border-white/5 flex flex-col items-end">
-                                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">TOPLAM ADET</span>
-                                        <span className="text-2xl font-black text-emerald-400">{printQueue.reduce((acc, it) => acc + it.count, 0)}</span>
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-slate-900 px-4 py-2 rounded-xl border border-white/5 flex flex-col items-end">
+                                        <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">TOPLAM</span>
+                                        <span className="text-xl font-black text-emerald-400">{printQueue.reduce((acc, it) => acc + it.count, 0)}</span>
                                     </div>
                                     <button 
                                         onClick={() => setPrintQueue([])}
-                                        className="p-4 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 rounded-2xl border border-rose-500/20 transition-all active:scale-95"
+                                        className="p-3 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 rounded-xl border border-rose-500/20 transition-all active:scale-95"
                                         title="Listeyi Temizle"
                                     >
-                                        <Icon name="trash" className="w-6 h-6" />
+                                        <Icon name="trash" className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
                             
-                            <div className="flex-1 overflow-auto p-8 space-y-4 custom-scrollbar">
+                            <div className="flex-1 overflow-auto p-4 space-y-2 custom-scrollbar">
                                 {printQueue.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center space-y-6">
                                         <div className="w-32 h-32 bg-slate-900 rounded-full flex items-center justify-center border-4 border-dashed border-white/5">
@@ -993,27 +920,27 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     </div>
                                 ) : (
                                     printQueue.map((item, idx) => (
-                                        <div key={idx} className="bg-slate-900/60 border border-white/5 p-4 rounded-3xl flex items-center gap-6 group hover:bg-slate-900 hover:border-indigo-500/30 transition-all animate-in slide-in-from-right-4">
+                                        <div key={idx} className="bg-slate-900/60 border border-white/5 p-3 rounded-2xl flex items-center gap-4 group hover:bg-slate-900 hover:border-indigo-500/30 transition-all animate-in slide-in-from-right-4">
                                             {/* Ürün Bilgisi */}
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-3 mb-1">
-                                                    <span className="px-2 py-0.5 bg-indigo-600/20 text-indigo-400 text-[10px] font-black rounded-lg uppercase tracking-wider">{item.product.marka}</span>
-                                                    <span className="text-[10px] text-slate-500 font-mono">{item.product.barcode}</span>
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="px-1.5 py-0.5 bg-indigo-600/20 text-indigo-400 text-[9px] font-black rounded uppercase tracking-wider">{item.product.marka}</span>
+                                                    <span className="text-[9px] text-slate-500 font-mono">{item.product.barcode}</span>
                                                 </div>
-                                                <div className="text-white font-black text-lg truncate">{item.product.name}</div>
-                                                <div className="flex items-center gap-4 mt-2">
-                                                    <div className="text-[11px] text-slate-400 font-bold bg-white/5 px-2 py-1 rounded-md">MODEL: <span className="text-slate-200">{item.product.model || '-'}</span></div>
-                                                    <div className="text-[11px] text-slate-400 font-bold bg-white/5 px-2 py-1 rounded-md">RENK/BDN: <span className="text-slate-200">{item.product.renk}/{item.product.beden}</span></div>
+                                                <div className="text-white font-black text-[14px] truncate leading-tight">{item.product.name}</div>
+                                                <div className="flex items-center gap-3 mt-1">
+                                                    <div className="text-[9px] text-slate-400 font-bold bg-white/5 px-1.5 py-0.5 rounded">MODEL: <span className="text-slate-200">{item.product.model || '-'}</span></div>
+                                                    <div className="text-[9px] text-slate-400 font-bold bg-white/5 px-1.5 py-0.5 rounded">RENK/BDN: <span className="text-slate-200">{item.product.renk}/{item.product.beden}</span></div>
                                                 </div>
                                             </div>
 
                                             {/* Adet Kontrolü */}
-                                            <div className="flex items-center bg-slate-950 p-2 rounded-2xl border border-white/5 gap-2">
+                                            <div className="flex items-center bg-slate-950 p-1.5 rounded-xl border border-white/5 gap-1.5">
                                                 <button 
                                                     onClick={() => setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: Math.max(1, it.count - 1) } : it))}
-                                                    className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-rose-500 hover:text-white text-slate-400 rounded-xl transition-all"
+                                                    className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-rose-500 hover:text-white text-slate-400 rounded-lg transition-all"
                                                 >
-                                                    <Icon name="minus" className="w-5 h-5" />
+                                                    <Icon name="minus" className="w-4 h-4" />
                                                 </button>
                                                 <input 
                                                     type="number" 
@@ -1022,13 +949,13 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                         const val = parseInt(e.target.value) || 1;
                                                         setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: val } : it));
                                                     }}
-                                                    className="w-16 bg-transparent text-center text-xl font-black text-white outline-none"
+                                                    className="w-12 bg-transparent text-center text-[16px] font-black text-white outline-none"
                                                 />
                                                 <button 
                                                     onClick={() => setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: it.count + 1 } : it))}
-                                                    className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-emerald-500 hover:text-white text-slate-400 rounded-xl transition-all"
+                                                    className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-emerald-500 hover:text-white text-slate-400 rounded-lg transition-all"
                                                 >
-                                                    <Icon name="plus" className="w-5 h-5" />
+                                                    <Icon name="plus" className="w-4 h-4" />
                                                 </button>
                                             </div>
 
@@ -1063,16 +990,16 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                             <div className="flex items-center gap-2">
                                                 <button 
                                                     onClick={() => handlePrintItem(item)}
-                                                    className="px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center gap-2 font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-900/20 active:scale-95 transition-all"
+                                                    className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/20 active:scale-95 transition-all"
                                                 >
-                                                    <Icon name="printer" className="w-4 h-4" />
-                                                    ETİKETİ BAS
+                                                    <Icon name="printer" className="w-3.5 h-3.5" />
+                                                    BAS
                                                 </button>
                                                 <button 
                                                     onClick={() => setPrintQueue(prev => prev.filter((_, i) => i !== idx))}
-                                                    className="p-4 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-all"
+                                                    className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
                                                 >
-                                                    <Icon name="trash" className="w-5 h-5" />
+                                                    <Icon name="trash" className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </div>
@@ -1082,26 +1009,26 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                             {/* ALT PANEL: TOPLU İŞLEMLER */}
                             {printQueue.length > 0 && (
-                                <div className="p-8 bg-slate-900 border-t border-white/10 flex items-center justify-between">
-                                    <div className="flex items-center gap-8">
+                                <div className="p-4 bg-slate-900 border-t border-white/10 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">TOPLAM ÜRÜN</span>
-                                            <span className="text-xl font-black text-white">{printQueue.length} Çeşit</span>
+                                            <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">TOPLAM ÜRÜN</span>
+                                            <span className="text-md font-black text-white">{printQueue.length} Çeşit</span>
                                         </div>
-                                        <div className="w-px h-10 bg-white/5" />
+                                        <div className="w-px h-8 bg-white/5" />
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">TOPLAM BASKI</span>
-                                            <span className="text-xl font-black text-indigo-400">{printQueue.reduce((acc, it) => acc + it.count, 0)} Adet</span>
+                                            <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">TOPLAM BASKI</span>
+                                            <span className="text-md font-black text-indigo-400">{printQueue.reduce((acc, it) => acc + it.count, 0)} Adet</span>
                                         </div>
                                     </div>
                                     <button 
                                         onClick={handlePrint}
-                                        className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-3xl transition-all shadow-2xl shadow-indigo-900/40 flex items-center justify-center gap-4 text-lg active:scale-[0.98]"
+                                        className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-2xl shadow-indigo-900/40 flex items-center justify-center gap-3 text-[16px] active:scale-[0.98]"
                                     >
-                                        <div className="p-2 bg-white/20 rounded-xl">
-                                            <Icon name="printer" className="w-7 h-7" />
+                                        <div className="p-1.5 bg-white/20 rounded-lg">
+                                            <Icon name="printer" className="w-5 h-5" />
                                         </div>
-                                        LİSTEYİ TOPLU YAZDIR
+                                        TOPLU YAZDIR
                                     </button>
                                 </div>
                             )}
@@ -1110,26 +1037,26 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
                         {/* LEFT PANEL */}
-                        <aside className="w-[320px] flex-shrink-0 border-r border-white/10 bg-slate-900/50 flex flex-col z-50">
-                            <div className="flex p-3 gap-2 border-b border-white/5">
-                                <button onClick={() => setLeftPanel('tools')} className={`flex-1 py-3 rounded-lg text-[13px] font-black uppercase transition-all ${leftPanel === 'tools' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Araç Kutusu</button>
-                                <button onClick={() => setLeftPanel('objects')} className={`flex-1 py-3 rounded-lg text-[13px] font-black uppercase transition-all ${leftPanel === 'objects' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Katmanlar</button>
+                        <aside className="w-[240px] flex-shrink-0 border-r border-white/10 bg-slate-900/50 flex flex-col z-50">
+                            <div className="flex p-2 gap-1 border-b border-white/5">
+                                <button onClick={() => setLeftPanel('tools')} className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase transition-all ${leftPanel === 'tools' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Araçlar</button>
+                                <button onClick={() => setLeftPanel('objects')} className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase transition-all ${leftPanel === 'objects' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Katmanlar</button>
                             </div>
                             
                             <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
                                 {leftPanel === 'tools' ? (
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-2">
                                         {[
                                             { name: 'Metin', icon: 'list-bullet', type: 'text' },
                                             { name: 'Barkod', icon: 'barcode', type: 'barcode' },
                                             { name: 'QR Kod', icon: 'barcode', type: 'qr' },
                                             { name: 'Resim', icon: 'list-bullet', type: 'image' },
                                             { name: 'Çizgi', icon: 'minus', type: 'line' },
-                                            { name: 'Dikdörtgen', icon: 'plus', type: 'rect' }
+                                            { name: 'Kutu', icon: 'plus', type: 'rect' }
                                         ].map(tool => (
-                                            <button key={tool.type} onClick={() => addElement(tool.type as any)} className="flex flex-col items-center justify-center p-6 bg-slate-950/50 border border-white/5 rounded-2xl hover:border-indigo-500/50 transition-all group">
-                                                <Icon name={tool.icon as any} className="w-8 h-8 mb-3 text-slate-500 group-hover:text-indigo-400 transition-all" />
-                                                <span className="text-[12px] font-black text-slate-600 group-hover:text-slate-300 uppercase">{tool.name}</span>
+                                            <button key={tool.type} onClick={() => addElement(tool.type as any)} className="flex flex-col items-center justify-center p-4 bg-slate-950/50 border border-white/5 rounded-xl hover:border-indigo-500/50 transition-all group">
+                                                <Icon name={tool.icon as any} className="w-5 h-5 mb-2 text-slate-500 group-hover:text-indigo-400 transition-all" />
+                                                <span className="text-[10px] font-black text-slate-600 group-hover:text-slate-300 uppercase">{tool.name}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -1189,6 +1116,17 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     <div className="flex" style={{ gap: `${activeTemplate.gap * zoom}px` }}>
                                         {Array.from({ length: activeTemplate.columns || 1 }).map((_, colIndex) => (
                                             <div key={colIndex} className={`relative bg-white shadow-2xl ring-1 ring-white/10 ${colIndex > 0 ? 'opacity-40 grayscale-[0.5]' : ''}`} style={{ width: `${activeTemplate.width * zoom}px`, height: `${activeTemplate.height * zoom}px`, backgroundImage: showGrid && colIndex === 0 ? `linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)` : 'none', backgroundSize: `${5 * zoom}px ${5 * zoom}px` }}>
+                                                {/* Ortaya Hizalama Kılavuzları */}
+                                                {isDragging && colIndex === 0 && dragState && (
+                                                    <>
+                                                        {Math.abs(dragState.x - (activeTemplate.width - dragState.width) / 2) < 0.1 && (
+                                                            <div className="absolute top-0 bottom-0 border-l border-indigo-500/50 border-dashed z-[100]" style={{ left: '50%', transform: 'translateX(-50%)' }} />
+                                                        )}
+                                                        {Math.abs(dragState.y - (activeTemplate.height - dragState.height) / 2) < 0.1 && (
+                                                            <div className="absolute left-0 right-0 border-t border-indigo-500/50 border-dashed z-[100]" style={{ top: '50%', transform: 'translateY(-50%)' }} />
+                                                        )}
+                                                    </>
+                                                )}
                                                 {activeTemplate.elements.map(el => {
                                                     const isCurrentActive = colIndex === 0 && (isDragging || isResizing) && selectedElementId === el.id;
                                                     const x = isCurrentActive && dragState ? dragState.x : el.x;
@@ -1201,21 +1139,21 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                                 {renderElementContent(el, previewProduct)}
                                                                 {colIndex === 0 && selectedElementId === el.id && !el.locked && (
                                                                     <>
-                                                                        {/* 4 Köşe Resize Handle */}
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tl')} className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nwse-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tr')} className="absolute -right-1.5 -top-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nesw-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'bl')} className="absolute -left-1.5 -bottom-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nesw-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-nwse-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        
-                                                                        {/* Kenar Resize Handles */}
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 't')} className="absolute left-1/2 -top-1.5 -translate-x-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ns-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'b')} className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ns-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'l')} className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ew-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'r')} className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border border-indigo-600 rounded-sm cursor-ew-resize z-[1000] shadow-md hover:scale-125 transition-transform" />
-
-                                                                        <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-10 -translate-x-1/2 w-8 h-8 bg-indigo-600 text-white rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-xl z-[1001] hover:scale-110 transition-all border-2 border-white">
-                                                                            <Icon name="refresh" className="w-4 h-4" />
-                                                                        </div>
+                                                                         {/* 4 Köşe Resize Handle */}
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'tl')} className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'tr')} className="absolute -right-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'bl')} className="absolute -left-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         
+                                                                         {/* Kenar Resize Handles */}
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 't')} className="absolute left-1/2 -top-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'b')} className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'l')} className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'r')} className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+ 
+                                                                         <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-12 -translate-x-1/2 w-10 h-10 bg-indigo-600 text-white rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-2xl z-[1001] hover:scale-110 transition-all border-4 border-white">
+                                                                             <Icon name="refresh" className="w-5 h-5" />
+                                                                         </div>
                                                                     </>
                                                                 )}
                                                             </div>
@@ -1230,10 +1168,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                         </div>
 
                         {/* RIGHT PANEL */}
-                        <aside className="w-[320px] flex-shrink-0 flex flex-col border-l border-white/10 bg-slate-900/80 backdrop-blur-3xl z-50 shadow-2xl">
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-900">
-                                <h3 className="text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                                    <Icon name="settings" className="w-5 h-5" /> NESNE ÖZELLİKLERİ
+                        <aside className="w-[260px] flex-shrink-0 flex flex-col border-l border-white/10 bg-slate-900/80 backdrop-blur-3xl z-50 shadow-2xl">
+                            <div className="p-3 border-b border-white/10 flex items-center justify-between bg-slate-900">
+                                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] flex items-center gap-2">
+                                    <Icon name="settings" className="w-4 h-4" /> ÖZELLİKLER
                                 </h3>
                                 {selectedElement && (
                                     <button onClick={() => deleteElement(selectedElementId!)} className="p-2 text-slate-600 hover:text-rose-500 transition-all">
@@ -1241,12 +1179,12 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     </button>
                                 )}
                             </div>
-                            <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-8">
+                            <div className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-6">
                                 {selectedElement ? (
-                                    <div className="space-y-6">
-                                        <div className="flex bg-slate-950 p-1.5 rounded-xl border border-white/5 mb-6">
+                                    <div className="space-y-4">
+                                        <div className="flex bg-slate-950 p-1 rounded-lg border border-white/5 mb-4">
                                             {['general', 'style', 'data', 'symbology'].map(id => (
-                                                <button key={id} onClick={() => setPropTab(id as any)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${propTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>{id}</button>
+                                                <button key={id} onClick={() => setPropTab(id as any)} className={`flex-1 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${propTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>{id}</button>
                                             ))}
                                         </div>
                                         {propTab === 'general' && (
@@ -1258,6 +1196,20 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                             <input type="number" step="0.1" value={(selectedElement as any)[f]} onChange={e => updateElement(selectedElementId!, { [f]: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-950 border border-white/5 rounded-lg py-2 px-3 text-white text-sm font-bold" />
                                                         </div>
                                                     ))}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 mt-4">
+                                                    <button 
+                                                        onClick={() => updateElement(selectedElementId!, { x: Math.round(((activeTemplate.width - selectedElement.width) / 2) * 10) / 10 })}
+                                                        className="flex items-center justify-center gap-2 py-2 bg-slate-950 border border-white/5 rounded-lg text-[10px] font-black text-slate-400 hover:text-white hover:border-indigo-500/50 transition-all uppercase"
+                                                    >
+                                                        <Icon name="refresh" className="w-3.5 h-3.5 rotate-90" /> YATAY ORTALA
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateElement(selectedElementId!, { y: Math.round(((activeTemplate.height - selectedElement.height) / 2) * 10) / 10 })}
+                                                        className="flex items-center justify-center gap-2 py-2 bg-slate-950 border border-white/5 rounded-lg text-[10px] font-black text-slate-400 hover:text-white hover:border-indigo-500/50 transition-all uppercase"
+                                                    >
+                                                        <Icon name="refresh" className="w-3.5 h-3.5" /> DİKEY ORTALA
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -1291,6 +1243,23 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             </footer>
 
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+
+            {/* Datalists for searchable dropdowns */}
+            <datalist id="brand-list">
+                {uniqueBrands.map(b => <option key={b} value={b} />)}
+            </datalist>
+            <datalist id="model-list">
+                {uniqueModels.map(m => <option key={m} value={m} />)}
+            </datalist>
+            <datalist id="color-list">
+                {uniqueColors.map(c => <option key={c} value={c} />)}
+            </datalist>
+            <datalist id="size-list">
+                {uniqueSizes.map(s => <option key={s} value={s} />)}
+            </datalist>
+            <datalist id="code-list">
+                {uniqueCodes.map(c => <option key={c} value={c} />)}
+            </datalist>
 
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }

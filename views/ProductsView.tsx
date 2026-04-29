@@ -110,6 +110,7 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
     const excelMenuRef = useRef<HTMLDivElement>(null);
     const [isFabOpen, setIsFabOpen] = useState(false);
+    const [pendingExcelProducts, setPendingExcelProducts] = useState<Product[] | null>(null);
 
     const [editingCell, setEditingCell] = useState<{ barcode: string; field: 'stock' | 'buyPrice' | 'price'; isGroup?: boolean } | null>(null);
     const [editValue, setEditValue] = useState<string>('');
@@ -808,8 +809,8 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                     console.log(`[Excel] İşleme bitti. Başarılı: ${allNewProducts.length}, Atlanan: ${totalSkipped}`);
 
                     if (allNewProducts.length > 0) {
-                        onAddMultipleProducts(allNewProducts);
-                        showSuccess(`${allNewProducts.length} ürün başarıyla işlendi!`);
+                        setPendingExcelProducts(allNewProducts);
+                        showSuccess(`${allNewProducts.length} ürün analiz edildi. Listeye eklemek için 'KAYDET' butonuna tıklayın.`);
                     } else {
                         showError("Yüklenecek geçerli ürün verisi bulunamadı.");
                     }
@@ -830,6 +831,14 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
     const handleApplyFilters = (newFilters: ProductFilters) => {
         setFilters(newFilters);
         setIsFiltersOpen(false);
+    };
+
+    const handleSavePendingExcel = () => {
+        if (pendingExcelProducts && pendingExcelProducts.length > 0) {
+            onAddMultipleProducts(pendingExcelProducts);
+            showSuccess(`${pendingExcelProducts.length} ürün başarıyla kaydedildi.`);
+            setPendingExcelProducts(null);
+        }
     };
 
     const handleSaveAndCloseAddModal = (productsToAdd: Product[]) => {
@@ -1295,6 +1304,17 @@ const ProductsView: React.FC<ProductsViewProps> = (props) => {
                                 </div>
                             )}
                         </div>
+
+                        {pendingExcelProducts && (
+                            <button
+                                onClick={handleSavePendingExcel}
+                                className="h-9 px-5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-900/20 transition-all animate-pulse flex items-center gap-2 border border-rose-400/30"
+                            >
+                                <Icon name="check-circle" className="w-4 h-4" />
+                                KAYDET ({pendingExcelProducts.length})
+                            </button>
+                        )}
+
 
                         <div className="relative" ref={columnManagerRef}>
                             <button onClick={() => setIsColumnManagerOpen(!isColumnManagerOpen)} className={`h-9 w-9 flex items-center justify-center border rounded-xl transition-all ${isColumnManagerOpen ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}>
