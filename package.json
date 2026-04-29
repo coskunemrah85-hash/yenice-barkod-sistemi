@@ -1,7 +1,7 @@
 {
   "name": "yenice-ic-giyim-barkod",
   "private": true,
-  "version": "2.2.4",
+  "version": "2.2.5",
   "type": "module",
   "description": "Yenice Barkod ve Stok Takip Sistemi",
   "repository": {
@@ -40,8 +40,8 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.2",
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^30.5.1",
+    "electron-builder": "^25.1.8",
     "firebase-tools": "^15.15.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
