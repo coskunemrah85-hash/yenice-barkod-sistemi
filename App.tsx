@@ -377,13 +377,12 @@ const App: React.FC = () => {
   }, [companyInfo.appTitle]);
 
   const navigateTo = useCallback((view: View, label: string, icon: TabIcon, payload?: any) => {
-    console.log('Navigating to:', view, label);
-    setOpenTabs(prevTabs => {
-        if (prevTabs.some(tab => tab.id === view)) {
-            return prevTabs;
-        }
-        return [...prevTabs, { id: view, label, icon, payload }];
+    // Ensure tab exists first
+    setOpenTabs(prev => {
+        if (prev.some(t => t.id === view)) return prev;
+        return [...prev, { id: view, label, icon, payload }];
     });
+    // Switch to it
     setActiveTabId(view);
   }, []);
 
@@ -1235,272 +1234,283 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
-    const definitions = { brands, models, colors, sizes, groups };
-    const activeTab = openTabs.find(tab => tab.id === activeTabId) || openTabs[0] || { id: View.DASHBOARD, payload: undefined };
-    const viewId = activeTab.id;
-    const viewPayload = activeTab.payload;
+    try {
+      const definitions = { brands, models, colors, sizes, groups };
+      const activeTab = openTabs.find(tab => tab.id === activeTabId);
+      const viewId = activeTab ? activeTab.id : activeTabId;
+      const viewPayload = activeTab?.payload;
 
-    console.log('Rendering View:', viewId);
-    switch (viewId) {
-      case View.SALE:
-        return <SaleView 
-            products={products} 
-            onSaleComplete={addSaleRecord} 
-            suspendedSales={suspendedSales}
-            setSuspendedSales={setSuspendedSales}
-            currentSale={currentSale}
-            setCurrentSale={setCurrentSale}
-            updateProductPrice={updateProductPrice}
-            updatePricesByAnaStokKodu={updatePricesByAnaStokKodu}
+      console.log('Rendering View:', viewId);
+      switch (viewId) {
+        case View.SALE:
+          return <SaleView 
+              products={products} 
+              onSaleComplete={addSaleRecord} 
+              suspendedSales={suspendedSales}
+              setSuspendedSales={setSuspendedSales}
+              currentSale={currentSale}
+              setCurrentSale={setCurrentSale}
+              updateProductPrice={updateProductPrice}
+              updatePricesByAnaStokKodu={updatePricesByAnaStokKodu}
+              companyInfo={companyInfo}
+              customers={customers}
+              onAddCustomer={handleAddCustomer}
+          />;
+        case View.RETURN:
+          return <ReturnView 
+            products={products}
+            onReturnComplete={addReturnRecord}
             companyInfo={companyInfo}
-            customers={customers}
-            onAddCustomer={handleAddCustomer}
-        />;
-      case View.RETURN:
-        return <ReturnView 
-          products={products}
-          onReturnComplete={addReturnRecord}
-          companyInfo={companyInfo}
-          currentReturn={currentReturn}
-          setCurrentReturn={setCurrentReturn}
-        />;
-      case View.PRODUCTS:
-        return <ProductsView 
-            products={products} 
+            currentReturn={currentReturn}
+            setCurrentReturn={setCurrentReturn}
+          />;
+        case View.PRODUCTS:
+          return <ProductsView 
+              products={products} 
+              suppliers={suppliers}
+              salesHistory={salesHistory}
+              onAddProduct={handleAddProduct}
+              onAddMultipleProducts={handleAddMultipleProducts}
+              onStartAiTask={handleStartAiTask}
+              definitions={definitions}
+              onDeleteProduct={handleDeleteProduct}
+              onRestoreProduct={handleRestoreProduct}
+              onUpdateProductPrice={updateProductPrice}
+              onUpdateProductBuyPrice={updateProductBuyPrice}
+              onUpdateProduct={handleUpdateProduct}
+              onUpdateProductStock={handleUpdateProductStock}
+              onBulkUpdateProducts={handleBulkUpdateProducts}
+              onAddDefinition={handleQuickAddDefinition}
+              onMinimizeTask={toggleTaskMinimize}
+              restoreSignal={restoreAddProductSignal}
+              restoreEditSignal={restoreEditSignal}
+              restoreEditData={restoreEditData}
+              companyInfo={companyInfo}
+              persistenceState={pvState}
+              setPersistenceState={setPvState}
+          />;
+        case View.REPORTS:
+          return <ReportsView 
+              salesHistory={salesHistory} 
+              products={products} 
+              purchaseHistory={purchaseHistory}
+              paymentHistory={paymentHistory}
+              returnHistory={returnHistory}
+              suppliers={suppliers}
+              customers={customers}
+              endOfDayHistory={endOfDayHistory}
+              addEndOfDayRecord={addEndOfDayRecord}
+              initialTab={viewPayload?.initialTab}
+              companyInfo={companyInfo}
+          />;
+        case View.DEFINITIONS:
+          return <DefinitionsView 
+              definitions={definitions}
+              suppliers={suppliers}
+              customers={customers}
+              products={products}
+              companyInfo={companyInfo}
+              onUpdateBrands={handleUpdateBrands}
+              onUpdateModels={handleUpdateModels}
+              onUpdateColors={handleUpdateColors}
+              onUpdateSizes={handleUpdateSizes}
+              onUpdateGroups={handleUpdateGroups}
+              onUpdateSuppliers={handleUpdateSuppliers}
+              onUpdateCustomers={handleUpdateCustomers}
+              onStartAiSupplierTask={handleStartAiSupplierTask}
+          />;
+        case View.PURCHASE:
+          return <PurchaseView 
+              products={products}
+              suppliers={suppliers}
+              salesHistory={salesHistory}
+              missingLists={missingLists}
+              onAddMissingList={addMissingListRecord}
+              onPurchaseComplete={addPurchaseRecord}
+              onUpdateProductPrice={updateProductPrice}
+              onUpdateProductBuyPrice={updateProductBuyPrice}
+              currentPurchase={currentPurchase}
+              setCurrentPurchase={setCurrentPurchase}
+              definitions={definitions}
+              onUpdateBrands={handleUpdateBrands}
+              onUpdateModels={handleUpdateModels}
+              onUpdateColors={handleUpdateColors}
+              onUpdateSizes={handleUpdateSizes}
+              onUpdateGroups={handleUpdateGroups}
+              onUpdateSuppliers={handleUpdateSuppliers}
+              companyInfo={companyInfo}
+              payload={viewPayload}
+          />;
+        case View.PURCHASE_MENU:
+          return <PurchaseMenuView 
+              onNavigate={navigateTo}
+              companyInfo={companyInfo}
+          />;
+        case View.FINANCE:
+          return <FinanceView 
             suppliers={suppliers}
-            salesHistory={salesHistory}
-            onAddProduct={handleAddProduct}
-            onAddMultipleProducts={handleAddMultipleProducts}
-            onStartAiTask={handleStartAiTask}
-            definitions={definitions}
-            onDeleteProduct={handleDeleteProduct}
-            onRestoreProduct={handleRestoreProduct}
-            onUpdateProductPrice={updateProductPrice}
-            onUpdateProductBuyPrice={updateProductBuyPrice}
-            onUpdateProduct={handleUpdateProduct}
-            onUpdateProductStock={handleUpdateProductStock}
-            onBulkUpdateProducts={handleBulkUpdateProducts}
-            onAddDefinition={handleQuickAddDefinition}
-            onMinimizeTask={toggleTaskMinimize}
-            restoreSignal={restoreAddProductSignal}
-            restoreEditSignal={restoreEditSignal}
-            restoreEditData={restoreEditData}
-            companyInfo={companyInfo}
-            persistenceState={pvState}
-            setPersistenceState={setPvState}
-        />;
-      case View.REPORTS:
-        return <ReportsView 
-            salesHistory={salesHistory} 
-            products={products} 
             purchaseHistory={purchaseHistory}
             paymentHistory={paymentHistory}
-            returnHistory={returnHistory}
-            suppliers={suppliers}
-            customers={customers}
-            endOfDayHistory={endOfDayHistory}
-            addEndOfDayRecord={addEndOfDayRecord}
-            initialTab={viewPayload?.initialTab}
+            onAddPayment={addPaymentRecord}
+            onUpdatePayment={updatePaymentRecord}
+            onDeletePayment={deletePaymentRecord}
+          />;
+         case View.USER_MANAGEMENT:
+          return <UserManagementView 
+            users={users}
+            onAddUser={handleAddUser}
+            onDeleteUser={handleDeleteUser}
+          />;
+        case View.STORAGE_MANAGEMENT:
+          return <StorageManagementView onExportData={handleExportData} onImportData={handleImportData} onResetApplication={handleResetApplication} />;
+        case View.SETTINGS:
+          return <SettingsView 
+            currentUser={currentUser!}
             companyInfo={companyInfo}
-        />;
-      case View.DEFINITIONS:
-        return <DefinitionsView 
-            definitions={definitions}
-            suppliers={suppliers}
-            customers={customers}
-            products={products}
-            companyInfo={companyInfo}
-            onUpdateBrands={handleUpdateBrands}
-            onUpdateModels={handleUpdateModels}
-            onUpdateColors={handleUpdateColors}
-            onUpdateSizes={handleUpdateSizes}
-            onUpdateGroups={handleUpdateGroups}
-            onUpdateSuppliers={handleUpdateSuppliers}
-            onUpdateCustomers={handleUpdateCustomers}
-            onStartAiSupplierTask={handleStartAiSupplierTask}
-        />;
-      case View.PURCHASE:
-        return <PurchaseView 
-            products={products}
-            suppliers={suppliers}
+            onUpdateCompanyInfo={handleUpdateCompanyInfo}
+            onCheckUpdates={checkForUpdates}
+            currentVersion={currentAppVersion}
+          />;
+         case View.REMOTE_ACCESS:
+          return <RemoteAccessView 
             salesHistory={salesHistory}
-            missingLists={missingLists}
-            onAddMissingList={addMissingListRecord}
-            onPurchaseComplete={addPurchaseRecord}
-            onUpdateProductPrice={updateProductPrice}
-            onUpdateProductBuyPrice={updateProductBuyPrice}
-            currentPurchase={currentPurchase}
-            setCurrentPurchase={setCurrentPurchase}
-            definitions={definitions}
-            onUpdateBrands={handleUpdateBrands}
-            onUpdateModels={handleUpdateModels}
-            onUpdateColors={handleUpdateColors}
-            onUpdateSizes={handleUpdateSizes}
-            onUpdateGroups={handleUpdateGroups}
-            onUpdateSuppliers={handleUpdateSuppliers}
-            companyInfo={companyInfo}
-            payload={viewPayload}
-        />;
-      case View.PURCHASE_MENU:
-        return <PurchaseMenuView 
-            onNavigate={navigateTo}
-            companyInfo={companyInfo}
-        />;
-      case View.FINANCE:
-        return <FinanceView 
-          suppliers={suppliers}
-          purchaseHistory={purchaseHistory}
-          paymentHistory={paymentHistory}
-          onAddPayment={addPaymentRecord}
-          onUpdatePayment={updatePaymentRecord}
-          onDeletePayment={deletePaymentRecord}
-        />;
-       case View.USER_MANAGEMENT:
-        return <UserManagementView 
-          users={users}
-          onAddUser={handleAddUser}
-          onDeleteUser={handleDeleteUser}
-        />;
-      case View.STORAGE_MANAGEMENT:
-        return <StorageManagementView onExportData={handleExportData} onImportData={handleImportData} onResetApplication={handleResetApplication} />;
-      case View.SETTINGS:
-        return <SettingsView 
-          currentUser={currentUser!}
-          companyInfo={companyInfo}
-          onUpdateCompanyInfo={handleUpdateCompanyInfo}
-          onCheckUpdates={checkForUpdates}
-          currentVersion={currentAppVersion}
-        />;
-       case View.REMOTE_ACCESS:
-        return <RemoteAccessView 
-          salesHistory={salesHistory}
-          products={products}
-          suspendedSales={suspendedSales}
-          onNavigate={navigateTo}
-          suppliers={suppliers}
-          localIps={localIps}
-          hostname={hostname}
-        />;
-      case View.CARI_MANAGEMENT:
-        return <CariManagementView 
-          customers={customers}
-          suppliers={suppliers}
-          onAddCustomer={(c) => setCustomers([...customers, c])}
-          onAddSupplier={(s) => setSuppliers([...suppliers, s])}
-          onUpdateCustomer={(c) => setCustomers(customers.map(item => item.id === c.id ? c : item))}
-          onUpdateSupplier={(s) => setSuppliers(suppliers.map(item => item.id === s.id ? s : item))}
-          onDeleteCustomer={(id) => setCustomers(customers.filter(item => item.id !== id))}
-          onDeleteSupplier={(id) => setSuppliers(suppliers.filter(item => item.id !== id))}
-        />;
-      case View.E_DONUSUM:
-        return <EDonusumView 
-          salesHistory={salesHistory}
-          customers={customers}
-          suppliers={suppliers}
-        />;
-      case View.STOCK_COUNT:
-        return <StockCountView 
-            products={products} 
-            onBulkStockUpdate={handleBulkStockUpdate}
-        />;
-      case View.ANALYSIS:
-        return <AnalysisView
-          salesHistory={salesHistory}
-          products={products}
-          purchaseHistory={purchaseHistory}
-          returnHistory={returnHistory}
-          paymentHistory={paymentHistory}
-          suppliers={suppliers}
-        />;
-      case View.AI_SETTINGS:
-        return <AiSettingsView 
-          onNavigate={navigateTo} 
-          companyInfo={companyInfo}
-          onUpdateCompanyInfo={setCompanyInfo}
-        />;
-      case View.AI_MENU:
-        return <AiMenuView 
-          onNavigate={navigateTo} 
-          companyInfo={companyInfo}
-          onUpdateCompanyInfo={handleUpdateCompanyInfo}
-        />;
-      case View.EXCEL_OPERATIONS:
-        return <ExcelOperationsView 
-          onNavigate={navigateTo} 
-          products={products}
-          salesHistory={salesHistory}
-          purchaseHistory={purchaseHistory}
-        />;
-      case View.AI_PRICE_UPDATE:
-        return <AiPriceUpdateView 
-          products={products}
-          onUpdateProducts={setProducts}
-          onNavigate={navigateTo}
-        />;
-      case View.CALCULATOR:
-        return <CalculatorView 
-            display={calcDisplay} setDisplay={setCalcDisplay}
-            equation={calcEquation} setEquation={setCalcEquation}
-            previousValue={calcPreviousValue} setPreviousValue={setCalcPreviousValue}
-            operator={calcOperator} setOperator={setCalcOperator}
-            history={calcHistory} setHistory={setCalcHistory}
-            rates={marketRates}
-            prevRates={prevMarketRates}
-            loadingRates={isRatesLoading}
-            onRefreshRates={fetchGlobalRates}
-        />;
-      case View.CALCULATOR_MENU:
-        return <CalculatorMenuView 
-          onNavigate={navigateTo}
-        />;
-      case View.MONEY_COUNTER:
-        return <MoneyCounterView 
-            counts={mcCounts} setCounts={setMcCounts}
-            creditCard={mcCreditCard} setCreditCard={setMcCreditCard}
-            note={mcNote} setNote={setMcNote}
-            history={mcHistory} setHistory={setMcHistory}
-        />;
-      case View.BULK_PRICE_UPDATE:
-        console.log('Rendering BulkPriceUpdateView');
-        return <BulkPriceUpdateView 
-            products={products} 
-            definitions={definitions}
-            onUpdateProducts={handleBulkUpdateProducts}
-            onNavigate={navigateTo}
-            persistenceState={bpuState}
-            setPersistenceState={setBpuState}
-        />;
-      case View.STOCK_ORDER:
-        console.log('Rendering StockOrderView');
-        return <StockOrderView 
             products={products}
+            suspendedSales={suspendedSales}
+            onNavigate={navigateTo}
             suppliers={suppliers}
-            definitions={definitions}
-            onNavigate={navigateTo}
-            orderAmounts={orderAmounts}
-            setOrderAmounts={setOrderAmounts}
-        />;
-      case View.SERIAL_LABEL:
-        return (
-          <LabelDesigner 
+            localIps={localIps}
+            hostname={hostname}
+          />;
+        case View.CARI_MANAGEMENT:
+          return <CariManagementView 
+            customers={customers}
+            suppliers={suppliers}
+            onAddCustomer={(c) => setCustomers([...customers, c])}
+            onAddSupplier={(s) => setSuppliers([...suppliers, s])}
+            onUpdateCustomer={(c) => setCustomers(customers.map(item => item.id === c.id ? c : item))}
+            onUpdateSupplier={(s) => setSuppliers(suppliers.map(item => item.id === s.id ? s : item))}
+            onDeleteCustomer={(id) => setCustomers(customers.filter(item => item.id !== id))}
+            onDeleteSupplier={(id) => setSuppliers(suppliers.filter(item => item.id !== id))}
+          />;
+        case View.E_DONUSUM:
+          return <EDonusumView 
+            salesHistory={salesHistory}
+            customers={customers}
+            suppliers={suppliers}
+          />;
+        case View.STOCK_COUNT:
+          return <StockCountView 
+              products={products} 
+              onBulkStockUpdate={handleBulkStockUpdate}
+          />;
+        case View.ANALYSIS:
+          return <AnalysisView
+            salesHistory={salesHistory}
             products={products}
-            definitions={definitions}
-            templates={labelTemplates}
-            setTemplates={setLabelTemplates}
+            purchaseHistory={purchaseHistory}
+            returnHistory={returnHistory}
+            paymentHistory={paymentHistory}
+            suppliers={suppliers}
+          />;
+        case View.AI_SETTINGS:
+          return <AiSettingsView 
+            onNavigate={navigateTo} 
             companyInfo={companyInfo}
             onUpdateCompanyInfo={setCompanyInfo}
-          />
-        );
-      case View.DASHBOARD:
-      default:
-        return <DashboardView 
+          />;
+        case View.AI_MENU:
+          return <AiMenuView 
             onNavigate={navigateTo} 
-            onOpenManual={() => setIsManualOpen(true)}
-            currentUser={currentUser!}
-            salesHistory={salesHistory}
-            products={products}
             companyInfo={companyInfo}
-        />;
+            onUpdateCompanyInfo={handleUpdateCompanyInfo}
+          />;
+        case View.EXCEL_OPERATIONS:
+          return <ExcelOperationsView 
+            onNavigate={navigateTo} 
+            products={products}
+            salesHistory={salesHistory}
+            purchaseHistory={purchaseHistory}
+          />;
+        case View.AI_PRICE_UPDATE:
+          return <AiPriceUpdateView 
+            products={products}
+            onUpdateProducts={setProducts}
+            onNavigate={navigateTo}
+          />;
+        case View.CALCULATOR:
+          return <CalculatorView 
+              display={calcDisplay} setDisplay={setCalcDisplay}
+              equation={calcEquation} setEquation={setCalcEquation}
+              previousValue={calcPreviousValue} setPreviousValue={setCalcPreviousValue}
+              operator={calcOperator} setOperator={setCalcOperator}
+              history={calcHistory} setHistory={setCalcHistory}
+              rates={marketRates}
+              prevRates={prevMarketRates}
+              loadingRates={isRatesLoading}
+              onRefreshRates={fetchGlobalRates}
+          />;
+        case View.CALCULATOR_MENU:
+          return <CalculatorMenuView 
+            onNavigate={navigateTo}
+          />;
+        case View.MONEY_COUNTER:
+          return <MoneyCounterView 
+              counts={mcCounts} setCounts={setMcCounts}
+              creditCard={mcCreditCard} setCreditCard={setMcCreditCard}
+              note={mcNote} setNote={setMcNote}
+              history={mcHistory} setHistory={setMcHistory}
+          />;
+        case View.BULK_PRICE_UPDATE:
+          console.log('Rendering BulkPriceUpdateView');
+          return <BulkPriceUpdateView 
+              products={products} 
+              definitions={definitions}
+              onUpdateProducts={handleBulkUpdateProducts}
+              onNavigate={navigateTo}
+              persistenceState={bpuState}
+              setPersistenceState={setBpuState}
+          />;
+        case View.STOCK_ORDER:
+          console.log('Rendering StockOrderView');
+          return <StockOrderView 
+              products={products}
+              suppliers={suppliers}
+              definitions={definitions}
+              onNavigate={navigateTo}
+              orderAmounts={orderAmounts}
+              setOrderAmounts={setOrderAmounts}
+          />;
+        case View.SERIAL_LABEL:
+          return (
+            <LabelDesigner 
+              products={products}
+              definitions={definitions}
+              templates={labelTemplates}
+              setTemplates={setLabelTemplates}
+              companyInfo={companyInfo}
+              onUpdateCompanyInfo={setCompanyInfo}
+            />
+          );
+        case View.DASHBOARD:
+        default:
+          return <DashboardView 
+              onNavigate={navigateTo} 
+              onOpenManual={() => setIsManualOpen(true)}
+              currentUser={currentUser!}
+              salesHistory={salesHistory}
+              products={products}
+              companyInfo={companyInfo}
+          />;
+      }
+    } catch (error) {
+      console.error('Render View Error:', error);
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+          <Icon name="exclamation-circle" className="w-12 h-12 text-rose-500" />
+          <p className="font-bold">Görünüm yüklenirken bir hata oluştu.</p>
+          <button onClick={() => setActiveTabId(View.DASHBOARD)} className="btn-primary">Gösterge Paneline Dön</button>
+        </div>
+      );
     }
   };
 
