@@ -1,7 +1,7 @@
 {
   "name": "yenice-ic-giyim-barkod",
   "private": true,
-  "version": "2.2.7",
+  "version": "2.2.8",
   "type": "module",
   "description": "Yenice Barkod ve Stok Takip Sistemi",
   "repository": {

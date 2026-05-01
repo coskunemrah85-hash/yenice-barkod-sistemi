@@ -1695,8 +1695,8 @@ const App: React.FC = () => {
         onCloseTab={handleCloseTab}
         onOpenManual={() => setIsManualOpen(true)}
       />
-      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden transform-gpu" style={{ transform: 'translateZ(0)' }} onContextMenu={handleContextMenu}>
-        <div className="w-full h-full flex flex-col will-change-transform">
+      <main className="flex-1 w-full px-2 pb-2 pt-1 overflow-hidden" onContextMenu={handleContextMenu}>
+        <div className="w-full h-full flex flex-col">
           {renderView()}
         </div>
       </main>

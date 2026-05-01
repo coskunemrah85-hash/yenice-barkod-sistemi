@@ -15,18 +15,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
   
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    const todaySales = salesHistory.filter(s => s.date.split('T')[0] === today);
-    const totalRev = todaySales.reduce((acc, s) => acc + s.total, 0);
+    const todaySales = (salesHistory || []).filter(s => s.date && s.date.split('T')[0] === today);
+    const totalRev = todaySales.reduce((acc, s) => acc + (s.total || 0), 0);
     const totalProfit = todaySales.reduce((acc, s) => {
-        const saleProfit = s.items.reduce((itemAcc, item) => {
-            const prod = products.find(p => p.barcode === item.barcode);
+        const saleProfit = (s.items || []).reduce((itemAcc, item) => {
+            const prod = (products || []).find(p => p.barcode === item.barcode);
             const buyPrice = prod?.buyPrice || 0;
-            return itemAcc + (item.price - buyPrice) * item.quantity;
+            return itemAcc + ((item.price || 0) - buyPrice) * (item.quantity || 0);
         }, 0);
         return acc + saleProfit;
     }, 0);
-    const lowStockCount = products.filter(p => !p.isDeleted && p.stock < 5).length;
-    const totalItems = products.filter(p => !p.isDeleted).length;
+    const lowStockCount = (products || []).filter(p => !p.isDeleted && (Number(p.stock) || 0) < 5).length;
+    const totalItems = (products || []).filter(p => !p.isDeleted).length;
     return { totalRev, totalProfit, lowStockCount, todaySalesCount: todaySales.length, totalItems };
   }, [salesHistory, products]);
 
@@ -57,9 +57,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
     return (
       <button 
           onClick={onClick}
-          className={`relative group bg-white hover:bg-slate-50 border border-slate-200 p-2 rounded-xl overflow-hidden text-center active:scale-[0.95] min-h-[85px] w-full flex flex-col items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-100 ease-out will-change-transform transform-gpu`}
+          className={`relative group bg-white hover:bg-slate-50 border border-slate-200 p-2 rounded-xl overflow-hidden text-center active:scale-[0.98] min-h-[85px] w-full flex flex-col items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-100 ease-out`}
       >
-          <div className="w-8 h-8 mb-1.5 group-hover:scale-110 flex items-center justify-center transition-transform duration-100 will-change-transform">
+          <div className="w-8 h-8 mb-1.5 group-hover:scale-110 flex items-center justify-center transition-transform duration-100">
               <img src={iconSrc} alt={label} className="w-full h-full object-contain drop-shadow-md" />
           </div>
           
@@ -76,7 +76,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
   };
 
   return (
-    <div className="w-full h-full bg-[#f8fafc] text-slate-900 font-sans overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6 transform-gpu" style={{ transform: 'translateZ(0)' }}>
+    <div className="w-full h-full bg-[#f8fafc] text-slate-900 font-sans overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6">
       
       <div className="grid grid-cols-12 gap-6 mb-2">
           {[
