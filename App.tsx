@@ -152,7 +152,7 @@ const App: React.FC = () => {
     phone: '',
     taxOffice: '',
     taxNumber: '',
-    darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    darkMode: false,
   });
   const [brands, setBrands] = useFirestore<Brand>('brands', []);
   const [models, setModels] = useFirestore<Model>('models', []);

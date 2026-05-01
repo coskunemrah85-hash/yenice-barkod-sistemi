@@ -74,23 +74,25 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const [filterColor, setFilterColor] = useState('');
     const [filterSize, setFilterSize] = useState('');
     const [filterCode, setFilterCode] = useState('');
-    
+
     const [itemsToPrint, setItemsToPrint] = useState<{ product: Product, count: number, templateId?: string }[]>([]);
     const [printQueue, setPrintQueue] = useState<{ product: Product, count: number, printer?: string, templateId?: string }[]>([]);
-    
+
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(templates[0]?.id || null);
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [zoom, setZoom] = useState(6); // px per mm
     const [showGrid, setShowGrid] = useState(true);
-    const [snapToGrid, setSnapToGrid] = useState(true);
-    
+    const [snapToGrid, setSnapToGrid] = useState(false);
+
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [resizeHandle, setResizeHandle] = useState<string | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-    const [dragState, setDragState] = useState<{x: number, y: number, width: number, height: number} | null>(null);
-    
     const [isRotating, setIsRotating] = useState(false);
+    const [dragState, setDragState] = useState<{ x: number, y: number, width: number, height: number, rotation: number } | null>(null);
+
+
+
     const [history, setHistory] = useState<LabelTemplate[][]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [showSaveMessage, setShowSaveMessage] = useState(false);
@@ -102,7 +104,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const mouseCoordsRef = useRef<HTMLSpanElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const requestRef = useRef<number | null>(null);
-    
+
     const [engine, setEngine] = useState<'bartender' | 'argox' | 'native'>(companyInfo.labelEngine || 'native');
     const [btwPath, setBtwPath] = useState(companyInfo.labelTemplatePath || '');
     const [appPath, setAppPath] = useState(companyInfo.labelAppPath || '');
@@ -117,7 +119,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     const saveSettings = (updates: Partial<CompanyInfo>) => {
         onUpdateCompanyInfo({ ...companyInfo, ...updates });
     };
-    
+
     const [activeTab, setActiveTab] = useState<'template' | 'form' | 'products'>('products');
     const [leftPanel, setLeftPanel] = useState<'tools' | 'objects'>('tools');
     const [propTab, setPropTab] = useState<'general' | 'style' | 'data' | 'symbology'>('general');
@@ -133,6 +135,27 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
         return activeTemplate.elements.find(e => e.id === selectedElementId) || null;
     }, [activeTemplate, selectedElementId]);
 
+    // Refs for stable event listeners (Must be after state/memo declarations)
+    const dragStateRef = useRef(dragState);
+    const isDraggingRef = useRef(isDragging);
+    const isResizingRef = useRef(isResizing);
+    const isRotatingRef = useRef(isRotating);
+    const selectedElementIdRef = useRef(selectedElementId);
+    const resizeHandleRef = useRef(resizeHandle);
+    const dragOffsetRef = useRef(dragOffset);
+    const zoomRef = useRef(zoom);
+    const activeTemplateRef = useRef(activeTemplate);
+
+    useEffect(() => { dragStateRef.current = dragState; }, [dragState]);
+    useEffect(() => { isDraggingRef.current = isDragging; }, [isDragging]);
+    useEffect(() => { isResizingRef.current = isResizing; }, [isResizing]);
+    useEffect(() => { isRotatingRef.current = isRotating; }, [isRotating]);
+    useEffect(() => { selectedElementIdRef.current = selectedElementId; }, [selectedElementId]);
+    useEffect(() => { resizeHandleRef.current = resizeHandle; }, [resizeHandle]);
+    useEffect(() => { dragOffsetRef.current = dragOffset; }, [dragOffset]);
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+    useEffect(() => { activeTemplateRef.current = activeTemplate; }, [activeTemplate]);
+
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.barcode.includes(searchQuery);
@@ -141,7 +164,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             const matchesColor = !filterColor || p.renk.toLowerCase().includes(filterColor.toLowerCase());
             const matchesSize = !filterSize || p.beden.toLowerCase().includes(filterSize.toLowerCase());
             const matchesCode = !filterCode || (p.stokKodu || '').toLowerCase().includes(filterCode.toLowerCase()) || (p.anaStokKodu || '').toLowerCase().includes(filterCode.toLowerCase());
-            
+
             return matchesSearch && matchesBrand && matchesModel && matchesColor && matchesSize && matchesCode;
         });
     }, [products, searchQuery, filterBrand, filterModel, filterColor, filterSize, filterCode]);
@@ -185,7 +208,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             });
             return newTemplates;
         });
-    }, [selectedTemplateId]);
+    }, [selectedTemplateId, setTemplates]);
 
     // Değişiklikleri tarihe kaydet (sadece sürükleme/boyutlandırma bitince veya değer değişince)
     useEffect(() => {
@@ -232,13 +255,13 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
     };
 
     const addElement = (type: ElementType, extraProps: Partial<LabelElement> = {}) => {
-        const nextZIndex = activeTemplate.elements.length > 0 
-            ? Math.max(...activeTemplate.elements.map(e => e.zIndex || 0)) + 1 
+        const nextZIndex = activeTemplate.elements.length > 0
+            ? Math.max(...activeTemplate.elements.map(e => e.zIndex || 0)) + 1
             : 1;
 
         const defaultWidth = type === 'line' ? 20 : (type === 'image' ? 20 : (type === 'barcode' ? 30 : 15));
         const defaultHeight = type === 'line' ? 0.5 : (type === 'image' ? 20 : (type === 'barcode' ? 8 : 10));
-        
+
         // Otomatik ortala (Barkod için özel hassasiyet)
         const centeredX = Math.round(((activeTemplate.width - defaultWidth) / 2) * 10) / 10;
         const centeredY = Math.round(((activeTemplate.height - defaultHeight) / 2) * 10) / 10;
@@ -360,10 +383,9 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
     const onMouseDown = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        e.preventDefault(); // Tarayıcının varsayılan hayalet sürükleme davranışını (özellikle barkod/SVG için) engeller.
         setSelectedElementId(id);
-        setIsDragging(true);
-        setIsResizing(false);
-        
+
         const el = activeTemplate.elements.find(el => el.id === id);
         if (el && canvasRef.current) {
             const labelEl = canvasRef.current.querySelector('.relative.bg-white');
@@ -371,78 +393,84 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             const rect = labelEl.getBoundingClientRect();
             const mouseX = (e.clientX - rect.left) / zoom;
             const mouseY = (e.clientY - rect.top) / zoom;
-            setDragOffset({ x: mouseX - el.x, y: mouseY - el.y });
-            setDragState({ x: el.x, y: el.y, width: el.width, height: el.height });
+
+            const offset = { x: mouseX - el.x, y: mouseY - el.y };
+            setDragOffset(offset);
+            setDragState({ x: el.x, y: el.y, width: el.width, height: el.height, rotation: el.rotation });
+            setIsDragging(true);
+            setIsResizing(false);
+            setIsRotating(false);
         }
     };
 
     const onResizeStart = (e: React.MouseEvent, id: string, handle: string) => {
         e.stopPropagation();
+        e.preventDefault();
         setSelectedElementId(id);
-        setIsResizing(true);
-        setIsDragging(false);
         setResizeHandle(handle);
-        
+
         const el = activeTemplate.elements.find(el => el.id === id);
         if (el) {
-            setDragState({ x: el.x, y: el.y, width: el.width, height: el.height });
+            setDragState({ x: el.x, y: el.y, width: el.width, height: el.height, rotation: el.rotation });
+            setIsResizing(true);
+            setIsDragging(false);
+            setIsRotating(false);
         }
     };
 
     const onRotationStart = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        e.preventDefault();
         setSelectedElementId(id);
-        setIsRotating(true);
-        setIsDragging(false);
-        setIsResizing(false);
+        const el = activeTemplate.elements.find(el => el.id === id);
+        if (el) {
+            setDragState({ x: el.x, y: el.y, width: el.width, height: el.height, rotation: el.rotation });
+            setIsRotating(true);
+            setIsDragging(false);
+            setIsResizing(false);
+        }
     };
 
     const onMouseMove = useCallback((e: MouseEvent) => {
-        if ((!isDragging && !isResizing && !isRotating) || !selectedElementId || !canvasRef.current) return;
-        
+        if (!isDraggingRef.current && !isResizingRef.current && !isRotatingRef.current) return;
+        if (!selectedElementIdRef.current || !canvasRef.current || !dragStateRef.current) return;
+
         const labelEl = canvasRef.current.querySelector('.relative.bg-white');
         if (!labelEl) return;
         const rect = labelEl.getBoundingClientRect();
-        
+
+        const currentZoom = zoomRef.current;
+        const currentActiveTemplate = activeTemplateRef.current;
+        const currentDragOffset = dragOffsetRef.current;
+        const currentDragState = dragStateRef.current;
+
         if (requestRef.current) cancelAnimationFrame(requestRef.current);
-        
+
         requestRef.current = requestAnimationFrame(() => {
-            const mouseX = (e.clientX - rect.left) / zoom;
-            const mouseY = (e.clientY - rect.top) / zoom;
-            
+            const mouseX = (e.clientX - rect.left) / currentZoom;
+            const mouseY = (e.clientY - rect.top) / currentZoom;
+
             if (mouseCoordsRef.current) {
                 mouseCoordsRef.current.innerText = `X: ${mouseX.toFixed(1)}mm Y: ${mouseY.toFixed(1)}mm`;
             }
-            
-            const precision = e.altKey ? 100 : 10;
 
-            if (isDragging && dragState) {
-                let newX = mouseX - dragOffset.x;
-                let newY = mouseY - dragOffset.y;
-                
-                // Hassas Snap ve Ortala
-                const centerX = (activeTemplate.width - dragState.width) / 2;
-                const centerY = (activeTemplate.height - dragState.height) / 2;
-                const snapTolerance = 0.5;
+            const precision = 100; // Milimetre altı hassasiyet (0.01mm)
 
-                if (Math.abs(newX - centerX) < snapTolerance && !e.altKey) newX = centerX;
-                if (Math.abs(newY - centerY) < snapTolerance && !e.altKey) newY = centerY;
+            if (isDraggingRef.current) {
+                let newX = mouseX - currentDragOffset.x;
+                let newY = mouseY - currentDragOffset.y;
 
+                // Tüm otomatik yapışma (snapping) özellikleri kaldırıldı, fare ne derse o.
                 newX = Math.round(newX * precision) / precision;
                 newY = Math.round(newY * precision) / precision;
-                
-                if (snapToGrid && !e.altKey) {
-                    newX = Math.round(newX / 0.1) * 0.1;
-                    newY = Math.round(newY / 0.1) * 0.1;
-                }
 
                 setDragState(prev => prev ? { ...prev, x: newX, y: newY } : null);
-            } else if (isResizing && resizeHandle && dragState) {
-                let { x, y, width, height } = dragState;
+            } else if (isResizingRef.current && resizeHandleRef.current) {
+                let { x, y, width, height, rotation } = currentDragState;
                 const curX = Math.round(mouseX * precision) / precision;
                 const curY = Math.round(mouseY * precision) / precision;
 
-                switch (resizeHandle) {
+                switch (resizeHandleRef.current) {
                     case 'br': width = Math.max(0.1, curX - x); height = Math.max(0.1, curY - y); break;
                     case 'tr': width = Math.max(0.1, curX - x); height = Math.max(0.1, height + (y - curY)); y = curY; break;
                     case 'bl': width = Math.max(0.1, width + (x - curX)); x = curX; height = Math.max(0.1, curY - y); break;
@@ -452,41 +480,42 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                     case 'l': width = Math.max(0.1, width + (x - curX)); x = curX; break;
                     case 't': height = Math.max(0.1, height + (y - curY)); y = curY; break;
                 }
-                setDragState({ x, y, width, height });
-            } else if (isRotating && selectedElementId) {
-                const el = activeTemplate.elements.find(e => e.id === selectedElementId);
-                if (el) {
-                    const centerX = (el.x + el.width / 2) * zoom + rect.left;
-                    const centerY = (el.y + el.height / 2) * zoom + rect.top;
-                    const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-                    let finalAngle = (angle + 90) % 360;
-                    if (snapToGrid && !e.altKey) finalAngle = Math.round(finalAngle / 15) * 15;
-                    updateElement(selectedElementId, { rotation: finalAngle });
-                }
+                setDragState({ x, y, width, height, rotation });
+            } else if (isRotatingRef.current) {
+                const centerX = (currentDragState.x + currentDragState.width / 2) * currentZoom + rect.left;
+                const centerY = (currentDragState.y + currentDragState.height / 2) * currentZoom + rect.top;
+
+                const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+                let finalAngle = (angle + 90 + 360) % 360;
+
+                // Serbest döndürme: 0.01 derece hassasiyet
+                finalAngle = Math.round(finalAngle * 100) / 100;
+
+                setDragState(prev => prev ? { ...prev, rotation: finalAngle } : null);
             }
         });
-    }, [isDragging, isResizing, isRotating, selectedElementId, dragOffset, zoom, snapToGrid, activeTemplate, resizeHandle, dragState, updateElement]);
+    }, []);
 
     const onMouseUp = useCallback(() => {
-        if ((isDragging || isResizing) && selectedElementId && dragState) {
-            const finalX = Math.round(dragState.x * 100) / 100;
-            const finalY = Math.round(dragState.y * 100) / 100;
-            const finalW = Math.round(dragState.width * 100) / 100;
-            const finalH = Math.round(dragState.height * 100) / 100;
+        const state = dragStateRef.current;
+        const id = selectedElementIdRef.current;
 
-            updateElement(selectedElementId, { 
-                x: finalX, 
-                y: finalY, 
-                width: finalW, 
-                height: finalH 
+        if ((isDraggingRef.current || isResizingRef.current || isRotatingRef.current) && id && state) {
+            updateElement(id, {
+                x: Math.round(state.x * 100) / 100,
+                y: Math.round(state.y * 100) / 100,
+                width: Math.round(state.width * 100) / 100,
+                height: Math.round(state.height * 100) / 100,
+                rotation: Math.round(state.rotation * 100) / 100
             });
         }
+
         setIsDragging(false);
         setIsResizing(false);
         setIsRotating(false);
         setResizeHandle(null);
         setDragState(null);
-    }, [isDragging, isResizing, selectedElementId, dragState, updateElement]);
+    }, [updateElement]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -511,10 +540,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                     if (e.key === 'ArrowDown') ny += step;
                     if (e.key === 'ArrowLeft') nx -= step;
                     if (e.key === 'ArrowRight') nx += step;
-                    
-                    updateElement(selectedElementId, { 
-                        x: Math.round(nx * 10) / 10, 
-                        y: Math.round(ny * 10) / 10 
+
+                    updateElement(selectedElementId, {
+                        x: Math.round(nx * 10) / 10,
+                        y: Math.round(ny * 10) / 10
                     });
                 }
             }
@@ -545,18 +574,18 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
             alert('Yazdırılacak ürün bulunamadı! Lütfen önce ürün ekleyin.');
             return;
         }
-        if (engine === 'native') { 
+        if (engine === 'native') {
             setItemsToPrint(items);
             setTimeout(() => {
                 window.print();
                 setItemsToPrint([]);
             }, 1000);
-            return; 
+            return;
         }
         if (!btwPath) return;
         const ipcRenderer = (window as any).require?.('electron')?.ipcRenderer;
         if (!ipcRenderer) return;
-        
+
         const dataToSend = items.flatMap(item => Array.from({ length: item.count }).map(() => ({
             BARKODU: item.product.barcode,
             STOKKODU: item.product.stokKodu || '',
@@ -577,13 +606,13 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
         if (el.type === 'text' || el.type === 'price' || el.type === 'brand') {
             return (
-                <div className={`w-full h-full flex items-center font-bold text-black ${el.isVertical ? 'writing-vertical' : ''}`} 
-                     style={{ 
-                        fontSize: `${el.fontSize * z}px`, 
-                        fontFamily: el.fontFamily, 
-                        textAlign: el.textAlign, 
-                        justifyContent: el.textAlign === 'center' ? 'center' : el.textAlign === 'right' ? 'flex-end' : 'flex-start' 
-                     }}>
+                <div className={`w-full h-full flex items-center font-bold text-black ${el.isVertical ? 'writing-vertical' : ''}`}
+                    style={{
+                        fontSize: `${el.fontSize * z}px`,
+                        fontFamily: el.fontFamily,
+                        textAlign: el.textAlign,
+                        justifyContent: el.textAlign === 'center' ? 'center' : el.textAlign === 'right' ? 'flex-end' : 'flex-start'
+                    }}>
                     {value}
                 </div>
             );
@@ -591,10 +620,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
         if (el.type === 'barcode' || el.type === 'qr') {
             return (
                 <div className="w-full h-full bg-white flex items-center justify-center p-1">
-                    <Barcode 
-                        value={product.barcode} 
-                        format={el.barcodeType || 'CODE128'} 
-                        displayValue={el.showHumanReadable} 
+                    <Barcode
+                        value={product.barcode}
+                        format={el.barcodeType || 'CODE128'}
+                        displayValue={el.showHumanReadable}
                         fontSize={el.fontSize}
                     />
                 </div>
@@ -696,15 +725,15 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                 {/* ROW 2: MAIN TOOLBAR */}
                 <div className="h-11 px-3 flex items-center justify-between bg-slate-900/50 backdrop-blur-md">
                     <div className="flex items-center gap-1 bg-slate-950/40 p-0.5 rounded-lg border border-white/5">
-                        <button 
-                            onClick={() => setActiveTab('products')} 
+                        <button
+                            onClick={() => setActiveTab('products')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${activeTab === 'products' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                         >
                             <Icon name="search" className="w-3.5 h-3.5" />
                             <span className="text-[11px] font-black uppercase tracking-wider">Ürün Seç</span>
                         </button>
-                        <button 
-                            onClick={() => setActiveTab('template')} 
+                        <button
+                            onClick={() => setActiveTab('template')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${activeTab === 'template' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                         >
                             <Icon name="plus" className="w-3.5 h-3.5" />
@@ -713,7 +742,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                         <div className="flex items-center bg-slate-950/50 p-1 rounded-md border border-white/10 mx-1">
                             <button onClick={() => setZoom(Math.max(2, zoom - 1))} className="p-1 hover:text-white text-slate-400 transition-all"><Icon name="minus" className="w-3 h-3" /></button>
-                            <span className="text-[10px] font-black w-8 text-center text-indigo-400">{Math.round((zoom/6) * 100)}%</span>
+                            <span className="text-[10px] font-black w-8 text-center text-indigo-400">{Math.round((zoom / 6) * 100)}%</span>
                             <button onClick={() => setZoom(Math.min(15, zoom + 1))} className="p-1 hover:text-white text-slate-400 transition-all"><Icon name="plus" className="w-3 h-3" /></button>
                         </div>
 
@@ -765,9 +794,9 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     <div className="space-y-1">
                                         <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Genel Arama</label>
                                         <div className="relative group">
-                                            <input 
-                                                type="text" 
-                                                placeholder="Ürün adı veya barkod..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Ürün adı veya barkod..."
                                                 className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none transition-all pl-8"
                                                 value={searchQuery}
                                                 onChange={e => setSearchQuery(e.target.value)}
@@ -779,10 +808,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="space-y-1">
                                             <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Marka</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 list="brand-list"
-                                                placeholder="Marka..." 
+                                                placeholder="Marka..."
                                                 className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterBrand}
                                                 onChange={e => setFilterBrand(e.target.value)}
@@ -790,10 +819,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Model</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 list="model-list"
-                                                placeholder="Model..." 
+                                                placeholder="Model..."
                                                 className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterModel}
                                                 onChange={e => setFilterModel(e.target.value)}
@@ -804,10 +833,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="space-y-1">
                                             <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Renk</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 list="color-list"
-                                                placeholder="Renk..." 
+                                                placeholder="Renk..."
                                                 className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterColor}
                                                 onChange={e => setFilterColor(e.target.value)}
@@ -815,10 +844,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Beden</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 list="size-list"
-                                                placeholder="Beden..." 
+                                                placeholder="Beden..."
                                                 className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-white focus:border-indigo-500 outline-none transition-all"
                                                 value={filterSize}
                                                 onChange={e => setFilterSize(e.target.value)}
@@ -828,10 +857,10 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                                     <div className="space-y-1">
                                         <label className="text-[9px] text-slate-500 font-black uppercase tracking-widest ml-1">Stok Kodu</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             list="code-list"
-                                            placeholder="Kod ara..." 
+                                            placeholder="Kod ara..."
                                             className="w-full bg-slate-950/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none transition-all"
                                             value={filterCode}
                                             onChange={e => setFilterCode(e.target.value)}
@@ -839,8 +868,8 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     </div>
                                 </div>
                             </div>
-                            
-                            <button 
+
+                            <button
                                 onClick={() => {
                                     setSearchQuery('');
                                     setFilterBrand('');
@@ -861,9 +890,18 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                 </div>
                                 <div className="flex-1 overflow-auto p-2 space-y-1 custom-scrollbar">
                                     {filteredProducts.map(product => (
-                                        <button 
-                                            key={product.barcode} 
-                                            onClick={() => setPrintQueue(prev => [...prev, { product, count: 1, templateId: selectedTemplateId }])}
+                                        <button
+                                            key={product.barcode}
+                                            onClick={() => setPrintQueue(prev => {
+                                                const tId = selectedTemplateId ?? undefined;
+                                                const existingIndex = prev.findIndex(item => item.product.barcode === product.barcode && item.templateId === tId);
+                                                if (existingIndex >= 0) {
+                                                    const newQueue = [...prev];
+                                                    newQueue[existingIndex] = { ...newQueue[existingIndex], count: newQueue[existingIndex].count + 1 };
+                                                    return newQueue;
+                                                }
+                                                return [...prev, { product, count: 1, templateId: tId }];
+                                            })}
                                             className="w-full p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all flex items-center gap-3 group text-left"
                                         >
                                             <div className="w-10 h-10 bg-slate-950 rounded-lg flex items-center justify-center text-slate-600 group-hover:text-indigo-400 transition-colors">
@@ -897,7 +935,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">TOPLAM</span>
                                         <span className="text-xl font-black text-emerald-400">{printQueue.reduce((acc, it) => acc + it.count, 0)}</span>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => setPrintQueue([])}
                                         className="p-3 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 rounded-xl border border-rose-500/20 transition-all active:scale-95"
                                         title="Listeyi Temizle"
@@ -906,7 +944,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="flex-1 overflow-auto p-4 space-y-2 custom-scrollbar">
                                 {printQueue.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-600 text-center space-y-6">
@@ -936,22 +974,22 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                                             {/* Adet Kontrolü */}
                                             <div className="flex items-center bg-slate-950 p-1.5 rounded-xl border border-white/5 gap-1.5">
-                                                <button 
+                                                <button
                                                     onClick={() => setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: Math.max(1, it.count - 1) } : it))}
                                                     className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-rose-500 hover:text-white text-slate-400 rounded-lg transition-all"
                                                 >
                                                     <Icon name="minus" className="w-4 h-4" />
                                                 </button>
-                                                <input 
-                                                    type="number" 
-                                                    value={item.count} 
+                                                <input
+                                                    type="number"
+                                                    value={item.count}
                                                     onChange={e => {
                                                         const val = parseInt(e.target.value) || 1;
                                                         setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: val } : it));
                                                     }}
                                                     className="w-12 bg-transparent text-center text-[16px] font-black text-white outline-none"
                                                 />
-                                                <button 
+                                                <button
                                                     onClick={() => setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, count: it.count + 1 } : it))}
                                                     className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-emerald-500 hover:text-white text-slate-400 rounded-lg transition-all"
                                                 >
@@ -964,8 +1002,8 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex flex-col">
                                                         <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest ml-1 mb-1">Şablon Seç</label>
-                                                        <select 
-                                                            value={item.templateId} 
+                                                        <select
+                                                            value={item.templateId}
                                                             onChange={e => setPrintQueue(prev => prev.map((it, i) => i === idx ? { ...it, templateId: e.target.value } : it))}
                                                             className="bg-slate-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-indigo-400 font-bold outline-none focus:border-indigo-500 transition-all min-w-[140px]"
                                                         >
@@ -974,7 +1012,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest ml-1 mb-1">Yazıcı Seç</label>
-                                                        <select 
+                                                        <select
                                                             className="bg-slate-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-slate-400 font-bold outline-none focus:border-indigo-500 transition-all min-w-[140px]"
                                                         >
                                                             <option>Varsayılan Yazıcı</option>
@@ -988,14 +1026,14 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
 
                                             {/* Etiketi Bas & Sil */}
                                             <div className="flex items-center gap-2">
-                                                <button 
+                                                <button
                                                     onClick={() => handlePrintItem(item)}
                                                     className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/20 active:scale-95 transition-all"
                                                 >
                                                     <Icon name="printer" className="w-3.5 h-3.5" />
                                                     BAS
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => setPrintQueue(prev => prev.filter((_, i) => i !== idx))}
                                                     className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
                                                 >
@@ -1021,7 +1059,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                             <span className="text-md font-black text-indigo-400">{printQueue.reduce((acc, it) => acc + it.count, 0)} Adet</span>
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={handlePrint}
                                         className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-2xl shadow-indigo-900/40 flex items-center justify-center gap-3 text-[16px] active:scale-[0.98]"
                                     >
@@ -1042,7 +1080,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                 <button onClick={() => setLeftPanel('tools')} className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase transition-all ${leftPanel === 'tools' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Araçlar</button>
                                 <button onClick={() => setLeftPanel('objects')} className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase transition-all ${leftPanel === 'objects' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}>Katmanlar</button>
                             </div>
-                            
+
                             <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
                                 {leftPanel === 'tools' ? (
                                     <div className="grid grid-cols-2 gap-2">
@@ -1062,9 +1100,9 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                     </div>
                                 ) : (
                                     <div className="space-y-1">
-                                        {activeTemplate.elements.sort((a,b) => (b.zIndex || 0) - (a.zIndex || 0)).map((el, idx) => (
-                                            <div 
-                                                key={el.id} 
+                                        {activeTemplate.elements.sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0)).map((el, idx) => (
+                                            <div
+                                                key={el.id}
                                                 onClick={() => setSelectedElementId(el.id)}
                                                 className={`group p-2 rounded-xl flex items-center gap-2 cursor-pointer transition-all border ${selectedElementId === el.id ? 'bg-indigo-600/20 border-indigo-500/30' : 'border-transparent hover:bg-white/5'}`}
                                             >
@@ -1099,8 +1137,8 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         </div>
                                     ))}
                                 </div>
-                                <div 
-                                    ref={canvasRef} 
+                                <div
+                                    ref={canvasRef}
                                     onMouseMove={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect();
                                         const rawX = (e.clientX - rect.left) / zoom;
@@ -1110,7 +1148,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                         if (mouseCoordsRef.current) {
                                             mouseCoordsRef.current.innerText = `X: ${mmX.toFixed(1)}mm Y: ${mmY.toFixed(1)}mm`;
                                         }
-                                    }} 
+                                    }}
                                     className="flex-grow overflow-auto p-20 custom-scrollbar flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"
                                 >
                                     <div className="flex" style={{ gap: `${activeTemplate.gap * zoom}px` }}>
@@ -1128,32 +1166,33 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                     </>
                                                 )}
                                                 {activeTemplate.elements.map(el => {
-                                                    const isCurrentActive = colIndex === 0 && (isDragging || isResizing) && selectedElementId === el.id;
+                                                    const isCurrentActive = colIndex === 0 && (isDragging || isResizing || isRotating) && selectedElementId === el.id;
                                                     const x = isCurrentActive && dragState ? dragState.x : el.x;
                                                     const y = isCurrentActive && dragState ? dragState.y : el.y;
                                                     const w = isCurrentActive && dragState ? dragState.width : el.width;
                                                     const h = isCurrentActive && dragState ? dragState.height : el.height;
+                                                    const rot = isCurrentActive && dragState ? dragState.rotation : el.rotation;
                                                     return (
-                                                        <div key={el.id} onMouseDown={colIndex === 0 ? (e) => onMouseDown(e, el.id) : undefined} className={`absolute ${colIndex === 0 ? 'cursor-move' : ''} transition-shadow ${colIndex === 0 && selectedElementId === el.id ? 'ring-2 ring-indigo-500 ring-offset-2 z-[999]' : ''}`} style={{ left: `${x * zoom}px`, top: `${y * zoom}px`, width: `${w * zoom}px`, height: `${h * zoom}px`, transform: `rotate(${el.rotation}deg)`, opacity: el.opacity, zIndex: el.zIndex, display: el.visible ? 'block' : 'none' }}>
+                                                        <div key={el.id} onMouseDown={colIndex === 0 ? (e) => onMouseDown(e, el.id) : undefined} className={`absolute ${colIndex === 0 ? 'cursor-move' : ''} transition-shadow ${colIndex === 0 && selectedElementId === el.id ? 'ring-2 ring-indigo-500 ring-offset-2 z-[999]' : ''}`} style={{ left: `${x * zoom}px`, top: `${y * zoom}px`, width: `${w * zoom}px`, height: `${h * zoom}px`, transform: `rotate(${rot}deg)`, opacity: el.opacity, zIndex: el.zIndex, display: el.visible ? 'block' : 'none' }}>
                                                             <div className="w-full h-full relative">
                                                                 {renderElementContent(el, previewProduct)}
                                                                 {colIndex === 0 && selectedElementId === el.id && !el.locked && (
                                                                     <>
-                                                                         {/* 4 Köşe Resize Handle */}
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'tl')} className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'tr')} className="absolute -right-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'bl')} className="absolute -left-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         
-                                                                         {/* Kenar Resize Handles */}
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 't')} className="absolute left-1/2 -top-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'b')} className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'l')} className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
-                                                                         <div onMouseDown={e => onResizeStart(e, el.id, 'r')} className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
- 
-                                                                         <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-12 -translate-x-1/2 w-10 h-10 bg-indigo-600 text-white rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-2xl z-[1001] hover:scale-110 transition-all border-4 border-white">
-                                                                             <Icon name="refresh" className="w-5 h-5" />
-                                                                         </div>
+                                                                        {/* 4 Köşe Resize Handle */}
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tl')} className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'tr')} className="absolute -right-2 -top-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'bl')} className="absolute -left-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'br')} className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+
+                                                                        {/* Kenar Resize Handles */}
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 't')} className="absolute left-1/2 -top-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'b')} className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ns-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'l')} className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+                                                                        <div onMouseDown={e => onResizeStart(e, el.id, 'r')} className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full cursor-ew-resize z-[1000] shadow-xl hover:scale-125 transition-transform" />
+
+                                                                        <div onMouseDown={e => onRotationStart(e, el.id)} className="absolute left-1/2 -top-12 -translate-x-1/2 w-10 h-10 bg-indigo-600 text-white rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center shadow-2xl z-[1001] hover:scale-110 transition-all border-4 border-white">
+                                                                            <Icon name="refresh" className="w-5 h-5" />
+                                                                        </div>
                                                                     </>
                                                                 )}
                                                             </div>
@@ -1198,13 +1237,13 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                                                     ))}
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 mt-4">
-                                                    <button 
+                                                    <button
                                                         onClick={() => updateElement(selectedElementId!, { x: Math.round(((activeTemplate.width - selectedElement.width) / 2) * 10) / 10 })}
                                                         className="flex items-center justify-center gap-2 py-2 bg-slate-950 border border-white/5 rounded-lg text-[10px] font-black text-slate-400 hover:text-white hover:border-indigo-500/50 transition-all uppercase"
                                                     >
                                                         <Icon name="refresh" className="w-3.5 h-3.5 rotate-90" /> YATAY ORTALA
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => updateElement(selectedElementId!, { y: Math.round(((activeTemplate.height - selectedElement.height) / 2) * 10) / 10 })}
                                                         className="flex items-center justify-center gap-2 py-2 bg-slate-950 border border-white/5 rounded-lg text-[10px] font-black text-slate-400 hover:text-white hover:border-indigo-500/50 transition-all uppercase"
                                                     >
@@ -1267,14 +1306,19 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6366f1; }
                 .writing-vertical { writing-mode: vertical-rl; }
+                .print-area { display: none; }
                 @media print {
                     @page { margin: 0; }
                     body { background: white !important; margin: 0 !important; padding: 0 !important; }
-                    .no-print { display: none !important; }
-                    .print-area { display: none; }
-                    @media print {
-                        .no-print { display: none !important; }
-                        .print-area { display: block !important; position: absolute; top: 0; left: 0; width: 100%; z-index: 99999; background: white; }
+                    /* Arka plandaki tüm uygulama görünümünü gizler */
+                    body * { visibility: hidden; }
+                    /* Sadece etiketleri görünür yapar */
+                    .print-area, .print-area * { visibility: visible; }
+                    .print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; z-index: 99999; background: white; margin: 0; padding: 0; }
+                    /* Çok sayfalı baskılarda kesilmeyi önler */
+                    html, body, #root, .overflow-hidden, .h-full, .h-screen {
+                        overflow: visible !important;
+                        height: auto !important;
                     }
                 }
             `}</style>
@@ -1299,7 +1343,7 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                     return Object.entries(templateGroups).map(([tid, labels]) => {
                         const template = labels[0].template;
                         const columns = template.columns || 1;
-                        
+
                         // Chunk into rows
                         const rows = [];
                         for (let i = 0; i < labels.length; i += columns) {
@@ -1307,36 +1351,36 @@ const LabelDesigner: React.FC<LabelDesignerProps> = ({ products, definitions, te
                         }
 
                         return rows.map((row, rowIdx) => (
-                            <div key={`${tid}-${rowIdx}`} 
-                                 className="flex no-print-screen" 
-                                 style={{ 
+                            <div key={`${tid}-${rowIdx}`}
+                                className="flex no-print-screen"
+                                style={{
                                     display: 'flex',
-                                    gap: `${template.gap}mm`, 
+                                    gap: `${template.gap}mm`,
                                     pageBreakAfter: 'always',
                                     width: 'max-content',
                                     background: 'white'
-                                 }}>
+                                }}>
                                 {row.map((labelInstance, colIdx) => (
-                                    <div key={colIdx} 
-                                         className="relative bg-white" 
-                                         style={{ 
-                                            width: `${template.width}mm`, 
-                                            height: `${template.height}mm`, 
+                                    <div key={colIdx}
+                                        className="relative bg-white"
+                                        style={{
+                                            width: `${template.width}mm`,
+                                            height: `${template.height}mm`,
                                             position: 'relative',
                                             overflow: 'hidden'
-                                         }}>
+                                        }}>
                                         {template.elements.map(el => (
-                                            <div key={el.id} 
-                                                 className="absolute" 
-                                                 style={{ 
-                                                    left: `${el.x}mm`, 
-                                                    top: `${el.y}mm`, 
-                                                    width: `${el.width}mm`, 
-                                                    height: `${el.height}mm`, 
+                                            <div key={el.id}
+                                                className="absolute"
+                                                style={{
+                                                    left: `${el.x}mm`,
+                                                    top: `${el.y}mm`,
+                                                    width: `${el.width}mm`,
+                                                    height: `${el.height}mm`,
                                                     transform: `rotate(${el.rotation}deg)`,
                                                     opacity: el.opacity,
                                                     zIndex: el.zIndex
-                                                 }}>
+                                                }}>
                                                 {renderElementContent(el, labelInstance.item.product, true)}
                                             </div>
                                         ))}

@@ -57,17 +57,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
     return (
       <button 
           onClick={onClick}
-          className={`relative group bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 p-2 rounded-xl overflow-hidden text-center active:scale-[0.95] min-h-[75px] w-full flex flex-col items-center justify-center shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-100 ease-out will-change-transform transform-gpu`}
+          className={`relative group bg-white hover:bg-slate-50 border border-slate-200 p-2 rounded-xl overflow-hidden text-center active:scale-[0.95] min-h-[85px] w-full flex flex-col items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-100 ease-out will-change-transform transform-gpu`}
       >
-          <div className="w-6 h-6 mb-1 group-hover:scale-105 flex items-center justify-center transition-transform duration-100 will-change-transform">
-              <img src={iconSrc} alt={label} className="w-full h-full object-contain drop-shadow-2xl" />
+          <div className="w-8 h-8 mb-1.5 group-hover:scale-110 flex items-center justify-center transition-transform duration-100 will-change-transform">
+              <img src={iconSrc} alt={label} className="w-full h-full object-contain drop-shadow-md" />
           </div>
           
           <div className="flex flex-col gap-0 relative z-10">
-              <h3 className="text-white font-black text-[8px] uppercase tracking-tight leading-tight">
+              <h3 className="text-slate-800 font-black text-[9px] uppercase tracking-tight leading-tight">
                   {label}
               </h3>
-              <p className="text-[6.5px] text-white/30 font-bold uppercase tracking-widest leading-none mt-0.5">
+              <p className="text-[7px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">
                   {sub}
               </p>
           </div>
@@ -76,7 +76,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
   };
 
   return (
-    <div className="w-full h-full bg-[#020617] text-white font-sans overflow-y-auto custom-scrollbar p-6 flex flex-col gap-4 transform-gpu" style={{ transform: 'translateZ(0)' }}>
+    <div className="w-full h-full bg-[#f8fafc] text-slate-900 font-sans overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6 transform-gpu" style={{ transform: 'translateZ(0)' }}>
       
       <div className="grid grid-cols-12 gap-6 mb-2">
           {[
@@ -87,13 +87,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
           ].map((stat, i) => {
             const iconSrc = iconMap3D[stat.icon] || iconMap3D['settings'];
             return (
-              <div key={i} className="col-span-12 sm:col-span-6 lg:col-span-3 bg-white/10 backdrop-blur-xl p-3 rounded-xl border border-white/10 shadow-md relative overflow-hidden group hover:bg-white/15 transition-all duration-150">
+              <div key={i} className="col-span-12 sm:col-span-6 lg:col-span-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-150">
                   <div className="relative z-10 flex justify-between items-center">
                       <div>
-                          <span className="text-[7.5px] font-black text-white/40 tracking-widest uppercase mb-0.5 block">{stat.label}</span>
-                          <span className="text-lg font-black text-white tabular-nums tracking-tighter">{stat.val}</span>
+                          <span className="text-[8px] font-black text-slate-400 tracking-widest uppercase mb-1 block">{stat.label}</span>
+                          <span className="text-xl font-black text-slate-900 tabular-nums tracking-tighter">{stat.val}</span>
                       </div>
-                      <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center p-1 group-hover:scale-110 transition-transform duration-150">
+                      <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center p-1.5 group-hover:scale-110 transition-transform duration-150">
                           <img src={iconSrc} className="w-full h-full object-contain" />
                       </div>
                   </div>
@@ -103,8 +103,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
       </div>
 
       <div className="flex items-center justify-between px-2">
-          <h2 className="text-[11px] font-black text-white/30 uppercase tracking-[0.4em]">Komuta Merkezi</h2>
-          <div className="h-px flex-1 bg-white/10 mx-8"></div>
+          <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.4em]">Komuta Merkezi</h2>
+          <div className="h-px flex-1 bg-slate-200 mx-8"></div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-5 pb-12">
@@ -132,9 +132,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenManual,
       </div>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
       `}</style>
     </div>
   );
